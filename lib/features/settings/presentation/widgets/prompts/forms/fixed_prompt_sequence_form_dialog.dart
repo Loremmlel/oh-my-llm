@@ -260,15 +260,15 @@ class _FixedPromptSequenceFormDialogState
               icon: const Icon(Icons.add_comment_outlined),
               label: const Text('新增步骤'),
             ),
-            OutlinedButton.icon(
+            IconButton.outlined(
               onPressed: _canMoveSelectedUp() ? () => _moveSelected(-1) : null,
               icon: const Icon(Icons.arrow_upward_rounded),
-              label: const Text('上移'),
+              tooltip: '上移',
             ),
-            OutlinedButton.icon(
+            IconButton.outlined(
               onPressed: _canMoveSelectedDown() ? () => _moveSelected(1) : null,
               icon: const Icon(Icons.arrow_downward_rounded),
-              label: const Text('下移'),
+              tooltip: '下移',
             ),
           ],
         ),

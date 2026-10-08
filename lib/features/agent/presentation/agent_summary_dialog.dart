@@ -75,133 +75,138 @@ class _SummaryManagerState extends ConsumerState<_SummaryManager> {
       ),
       content: SizedBox(
         width: AppContentWidths.readable,
-        height: 560,
-        child: ListView(
-          children: [
-            Text(
-              '正式正文 ${rounds.length} 楼 · 原文参与 ${available.length} 楼 · 已整理 ${hidden.length} 楼',
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            const Text('压缩后用摘要替代所选范围的输入记录；本地原文保留。'),
-            const SizedBox(height: AppSpacing.md),
-            if (available.isEmpty)
-              const Text('暂无可整理的正文。完成写作后可在这里继续累计压缩。')
-            else ...[
-              Text('从较早未整理的正文开始（第 ${rounds.indexOf(available.first) + 1} 楼）'),
-              const SizedBox(height: AppSpacing.sm),
-              TextField(
-                controller: _count,
-                enabled: enabled,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  labelText: '新增压缩楼数',
-                  errorText: _error,
-                ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '正式正文 ${rounds.length} 楼 · 原文参与 ${available.length} 楼 · 已整理 ${hidden.length} 楼',
               ),
               const SizedBox(height: AppSpacing.sm),
-              Wrap(
-                spacing: AppSpacing.sm,
-                runSpacing: AppSpacing.xs,
-                children: [
-                  FilledButton(
-                    onPressed: enabled ? apply : null,
-                    child: const Text('压缩并替代'),
+              const Text('压缩后用摘要替代所选范围的输入记录；本地原文保留。'),
+              const SizedBox(height: AppSpacing.md),
+              if (available.isEmpty)
+                const Text('暂无可整理的正文。完成写作后可在这里继续累计压缩。')
+              else ...[
+                Text('从较早未整理的正文开始（第 ${rounds.indexOf(available.first) + 1} 楼）'),
+                const SizedBox(height: AppSpacing.sm),
+                TextField(
+                  controller: _count,
+                  enabled: enabled,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    labelText: '新增压缩楼数',
+                    errorText: _error,
                   ),
-                ],
-              ),
-            ],
-            if (state.error.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-                child: Text(
-                  state.error,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
-              ),
-            if (summaryRun != null) ...[
-              const Divider(),
-              Text('最近总结任务 · ${agentStatusLabel(summaryRun.status)}'),
-              Text(
-                agentUsageLabel(summaryRun),
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-              if (summaryRun.error.isNotEmpty) Text(summaryRun.error),
-              if (summaryRun.status == AgentRunStatus.running)
-                const Text('正在总结，关闭窗口后任务仍会继续。'),
-              if (summaryRun.content.isNotEmpty &&
-                  summaryRun.status == AgentRunStatus.running)
-                SelectableText(summaryRun.content),
-              if (controller.retrySummaryBatch case final batch?)
-                TextButton(
-                  onPressed: enabled
-                      ? () => controller.send(summaryBatch: batch)
-                      : null,
-                  child: const Text('重试总结'),
-                ),
-            ],
-            if (batch != null) ...[
-              const Divider(),
-              Text(
-                '${range(batch)} · ${switch (batch.status) {
-                  AgentContextBatchStatus.active => '累计摘要生效',
-                  AgentContextBatchStatus.restored => '原文已恢复',
-                  AgentContextBatchStatus.invalidated => '来源失效',
-                }}',
-                style: Theme.of(context).textTheme.titleSmall,
-              ),
-              if (batch.summary.isNotEmpty) SelectableText(batch.summary),
-              ExpansionTile(
-                title: const Text('查看来源正文'),
-                children: [
-                  for (final round in state.storyRounds.reversed.where(
-                    (r) => batch.roundIds.contains(r.id),
-                  ))
-                    Padding(
-                      padding: const EdgeInsets.all(AppSpacing.sm),
-                      child: SelectableText(
-                        '${round.document.name}\n${round.document.content}',
-                      ),
-                    ),
-                ],
-              ),
-              if (batch.status != AgentContextBatchStatus.invalidated)
+                const SizedBox(height: AppSpacing.sm),
                 Wrap(
-                  spacing: AppSpacing.xs,
+                  spacing: AppSpacing.sm,
+                  runSpacing: AppSpacing.xs,
                   children: [
-                    TextButton(
-                      onPressed: enabled
-                          ? () => showDialog<void>(
-                              context: context,
-                              barrierDismissible: false,
-                              builder: (_) => _SummaryEditor(
-                                batch: batch,
-                                label: range(batch),
-                              ),
-                            )
-                          : null,
-                      child: const Text('编辑摘要'),
+                    FilledButton(
+                      onPressed: enabled ? apply : null,
+                      child: const Text('压缩并替代'),
                     ),
-                    TextButton(
-                      onPressed: enabled
-                          ? () => controller.send(summaryBatch: batch)
-                          : null,
-                      child: const Text('重新总结'),
+                  ],
+                ),
+              ],
+              if (state.error.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                  child: Text(
+                    state.error,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
                     ),
-                    if (batch.active)
-                      TextButton(
-                        onPressed: enabled
-                            ? () => controller.saveContextBatch(
-                                batch.copyWith(
-                                  status: AgentContextBatchStatus.restored,
-                                ),
-                              )
-                            : null,
-                        child: const Text('恢复全部原文'),
+                  ),
+                ),
+              if (summaryRun != null) ...[
+                const Divider(),
+                Text('最近总结任务 · ${agentStatusLabel(summaryRun.status)}'),
+                Text(
+                  agentUsageLabel(summaryRun),
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                if (summaryRun.error.isNotEmpty) Text(summaryRun.error),
+                if (summaryRun.status == AgentRunStatus.running)
+                  const Text('正在总结，关闭窗口后任务仍会继续。'),
+                if (summaryRun.content.isNotEmpty &&
+                    summaryRun.status == AgentRunStatus.running)
+                  SelectableText(summaryRun.content),
+                if (controller.retrySummaryBatch case final batch?)
+                  TextButton(
+                    onPressed: enabled
+                        ? () => controller.send(summaryBatch: batch)
+                        : null,
+                    child: const Text('重试总结'),
+                  ),
+              ],
+              if (batch != null) ...[
+                const Divider(),
+                Text(
+                  '${range(batch)} · ${switch (batch.status) {
+                    AgentContextBatchStatus.active => '累计摘要生效',
+                    AgentContextBatchStatus.restored => '原文已恢复',
+                    AgentContextBatchStatus.invalidated => '来源失效',
+                  }}',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                if (batch.summary.isNotEmpty) SelectableText(batch.summary),
+                ExpansionTile(
+                  title: const Text('查看来源正文'),
+                  children: [
+                    for (final round in state.storyRounds.reversed.where(
+                      (r) => batch.roundIds.contains(r.id),
+                    ))
+                      Padding(
+                        padding: const EdgeInsets.all(AppSpacing.sm),
+                        child: SelectableText(
+                          '${round.document.name}\n${round.document.content}',
+                        ),
                       ),
                   ],
                 ),
+                if (batch.status != AgentContextBatchStatus.invalidated)
+                  Wrap(
+                    spacing: AppSpacing.xs,
+                    children: [
+                      TextButton(
+                        onPressed: enabled
+                            ? () => showDialog<void>(
+                                context: context,
+                                barrierDismissible: false,
+                                builder: (_) => _SummaryEditor(
+                                  batch: batch,
+                                  label: range(batch),
+                                ),
+                              )
+                            : null,
+                        child: const Text('编辑摘要'),
+                      ),
+                      TextButton(
+                        onPressed: enabled
+                            ? () => controller.send(summaryBatch: batch)
+                            : null,
+                        child: const Text('重新总结'),
+                      ),
+                      if (batch.active)
+                        TextButton(
+                          onPressed: enabled
+                              ? () => controller.saveContextBatch(
+                                  batch.copyWith(
+                                    status: AgentContextBatchStatus.restored,
+                                  ),
+                                )
+                              : null,
+                          child: const Text('恢复全部原文'),
+                        ),
+                    ],
+                  ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
       actions: [

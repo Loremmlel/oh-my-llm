@@ -109,113 +109,146 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog>
       isSaving: isSaving,
       submitEnabled: _compilation.isValid,
       onSubmit: _handleSubmit,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          TextFormField(
-            key: const ValueKey('template-prompt-title-field'),
-            controller: _titleController,
-            decoration: const InputDecoration(
-              labelText: '标题',
-              hintText: '例如：翻译润色模板',
-            ),
-            validator: validateRequired,
-          ),
-          const SizedBox(height: 12),
-          TextFormField(
+      shouldScrollContent: (constraints) => constraints.maxHeight < 360,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final expand = constraints.hasBoundedHeight;
+          final editor = TextFormField(
             key: const ValueKey('template-prompt-content-field'),
             controller: _contentController,
-            minLines: 5,
-            maxLines: 10,
+            minLines: expand ? null : 5,
+            maxLines: expand ? null : 10,
+            expands: expand,
+            textAlignVertical: TextAlignVertical.top,
             decoration: const InputDecoration(
               labelText: '模板提示词',
               hintText: '请将以下{{正文}}翻译成{{目标语言}}，并保持{{语气}}。',
               alignLabelWithHint: true,
             ),
             validator: validateRequired,
-          ),
-          if (_compilation.diagnostics.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Text(
-              _formatDiagnostic(_compilation.diagnostics.first),
-              key: const ValueKey('template-prompt-compile-diagnostic'),
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
-            ),
-          ],
-          const SizedBox(height: 20),
-          Text('变量默认值', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          if (_variables.isEmpty)
-            const Text('当前模板还没有检测到任何变量。')
-          else
-            for (final variable in _variables) ...[
-              if (variable.isBody)
-                _buildBodyVariableHint(context, variable)
-              else if (variable.isNumber)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: TextFormField(
-                    key: ValueKey(
-                      'template-prompt-variable-field-${variable.name}',
-                    ),
-                    controller: _variableControllers[variable.name],
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(
-                      labelText: '${variable.name}（数字）',
-                      hintText: '默认为 1',
-                    ),
-                    validator: _validateNumberDefault,
-                  ),
-                )
-              else if (variable.isSelect)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: AppDropdownField<String>(
-                    key: ValueKey(
-                      'template-prompt-variable-field-${variable.name}',
-                    ),
-                    initialValue: variable.defaultValue,
-                    isExpanded: true,
-                    decoration: InputDecoration(
-                      labelText: '${variable.name}（单选）',
-                    ),
-                    items: [
-                      for (final option in variable.options)
-                        DropdownMenuItem(value: option, child: Text(option)),
-                    ],
-                    onChanged: (value) {
-                      if (value == null) {
-                        return;
-                      }
-                      setState(() {
-                        _variables = [
-                          for (final item in _variables)
-                            if (item.name == variable.name)
-                              item.copyWith(defaultValue: value)
-                            else
-                              item,
-                        ];
-                      });
-                    },
-                  ),
-                )
-              else
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: TextFormField(
-                    key: ValueKey(
-                      'template-prompt-variable-field-${variable.name}',
-                    ),
-                    controller: _variableControllers[variable.name],
-                    decoration: InputDecoration(
-                      labelText: variable.name,
-                      hintText: '留空则聊天页默认使用空值',
-                    ),
-                  ),
+          );
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextFormField(
+                key: const ValueKey('template-prompt-title-field'),
+                controller: _titleController,
+                decoration: const InputDecoration(
+                  labelText: '标题',
+                  hintText: '例如：翻译润色模板',
                 ),
+                validator: validateRequired,
+              ),
+              const SizedBox(height: 12),
+              if (expand) Expanded(child: editor) else editor,
+              if (_compilation.diagnostics.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  _formatDiagnostic(_compilation.diagnostics.first),
+                  key: const ValueKey('template-prompt-compile-diagnostic'),
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ],
+              const SizedBox(height: 12),
+              Builder(
+                builder: (context) {
+                  final variables = Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '变量默认值',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 8),
+                      if (_variables.isEmpty)
+                        const Text('当前模板还没有检测到任何变量。')
+                      else
+                        for (final variable in _variables) ...[
+                          if (variable.isBody)
+                            _buildBodyVariableHint(context, variable)
+                          else if (variable.isNumber)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: TextFormField(
+                                key: ValueKey(
+                                  'template-prompt-variable-field-${variable.name}',
+                                ),
+                                controller: _variableControllers[variable.name],
+                                keyboardType: TextInputType.number,
+                                decoration: InputDecoration(
+                                  labelText: '${variable.name}（数字）',
+                                  hintText: '默认为 1',
+                                ),
+                                validator: _validateNumberDefault,
+                              ),
+                            )
+                          else if (variable.isSelect)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: AppDropdownField<String>(
+                                key: ValueKey(
+                                  'template-prompt-variable-field-${variable.name}',
+                                ),
+                                initialValue: variable.defaultValue,
+                                isExpanded: true,
+                                decoration: InputDecoration(
+                                  labelText: '${variable.name}（单选）',
+                                ),
+                                items: [
+                                  for (final option in variable.options)
+                                    DropdownMenuItem(
+                                      value: option,
+                                      child: Text(option),
+                                    ),
+                                ],
+                                onChanged: (value) {
+                                  if (value == null) {
+                                    return;
+                                  }
+                                  setState(() {
+                                    _variables = [
+                                      for (final item in _variables)
+                                        if (item.name == variable.name)
+                                          item.copyWith(defaultValue: value)
+                                        else
+                                          item,
+                                    ];
+                                  });
+                                },
+                              ),
+                            )
+                          else
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: TextFormField(
+                                key: ValueKey(
+                                  'template-prompt-variable-field-${variable.name}',
+                                ),
+                                controller: _variableControllers[variable.name],
+                                decoration: InputDecoration(
+                                  labelText: variable.name,
+                                  hintText: '留空则聊天页默认使用空值',
+                                ),
+                              ),
+                            ),
+                        ],
+                    ],
+                  );
+                  if (!expand) return variables;
+                  // 默认值过多时单独滚动，正文始终保留主要编辑空间。
+                  return ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxHeight: constraints.maxHeight * 0.35,
+                    ),
+                    child: SingleChildScrollView(child: variables),
+                  );
+                },
+              ),
             ],
-        ],
+          );
+        },
       ),
     );
   }
