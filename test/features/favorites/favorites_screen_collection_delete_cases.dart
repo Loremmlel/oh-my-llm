@@ -90,7 +90,10 @@ void registerFavoritesScreenCollectionDeleteTests() {
     expect(find.text('取消').hitTestable(), findsOneWidget);
     await tester.tap(find.text('取消'));
     await settleOverlayTransition(tester);
-    expect(find.text('待删夹'), findsOneWidget);
+    expect(
+      find.descendant(of: find.byType(AppBar), matching: find.text('待删夹')),
+      findsOneWidget,
+    );
     expect(find.text('去向24'), findsNothing);
   });
 
@@ -128,7 +131,7 @@ void registerFavoritesScreenCollectionDeleteTests() {
 
     expect(find.text('待删夹'), findsNothing);
     // 去总览验证收藏已进入备用夹——通过备用夹页面验证更直接。
-    final router = GoRouter.of(tester.element(find.text('未分类')));
+    final router = GoRouter.of(tester.element(find.byType(AppBar)));
     router.go('/favorites');
     await settleRouteTransition(tester);
     await tester.tap(find.text('备用夹'));
@@ -200,7 +203,7 @@ void registerFavoritesScreenCollectionDeleteTests() {
       // 排除生产绑定，让故障注入装饰器接管收藏夹仓库。
       bindFavoritesRepositories: false,
     );
-    final router = GoRouter.of(tester.element(find.text('事务失败夹')));
+    final router = GoRouter.of(tester.element(find.byType(AppBar)));
 
     flaky.failDelete = true;
     await tester.tap(find.byTooltip('删除收藏夹'));

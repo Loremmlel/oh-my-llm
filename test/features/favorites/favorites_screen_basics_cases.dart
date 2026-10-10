@@ -139,6 +139,9 @@ void registerFavoritesScreenBasicsTests() {
       router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
       startsWith('/favorites/collections/'),
     );
-    expect(find.text('旅行计划'), findsOneWidget);
+    expect(
+      find.descendant(of: find.byType(AppBar), matching: find.text('旅行计划')),
+      findsOneWidget,
+    );
   });
 }

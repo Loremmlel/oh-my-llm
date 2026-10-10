@@ -96,11 +96,13 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
 
   /// 当前页选择集合；翻页、容量变化、搜索生效前清空。
   final Set<String> _selectedConversationIds = <String>{};
+  bool _selectionRequested = false;
 
   /// Shift 区间选择的锚点；只在当前页内有效。
   String? _selectionAnchorId;
 
-  bool get _selectionMode => _selectedConversationIds.isNotEmpty;
+  bool get _selectionMode =>
+      _selectionRequested || _selectedConversationIds.isNotEmpty;
 
   @override
   void initState() {
@@ -211,7 +213,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
       onKeyEvent: _handleKeyEvent,
       child: AppShellScaffold(
         currentDestination: AppDestination.history,
-        title: '历史对话页',
+        title: '历史对话',
         // 选择态是页面本地返回目标：系统返回优先清选择，而不是直接退回对话页。
         hasLocalBackTarget: _selectionMode,
         onLocalBack: _clearSelection,
@@ -223,6 +225,14 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                   ? HistoryToolbarMode.selection
                   : HistoryToolbarMode.search,
               searchController: _searchController,
+              onNewConversation: () async {
+                await ref
+                    .read(chatSessionsProvider.notifier)
+                    .createConversation();
+                if (context.mounted) context.push(AppDestination.chat.path);
+              },
+              onEnterSelection: () =>
+                  setState(() => _selectionRequested = true),
               selectedCount: _selectedConversationIds.length,
               hasConversations: paginationState.hasAnyConversations,
               onSearchChanged: _handleSearchChanged,
@@ -300,7 +310,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
       itemBuilder: (context, conversation) {
         return Padding(
-          padding: const EdgeInsets.only(bottom: 6),
+          padding: EdgeInsets.zero,
           child: HistoryConversationTile(
             conversation: conversation,
             selected: _selectedConversationIds.contains(conversation.id),
@@ -394,6 +404,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
 
   void _clearSelection() {
     setState(() {
+      _selectionRequested = false;
       _selectedConversationIds.clear();
       _selectionAnchorId = null;
     });
@@ -403,6 +414,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   void _prepareForWindowChange() {
     if (!_selectionMode && _selectionAnchorId == null) return;
     setState(() {
+      _selectionRequested = false;
       _selectedConversationIds.clear();
       _selectionAnchorId = null;
     });

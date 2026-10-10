@@ -100,12 +100,27 @@ class _AppPaginatedListShellState extends State<AppPaginatedListShell> {
         ),
         if (!widget.initialLoading && widget.error != null)
           _InlineErrorBanner(error: widget.error!, onRetry: widget.onRetry),
-        AppPaginationBar(
-          state: widget.paginationState,
-          onPageChanged: widget.onPageChanged,
-          onPageSizeChanged: widget.onPageSizeChanged,
-          pageSizeOptions: widget.pageSizeOptions,
-        ),
+        if (widget.paginationState.totalPages > 0)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md,
+              vertical: AppSpacing.xs,
+            ),
+            decoration: BoxDecoration(
+              border: Border(
+                top: BorderSide(
+                  color: Theme.of(context).colorScheme.outlineVariant,
+                ),
+              ),
+            ),
+            child: AppPaginationBar(
+              state: widget.paginationState,
+              onPageChanged: widget.onPageChanged,
+              onPageSizeChanged: widget.onPageSizeChanged,
+              pageSizeOptions: widget.pageSizeOptions,
+            ),
+          ),
       ],
     );
   }

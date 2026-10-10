@@ -71,6 +71,6 @@ void registerHistoryScreenSearchTests() {
     await tester.pump();
 
     expect(find.textContaining('已选择'), findsNothing);
-    expect(find.widgetWithText(FilledButton, '删除 1 项'), findsNothing);
+    expect(find.widgetWithText(TextButton, '删除 1 项'), findsNothing);
   });
 }

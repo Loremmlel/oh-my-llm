@@ -49,6 +49,19 @@ Future<void> _openRowMenu(WidgetTester tester, String actionLabel) async {
 }
 
 void registerFavoritesScreenSelectionTests() {
+  testWidgets('收藏批量选择入口保留空选择态并支持选中后退出', (tester) async {
+    await _openSystemCollection(tester, itemCount: 3);
+    await tester.tap(find.text('批量选择'));
+    await tester.pump();
+    expect(find.text('已选择 0 项'), findsOneWidget);
+    await tester.tap(find.text('问题003'));
+    await tester.pump();
+    expect(find.text('已选择 1 项'), findsOneWidget);
+    await tester.tap(find.text('退出选择'));
+    await tester.pump();
+    expect(find.text('批量选择'), findsOneWidget);
+  });
+
   testWidgets('Ctrl 加点击切换单项选择并在工具栏计数', (tester) async {
     await _openSystemCollection(tester, itemCount: 5);
 
@@ -192,7 +205,7 @@ void registerFavoritesScreenSelectionTests() {
     );
 
     // 工具栏的"移动"打开对话框（此时树上只有一个移动按钮）。
-    await tester.tap(find.widgetWithText(FilledButton, '移动'));
+    await tester.tap(find.widgetWithText(TextButton, '移动'));
     await settleOverlayTransition(tester);
 
     // 对话框内的确认按钮与工具栏同名，限定在 AlertDialog 内点击。
@@ -224,7 +237,7 @@ void registerFavoritesScreenSelectionTests() {
       modifier: LogicalKeyboardKey.controlLeft,
     );
 
-    await tester.tap(find.widgetWithText(FilledButton, '删除'));
+    await tester.tap(find.widgetWithText(TextButton, '删除'));
     await settleOverlayTransition(tester);
 
     expect(find.textContaining('将删除 2 个收藏'), findsOneWidget);

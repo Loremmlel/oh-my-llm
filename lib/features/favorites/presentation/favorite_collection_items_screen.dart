@@ -6,12 +6,14 @@ import 'package:go_router/go_router.dart';
 import 'package:oh_my_llm/app/navigation/app_destination.dart';
 import 'package:oh_my_llm/app/shell/app_shell_scaffold.dart';
 import 'package:oh_my_llm/core/constants/app_reserved_entities.dart';
+import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 import 'package:oh_my_llm/core/widgets/app_empty_state.dart';
 import 'package:oh_my_llm/core/widgets/dialogs/app_confirm_dialog.dart';
 import 'package:oh_my_llm/core/widgets/pagination/app_paginated_list_shell.dart';
 import 'package:oh_my_llm/core/widgets/pagination/app_pagination_state.dart';
 
 import '../application/collections_controller.dart';
+import '../application/favorite_source_conversation_command.dart';
 import '../application/favorite_page_window_provider.dart';
 import '../application/favorites_browse_preferences_controller.dart';
 import '../application/favorites_controller.dart';
@@ -20,6 +22,7 @@ import 'widgets/dialogs/delete_collection_dialog.dart';
 import 'widgets/dialogs/move_favorites_dialog.dart';
 import 'widgets/favorite_list_item.dart';
 import 'widgets/favorite_selection_toolbar.dart';
+import 'widgets/favorite_browse_toolbar.dart';
 
 /// 收藏夹内容页：真实分页浏览单个收藏夹内的收藏，支持多选移动与删除。
 ///
@@ -51,6 +54,7 @@ class _FavoriteCollectionItemsScreenState
     extends ConsumerState<FavoriteCollectionItemsScreen> {
   /// 当前页选择集合；窗口变化前清空，不允许跨页残留。
   final Set<String> _selectedIds = <String>{};
+  bool _selectionRequested = false;
 
   /// Shift 区间选择锚点；只在当前页内有效。
   String? _selectionAnchorId;
@@ -70,6 +74,7 @@ class _FavoriteCollectionItemsScreenState
         widget.routePage != oldWidget.routePage ||
         widget.routePageSize != oldWidget.routePageSize) {
       _selectedIds.clear();
+      _selectionRequested = false;
       _selectionAnchorId = null;
       _scheduledRouteLocation = null;
     }
@@ -146,11 +151,12 @@ class _FavoriteCollectionItemsScreenState
 
   // ── 选择 ─────────────────────────────────────────────────────────────────
 
-  bool get _selectionMode => _selectedIds.isNotEmpty;
+  bool get _selectionMode => _selectionRequested || _selectedIds.isNotEmpty;
 
   void _prepareForWindowChange() {
     if (!_selectionMode && _selectionAnchorId == null) return;
     setState(() {
+      _selectionRequested = false;
       _selectedIds.clear();
       _selectionAnchorId = null;
     });
@@ -219,6 +225,7 @@ class _FavoriteCollectionItemsScreenState
 
   void _clearSelection() {
     setState(() {
+      _selectionRequested = false;
       _selectedIds.clear();
       _selectionAnchorId = null;
     });
@@ -398,7 +405,25 @@ class _FavoriteCollectionItemsScreenState
                     onExitSelection: _clearSelection,
                   ),
                 )
-              : null,
+              : Padding(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  child: FavoriteBrowseToolbar(
+                    collections: summaries.map((s) => s.collection).toList(),
+                    collectionId: effectiveCollectionId,
+                    onCollectionChanged: (id) {
+                      _prepareForWindowChange();
+                      _replaceRouteLocation(
+                        collectionId: id,
+                        page: 1,
+                        pageSize: effectivePageSize,
+                      );
+                    },
+                    onSelect: items.isEmpty
+                        ? null
+                        : () => setState(() => _selectionRequested = true),
+                    onManage: () => context.go(AppDestination.favorites.path),
+                  ),
+                ),
           paginationState: AppPaginationState(
             currentPage: currentPage,
             pageSize: effectivePageSize,
@@ -443,7 +468,7 @@ class _FavoriteCollectionItemsScreenState
               controller: scrollController,
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
               itemCount: items.length,
-              separatorBuilder: (context, index) => const SizedBox(height: 8),
+              separatorBuilder: (context, index) => const SizedBox.shrink(),
               itemBuilder: (context, index) {
                 final favorite = items[index];
                 return FavoriteListItem(
@@ -454,6 +479,19 @@ class _FavoriteCollectionItemsScreenState
                   onSelectToggle: () => _toggleWithAnchor(favorite.id),
                   onMoveRequested: () => _moveSingle(favorite),
                   onDeleteRequested: () => _confirmDeleteSingle(favorite),
+                  onSourceRequested:
+                      (favorite.sourceConversationId ?? '').trim().isEmpty
+                      ? null
+                      : () {
+                          ref
+                              .read(favoriteSourceConversationCommandProvider)
+                              .selectSourceConversation(
+                                conversationId: favorite.sourceConversationId!,
+                                assistantMessageId:
+                                    favorite.sourceAssistantMessageId,
+                              );
+                          context.go(AppDestination.chat.path);
+                        },
                 );
               },
             );

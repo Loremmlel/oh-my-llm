@@ -30,8 +30,8 @@ class FavoriteCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Card(
-      margin: EdgeInsets.zero,
+    return Material(
+      color: Colors.transparent,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -130,14 +130,16 @@ class FavoriteCard extends StatelessWidget {
                   vertical: 8,
                 ),
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.primaryContainer.withValues(
-                    alpha: 0.5,
+                  border: Border(
+                    left: BorderSide(
+                      color: theme.colorScheme.outlineVariant,
+                      width: 2,
+                    ),
                   ),
-                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: SelectableText(
                   favorite.userMessageContent,
-                  style: theme.textTheme.bodySmall,
+                  style: theme.textTheme.bodyMedium,
                 ),
               ),
               const SizedBox(height: 8),
