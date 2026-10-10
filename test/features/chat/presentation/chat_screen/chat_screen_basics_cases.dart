@@ -337,12 +337,7 @@ void registerChatScreenBasicsTests() {
     await tester.pump();
 
     // 下拉菜单开合属 overlay 过渡。
-    await tester.tap(
-      find.ancestor(
-        of: find.text('模板提示词'),
-        matching: find.byWidgetPredicate((w) => w is DropdownButtonFormField),
-      ),
-    );
+    await tester.tap(chatTemplateSelectorFinder);
     await settleOverlayTransition(tester);
     await tester.tap(find.text('多变量模板').last);
     await settleOverlayTransition(tester);
@@ -408,24 +403,14 @@ void registerChatScreenBasicsTests() {
     }
 
     expectThinkingEnabled(true);
-    await tester.tap(
-      find.ancestor(
-        of: find.text('模型'),
-        matching: find.byWidgetPredicate((w) => w is DropdownButtonFormField),
-      ),
-    );
+    await tester.tap(chatModelSelectorFinder);
     await settleOverlayTransition(tester);
     await tester.tap(find.text('Legacy').last);
     await settleOverlayTransition(tester);
     expectThinkingEnabled(false);
 
     // 模型下拉菜单开合属 overlay 过渡。
-    await tester.tap(
-      find.ancestor(
-        of: find.text('模型'),
-        matching: find.byWidgetPredicate((w) => w is DropdownButtonFormField),
-      ),
-    );
+    await tester.tap(chatModelSelectorFinder);
     await settleOverlayTransition(tester);
     await tester.tap(find.text('DeepSeek V4 Flash').last);
     await settleOverlayTransition(tester);

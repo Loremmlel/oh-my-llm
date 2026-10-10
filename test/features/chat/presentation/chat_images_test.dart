@@ -16,6 +16,7 @@ import 'package:oh_my_llm/features/chat/application/ports/chat_image_store.dart'
 import 'package:oh_my_llm/features/chat/application/sessions/chat_sessions_controller.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
+import 'package:oh_my_llm/features/chat/presentation/widgets/composer/fields/composer_message_field.dart';
 
 import '../../../helpers/async/async_test_signals.dart';
 import '../../../helpers/async/widget_test_animation.dart';
@@ -25,6 +26,10 @@ import '../../../helpers/fixtures.dart';
 import '../../../helpers/test_harness.dart';
 
 void main() {
+  final messageField = find.descendant(
+    of: find.byType(ComposerMessageField),
+    matching: find.byType(TextField),
+  );
   late TestChatImageSource source;
   late TestChatImageStore store;
   late FakeChatGenerationClient client;
@@ -74,13 +79,13 @@ void main() {
       openedPicker = true;
       return [];
     };
-    await tester.enterText(find.widgetWithText(TextField, '正文'), '保留正文');
+    await tester.enterText(messageField, '保留正文');
     await tester.tap(find.byTooltip('添加图片'));
     await tester.pump();
     expect(openedPicker, isFalse);
     expect(find.text(unsupportedChatImageInputMessage), findsOneWidget);
     source.clipboard = (name: testChatImage.name, bytes: testImageBytes);
-    await tester.tap(find.widgetWithText(TextField, '正文'));
+    await tester.tap(messageField);
     await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
     await tester.sendKeyEvent(LogicalKeyboardKey.keyV);
     await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
@@ -100,7 +105,7 @@ void main() {
   testWidgets('关闭模型图像能力拦截已有草稿，重新开启后保留草稿可发送', (tester) async {
     final container = await pump(tester);
     await tester.tap(find.byTooltip('添加图片'));
-    await tester.enterText(find.widgetWithText(TextField, '正文'), '保留图文');
+    await tester.enterText(messageField, '保留图文');
     await tester.pump();
     final provider = container.read(llmProviderConfigsProvider).single;
     final controller = container.read(llmProviderConfigsProvider.notifier);
@@ -146,7 +151,7 @@ void main() {
     await tester.pump();
     expect(find.byTooltip('预览图片：测试图片.png'), findsNothing);
     source.clipboard = (name: testChatImage.name, bytes: testImageBytes);
-    await tester.tap(find.widgetWithText(TextField, '正文'));
+    await tester.tap(messageField);
     await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
     await tester.sendKeyEvent(LogicalKeyboardKey.keyV);
     await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
@@ -194,7 +199,7 @@ void main() {
       ),
     );
     await Clipboard.setData(const ClipboardData(text: '粘贴正文'));
-    await tester.tap(find.widgetWithText(TextField, '正文'));
+    await tester.tap(messageField);
     await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
     await tester.sendKeyEvent(LogicalKeyboardKey.keyV);
     await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
@@ -247,6 +252,8 @@ void main() {
     await tester.pump();
     final selected = Completer<List<SelectedChatImage>>();
     source.pick = () => selected.future;
+    await settleAnimatedWidgetTransition(tester);
+    await tester.ensureVisible(find.byTooltip('添加图片'));
     await tester.tap(find.byTooltip('添加图片'));
     await tester.pump();
     expect(find.text('正在处理图片…'), findsOneWidget);
@@ -255,6 +262,8 @@ void main() {
     await tester.pump();
     expect(find.byTooltip('预览图片：测试图片.png'), findsNothing);
     source.pick = () => Future.error(const FormatException('图片过大，请缩小后重试'));
+    await settleAnimatedWidgetTransition(tester);
+    await tester.ensureVisible(find.byTooltip('添加图片'));
     await tester.tap(find.byTooltip('添加图片'));
     await tester.pump();
     expect(find.text('图片过大，请缩小后重试'), findsOneWidget);

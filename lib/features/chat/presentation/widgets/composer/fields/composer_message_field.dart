@@ -41,11 +41,10 @@ class ComposerMessageField extends StatelessWidget {
             maxLines: isFocused ? 5 : 2,
             textInputAction: TextInputAction.newline,
             decoration: InputDecoration(
-              labelText: '正文',
               hintText: selectedTemplatePrompt == null
-                  ? '输入你的问题、指令或待处理内容。'
-                  : '输入要注入模板的正文内容。',
-              alignLabelWithHint: true,
+                  ? '写下你的问题或想法…'
+                  : '输入模板正文…',
+              contentPadding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
               filled: false,
               border: InputBorder.none,
               enabledBorder: InputBorder.none,

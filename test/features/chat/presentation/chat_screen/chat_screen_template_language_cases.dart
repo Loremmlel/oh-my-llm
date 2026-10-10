@@ -25,12 +25,7 @@ void _expectFieldText(Finder field, String text) {
 
 /// 通过模板下拉选择指定名称的模板（沿用既有 cases 的 dropdown finder 手法）。
 Future<void> _selectTemplate(WidgetTester tester, String title) async {
-  await tester.tap(
-    find.ancestor(
-      of: find.text('模板提示词'),
-      matching: find.byWidgetPredicate((w) => w is DropdownButtonFormField),
-    ),
-  );
+  await tester.tap(chatTemplateSelectorFinder);
   // 下拉菜单开合属 overlay 过渡。
   await settleOverlayTransition(tester);
   await tester.tap(find.text(title).last);

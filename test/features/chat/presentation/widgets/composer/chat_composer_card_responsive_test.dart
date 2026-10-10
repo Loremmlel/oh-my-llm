@@ -6,6 +6,7 @@ import 'package:oh_my_llm/features/chat/application/workspace/chat_workspace_vie
 import 'package:oh_my_llm/features/chat/presentation/widgets/composer/chat_composer_card.dart';
 import 'package:oh_my_llm/features/chat/presentation/widgets/composer/composer_helpers.dart';
 import 'package:oh_my_llm/features/chat/presentation/widgets/composer/controls/thinking_toggle.dart';
+import 'package:oh_my_llm/features/chat/presentation/widgets/composer/controls/composer_send_button.dart';
 import 'package:oh_my_llm/features/chat/presentation/widgets/workspace/chat_workspace_bindings.dart';
 
 import '../../../../../helpers/async/widget_test_animation.dart';
@@ -42,6 +43,7 @@ ChatWorkspaceComposerBindings _bindings({
   required TextEditingController controller,
   required FocusNode focusNode,
   Future<void> Function()? onOpenMessageFilter,
+  VoidCallback? onToggleComposerCollapsed,
 }) => ChatWorkspaceComposerBindings(
   messageController: controller,
   messageFocusNode: focusNode,
@@ -49,16 +51,14 @@ ChatWorkspaceComposerBindings _bindings({
   onProviderSelected: (_) {},
   onModelSelected: (_) {},
   onTemplatePromptSelected: (_) {},
-  onToggleComposerCollapsed: () {},
+  onToggleComposerCollapsed: onToggleComposerCollapsed ?? () {},
   onOpenFixedPromptSequenceRunner: () async {},
   onOpenMessageFilter: onOpenMessageFilter ?? () async {},
 );
 
 /// 以指定 formActions 父约束宽度挂载 composer。
 ///
-/// Card 默认 4px 四周 margin 会把传给内部 LayoutBuilder 的最大宽度再收窄 8px，
-/// 因此外层 SizedBox 宽度按 `constraintWidth + 8` 补回，让 `useCompactFormActions`
-/// 收到与 [constraintWidth] 完全一致的父约束，断点判定不受卡片留白干扰。
+/// 断点由输入工作区的父约束决定，不受内部边框和留白影响。
 Future<void> _pumpComposer(
   WidgetTester tester,
   double constraintWidth, {
@@ -91,7 +91,7 @@ Future<void> _pumpComposer(
           resizeToAvoidBottomInset: false,
           body: Center(
             child: SizedBox(
-              width: constraintWidth + 8,
+              width: constraintWidth,
               child: ChatComposerCard(state: state, bindings: bindings),
             ),
           ),
@@ -102,6 +102,39 @@ Future<void> _pumpComposer(
 }
 
 void main() {
+  testWidgets('校验阻止发送时禁用按钮，但运行中的停止仍然可用', (tester) async {
+    var stopped = false;
+    Future<void> pumpButton({required bool streaming}) => tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: ComposerSendButton(
+              theme: Theme.of(context),
+              isBusy: streaming,
+              isStreaming: streaming,
+              isAutoRetryWaiting: false,
+              hasModels: true,
+              onSendPressed: null,
+              onStopStreaming: () async {
+                stopped = true;
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    await pumpButton(streaming: false);
+    expect(
+      tester
+          .widget<FilledButton>(find.widgetWithText(FilledButton, '发送'))
+          .onPressed,
+      isNull,
+    );
+    await pumpButton(streaming: true);
+    await tester.tap(find.widgetWithText(FilledButton, '终止回答'));
+    expect(stopped, isTrue);
+  });
+
   testWidgets('窄屏大字号展开思考后仍可打开上下文过滤', (tester) async {
     final controller = TextEditingController();
     final focusNode = FocusNode();
@@ -123,7 +156,7 @@ void main() {
         },
       ),
     );
-    await tester.tap(find.textContaining('更多设置'));
+    await tester.tap(find.byTooltip('更多设置 · 思考关 · 重试关'));
     await settleOverlayTransition(tester);
     expect(find.text('思考强度'), findsNothing);
     await tester.tap(find.widgetWithText(ThinkingToggle, '深度思考').last);
@@ -147,21 +180,30 @@ void main() {
       final focusNode = FocusNode();
       addTearDown(controller.dispose);
       addTearDown(focusNode.dispose);
+      var collapsed = false;
       await _pumpComposer(
         tester,
         width,
         state: _composerState(),
-        bindings: _bindings(controller: controller, focusNode: focusNode),
+        bindings: _bindings(
+          controller: controller,
+          focusNode: focusNode,
+          onToggleComposerCollapsed: () {
+            collapsed = true;
+          },
+        ),
       );
 
       if (width < 680) {
         // 679：紧凑分支，摘要以「更多设置」开头。
-        expect(find.textContaining('更多设置'), findsOneWidget);
+        expect(find.byTooltip('更多设置 · 思考关 · 重试关'), findsOneWidget);
       } else {
         // 680：等号进入完整操作行。
         expect(find.text('固定顺序提示词'), findsOneWidget);
       }
       expect(tester.takeException(), isNull);
+      await tester.tap(find.byTooltip('收起输入区'));
+      expect(collapsed, isTrue);
     });
   }
 

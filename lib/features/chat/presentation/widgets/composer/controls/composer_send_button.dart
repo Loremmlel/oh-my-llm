@@ -7,7 +7,6 @@ class ComposerSendButton extends StatelessWidget {
     required this.isStreaming,
     required this.isAutoRetryWaiting,
     required this.hasModels,
-    required this.expandLabel,
     required this.onSendPressed,
     required this.onStopStreaming,
     super.key,
@@ -18,7 +17,6 @@ class ComposerSendButton extends StatelessWidget {
   final bool isStreaming;
   final bool isAutoRetryWaiting;
   final bool hasModels;
-  final bool expandLabel;
   final Future<void> Function()? onSendPressed;
   final Future<void> Function()? onStopStreaming;
 
@@ -30,18 +28,23 @@ class ComposerSendButton extends StatelessWidget {
           ? () {
               onStopStreaming?.call();
             }
-          : isBusy || !hasModels
+          : isBusy || !hasModels || onSendPressed == null
           ? null
           : () {
               onSendPressed?.call();
             },
       style: FilledButton.styleFrom(
-        minimumSize: Size(expandLabel ? 112 : 60, 40),
+        minimumSize: const Size(80, 48),
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         backgroundColor: isStopping ? theme.colorScheme.error : null,
         foregroundColor: isStopping ? theme.colorScheme.onError : null,
       ),
-      icon: Icon(isStopping ? Icons.stop_rounded : Icons.send_rounded),
+      icon: Icon(
+        isStopping ? Icons.stop_rounded : Icons.arrow_upward_rounded,
+        size: 18,
+      ),
       label: Text(isStopping ? '终止回答' : '发送'),
     );
   }
