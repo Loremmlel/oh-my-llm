@@ -19,35 +19,46 @@ class AppSideDrawer extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) => Drawer(
+        backgroundColor: Scaffold.of(context).hasEndDrawer
+            ? null
+            : Theme.of(context).colorScheme.surfaceContainer,
+        shape: Scaffold.of(context).hasEndDrawer
+            ? null
+            : const RoundedRectangleBorder(),
+        elevation: 0,
         width: width.clamp(
           0,
-          (constraints.maxWidth - AppInteractionSizes.minimumHitTarget).clamp(
-            0,
-            double.infinity,
-          ),
+          (constraints.maxWidth -
+                  (Scaffold.of(context).hasEndDrawer
+                      ? AppInteractionSizes.minimumHitTarget
+                      : 0))
+              .clamp(0, double.infinity),
         ),
         child: SafeArea(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Padding(
-                padding: const EdgeInsets.all(AppSpacing.md),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        title,
-                        style: Theme.of(context).textTheme.titleMedium,
+              if (Scaffold.of(context).hasEndDrawer)
+                Padding(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          title,
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
                       ),
-                    ),
-                    IconButton(
-                      tooltip: '关闭侧栏',
-                      onPressed: () => Scaffold.of(context).closeEndDrawer(),
-                      icon: const Icon(Icons.close),
-                    ),
-                  ],
+                      if (Scaffold.of(context).hasEndDrawer)
+                        IconButton(
+                          tooltip: '关闭侧栏',
+                          onPressed: () =>
+                              Scaffold.of(context).closeEndDrawer(),
+                          icon: const Icon(Icons.close),
+                        ),
+                    ],
+                  ),
                 ),
-              ),
               Expanded(child: child),
             ],
           ),

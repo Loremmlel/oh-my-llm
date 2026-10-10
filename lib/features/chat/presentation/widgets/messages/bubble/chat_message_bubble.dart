@@ -158,24 +158,22 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        // 窄屏（手机）直接充满只留 margin，宽屏（桌面）用百分比宽度
+        // 统一左右阅读边界，宽窗口限制行长，短消息也沿同一画布对齐。
         final isNarrow = AppBreakpoints.useFullWidthMessageBubble(
           constraints.maxWidth,
         );
         final bubbleWidth = isNarrow
             ? constraints.maxWidth - 16
-            : min(constraints.maxWidth * (isUser ? 0.65 : 0.75), 900.0);
+            : min(constraints.maxWidth - 32, AppContentWidths.chatReading);
         return Align(
-          alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+          alignment: Alignment.center,
           child: ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: bubbleWidth),
+            constraints: BoxConstraints.tightFor(width: bubbleWidth),
             child: DecoratedBox(
               decoration: BoxDecoration(
                 color: isUser
                     ? theme.colorScheme.primaryContainer
-                    : theme.colorScheme.surfaceContainerHighest.withValues(
-                        alpha: 0.55,
-                      ),
+                    : Colors.transparent,
                 borderRadius: BorderRadius.circular(AppRadii.md),
               ),
               child: Padding(

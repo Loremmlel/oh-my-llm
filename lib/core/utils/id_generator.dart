@@ -11,6 +11,7 @@ final Random _random = Random.secure();
 /// 时间戳保证单机单线程的有序性，随机后缀降低同一微秒内并发碰撞的概率。
 String generateEntityId() {
   final timestamp = DateTime.now().microsecondsSinceEpoch;
-  final suffix = _random.nextInt(1 << 32).toRadixString(16);
+  // JS 位移按 32 位截断；显式上界保持 Web 预览与原生的随机范围一致。
+  final suffix = _random.nextInt(0x100000000).toRadixString(16);
   return '$timestamp-$suffix';
 }

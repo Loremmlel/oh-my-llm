@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
@@ -15,6 +16,7 @@ import 'package:oh_my_llm/features/settings/domain/models/prompts/memory_prompt.
 import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/template_prompt.dart';
 import 'package:oh_my_llm/features/settings/presentation/settings_screen.dart';
+import 'package:oh_my_llm/features/settings/presentation/preset_editor_screen.dart';
 import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/fixed_prompt_sequence_form_dialog.dart';
 import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/memory_prompt_form_dialog.dart';
 import 'package:oh_my_llm/features/settings/presentation/widgets/providers/forms/model_config_form_dialog.dart';
@@ -71,9 +73,30 @@ Future<AppDatabase> pumpSettingsScreen(
     },
   );
 
+  final router = GoRouter(
+    initialLocation: '/settings',
+    routes: [
+      GoRoute(
+        path: '/settings',
+        builder: (_, _) => const SettingsScreen(),
+        routes: [
+          GoRoute(
+            path: 'presets/new',
+            builder: (_, _) => const PresetEditorScreen(),
+          ),
+          GoRoute(
+            path: 'presets/:presetId',
+            builder: (_, state) =>
+                PresetEditorScreen(presetId: state.pathParameters['presetId']),
+          ),
+        ],
+      ),
+    ],
+  );
+  addTearDown(router.dispose);
   return pumpTestApp(
     tester,
-    child: const SettingsScreen(),
+    router: router,
     preferences: preferences,
     database: database,
     viewportSize: size,

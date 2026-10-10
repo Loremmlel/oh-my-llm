@@ -19,6 +19,34 @@ Future<void> _openDrawer(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets('宽屏常驻历史选择会话后仍可见且保留草稿', (tester) async {
+    final db = AppDatabase.inMemory();
+    addTearDown(db.close);
+    final preferences = await TestFixtures.seedPreferences(
+      database: db,
+      conversations: [
+        TestFixtures.conversation('a', '晨间计划', DateTime(2026, 9, 18)),
+        TestFixtures.conversation('b', '夜间笔记', DateTime(2026, 9, 17)),
+      ],
+    );
+    await pumpChatScreen(
+      tester,
+      fakeClient: FakeChatGenerationClient(),
+      database: db,
+      preferences: preferences,
+    );
+    expect(find.byTooltip('打开侧边内容'), findsNothing);
+    expect(find.byTooltip('关闭侧栏'), findsNothing);
+    await tester.enterText(chatMessageComposerFinder, '保留宽屏草稿');
+    await tester.tap(find.widgetWithText(ListTile, '夜间笔记'));
+    await tester.pump();
+    expect(find.text('夜间笔记 的首条用户消息'), findsOneWidget);
+    await tester.tap(find.widgetWithText(ListTile, '晨间计划'));
+    await tester.pump();
+    expect(find.text('保留宽屏草稿'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('恢复CRLF草稿使用LF光标位置且选择文本不改写原草稿', (tester) async {
     final db = AppDatabase.inMemory();
     addTearDown(db.close);
@@ -79,6 +107,8 @@ void main() {
       database: db,
       preferences: preferences,
     );
+    tester.view.physicalSize = const Size(390, 844);
+    await tester.pump();
     await tester.enterText(chatMessageComposerFinder, '未发送草稿');
     await _openDrawer(tester);
     await tester.tap(find.widgetWithText(ListTile, '夜间笔记'));
@@ -189,6 +219,7 @@ void main() {
       fakeClient: fake,
       database: db,
       preferences: preferences,
+      size: const Size(900, 900),
     );
     await tester.tap(find.byTooltip('新建对话'));
     await tester.pump();

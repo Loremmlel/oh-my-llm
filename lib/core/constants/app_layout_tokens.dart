@@ -21,6 +21,8 @@ final class AppContentWidths {
   const AppContentWidths._();
   static const double shortField = 320;
   static const double readable = 720;
+  static const double chatReading = 900;
+  static const double workspaceSidebar = 280;
   static const double form = 900;
   static const double wide = 1200;
   static const double navigationDrawer = 304;

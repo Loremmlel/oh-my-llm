@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 import 'package:oh_my_llm/core/widgets/adaptive_grid/app_adaptive_grid.dart';
 import 'package:oh_my_llm/core/widgets/dialogs/app_confirm_dialog.dart';
@@ -567,35 +568,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     WidgetRef ref, {
     PresetPrompt? initialValue,
   }) {
-    return showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return PresetPromptFormDialog(
-          initialValue: initialValue,
-          onSubmit: (formData) async {
-            await _saveSettingsItem(
-              context,
-              isEditing: initialValue != null,
-              createdMessage: '预设 Prompt 已保存',
-              updatedMessage: '预设 Prompt 已更新',
-              onSave: () {
-                final template = PresetPrompt(
-                  id: initialValue?.id ?? generateEntityId(),
-                  name: formData.name,
-                  messages: formData.messages,
-                  syntax: formData.syntax,
-                  singleSystemPrompt: initialValue?.singleSystemPrompt ?? false,
-                  updatedAt: DateTime.now(),
-                );
-
-                return ref
-                    .read(presetPromptsProvider.notifier)
-                    .upsert(template);
-              },
-            );
-          },
-        );
-      },
+    return context.push<void>(
+      '/settings/presets/${initialValue == null ? 'new' : Uri.encodeComponent(initialValue.id)}',
     );
   }
 

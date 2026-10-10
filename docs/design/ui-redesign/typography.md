@@ -39,13 +39,13 @@ Anthropic 的历史 Styrene／Tiempos 搭配和公开指南的 Poppins／Lora �
 
 繁体、罕见汉字、外语、emoji 等继续进入明确的字体回退链。裁剪改变显示资产，不得过滤、替换或改写用户文本。系统回退在不同平台的覆盖可能不同，不能承诺任意 Unicode 字符都具有同一外观。
 
-首轮保留现有完整 Noto Sans SC 作为基准和中文后备，新增裁剪后的宋体进行对照。随后再决定是否同时裁剪黑体；体积可接受时，保留完整后备字体是有效选择，不把“所有字体都裁剪”设为硬目标。
+首轮保留现有完整 Noto Sans SC 作为基准和中文后备，并先以完整 Noto Serif SC 验证实际排版。8105 字宋体子集仍是体积优化方案，尚未生成；体积可接受时，保留完整字体是有效选择，不把“所有字体都裁剪”设为硬目标。
 
 Flutter 支持先使用主字体，再按指定的 `fontFamilyFallback` 顺序查找，最后交给平台回退；实际链路需用缺字样例核对。[Flutter 字体回退文档](https://api.flutter.dev/flutter/painting/TextStyle/fontFamilyFallback.html)
 
 ## 打包与可复现性
 
-未来引入字体时，将原始来源、版本、SHA256、许可证、字集与生成命令一并记录；发布构建使用仓库内已验证的字体产物，不在启动时从网络取字体。
+2026-10-10 已引入完整 Noto Serif SC 可变字体，来源、SHA256、大小与 OFL 许可证见 [字体资产说明](../../../assets/fonts/README.md)。字体随包加载，不在启动时从网络取字体；裁剪时再记录字集与可复现命令。
 
 使用 [fontTools subset](https://fonttools.readthedocs.io/en/latest/subset/index.html) 生成子集。固定工具版本与 Unicode 清单，保留需要的字形替换、定位和中文地区字形特性；对输出 cmap 和清单逐项校验缺字。正文文件的换行不会自动成为 `--text-file` 的保留字符，不能把样本文本扫描当作完整字符规范。
 
@@ -67,4 +67,4 @@ Noto CJK 的 [Sans 许可证](https://github.com/notofonts/noto-cjk/blob/main/Sa
 
 沿用[长文本输入调查](../../audits/2026-10-06-long-text-editors.md)中的可复现场景与现有 benchmark，比较新旧字体的长文输入和段落布局。保留 `LongTextEditingController` 的 LF 编辑边界、composing 与未修改内容保真行为。既有输入优化的旧数据只作基线线索，不能声称新字体已经具有相同性能。
 
-浏览器用于排版与风格验证；原生 Windows／Android 的性能、IME 和软键盘需另有真实证据。当前不启动原生桌面应用。本次没有下载、裁剪或替换字体，也没有执行上述字体验收。
+浏览器用于排版与风格验证；原生 Windows／Android 的性能、IME 和软键盘需另有真实证据。当前不启动原生桌面应用。已在浏览器中检查中文正文与标题、英文标签、浅／深色和宽／窄屏；未完成整个字集、原生字体回退、长文性能与真机 IME 验收，不沿用旧性能数据作为新字体结论。
