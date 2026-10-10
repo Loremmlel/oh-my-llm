@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../../application/workspace/chat_workspace_view_state.dart';
+import '../../../../application/workspace/chat_workspace_composer_state.dart';
 import '../../workspace/chat_workspace_bindings.dart';
 
 import '../composer_helpers.dart';

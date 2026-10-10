@@ -23,14 +23,6 @@ class ComposerEffortPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isActive = supportsReasoning && reasoningEnabled;
-    final backgroundColor = !supportsReasoning
-        ? theme.colorScheme.surfaceContainerLow
-        : isActive
-        ? theme.colorScheme.primaryContainer
-        : theme.colorScheme.surfaceContainerHigh;
-    final borderColor = isActive
-        ? theme.colorScheme.primary.withValues(alpha: 0.28)
-        : theme.colorScheme.outlineVariant.withValues(alpha: 0.75);
     final labelColor = isActive
         ? theme.colorScheme.onPrimaryContainer
         : theme.colorScheme.onSurfaceVariant;
@@ -48,11 +40,7 @@ class ComposerEffortPill extends StatelessWidget {
           .toList(growable: false),
       child: AnimatedContainer(
         duration: AppAnimations.quickTransition,
-        decoration: BoxDecoration(
-          color: backgroundColor,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: borderColor),
-        ),
+        decoration: BoxDecoration(borderRadius: BorderRadius.circular(4)),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         child: Row(
           mainAxisSize: MainAxisSize.min,

@@ -9,7 +9,6 @@ import 'package:oh_my_llm/core/widgets/long_text_editing_controller.dart';
 
 import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
 import 'package:oh_my_llm/core/utils/id_generator.dart';
-import 'package:oh_my_llm/core/widgets/adaptive_master_detail_layout.dart';
 
 import '../../../../domain/models/prompts/preset_prompt.dart';
 import '../../shared/settings_form_dialog_scaffold.dart';
@@ -141,39 +140,60 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
         width: 1120,
         shouldScrollContent: (constraints) =>
             constraints.maxWidth < AppBreakpoints.formMasterDetail,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (_saveError != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Text(
-                  _saveError!,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final header = Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_saveError != null)
+                  Text(
+                    _saveError!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                AppFieldGroup(
+                  children: [_buildNameField(), _buildSyntaxField()],
                 ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                  child: Divider(height: 1),
+                ),
+              ],
+            );
+            if (constraints.maxWidth < AppBreakpoints.formMasterDetail) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [header, _buildCompactLayout(context)],
+              );
+            }
+            return SizedBox(
+              height: widget.fullPage ? constraints.maxHeight : 620,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SizedBox(
+                    width: 280,
+                    child: _buildWideMasterPane(context: context),
+                  ),
+                  const VerticalDivider(width: 33),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        header,
+                        Expanded(
+                          child: _buildDetailContent(context, isWide: true),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-            AppFieldGroup(children: [_buildNameField(), _buildSyntaxField()]),
-            const SizedBox(height: 16),
-            Flexible(
-              child: AdaptiveMasterDetailLayout(
-                key: const ValueKey('preset-prompt-form-layout'), // test-key
-                breakpoint: AppBreakpoints.formMasterDetail,
-                masterWidth: 340,
-                minHeight: widget.fullPage ? double.infinity : 620,
-                compactChild: _buildCompactLayout(context),
-                master: _buildWideMasterPane(
-                  context: context,
-                  key: const ValueKey('preset-prompt-master-pane'), // test-key
-                ),
-                detail: _buildWidePane(
-                  context: context,
-                  key: const ValueKey('preset-prompt-detail-pane'), // test-key
-                  child: _buildDetailContent(context, isWide: true),
-                ),
-              ),
-            ),
-          ],
+            );
+          },
         ),
       ),
     );
@@ -186,69 +206,20 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
       children: [
         _buildMasterContent(context),
         const SizedBox(height: 16),
-        _buildCompactPane(
-          context: context,
-          key: const ValueKey('preset-prompt-detail-pane'), // test-key
-          child: _buildDetailContent(context, isWide: false),
-        ),
+        const Divider(),
+        _buildDetailContent(context, isWide: false),
       ],
     );
   }
 
-  Widget _buildWidePane({
-    required BuildContext context,
-    required Widget child,
-    required Key key,
-  }) {
-    return DecoratedBox(
-      key: key,
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest
-            .withValues(alpha: 0.24),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Padding(padding: const EdgeInsets.all(16), child: child),
-    );
-  }
-
-  Widget _buildWideMasterPane({
-    required BuildContext context,
-    required Key key,
-  }) {
-    return DecoratedBox(
-      key: key,
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest
-            .withValues(alpha: 0.24),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildMasterHeader(context),
-            const SizedBox(height: 16),
-            Expanded(child: _buildMasterListView()),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCompactPane({
-    required BuildContext context,
-    required Widget child,
-    required Key key,
-  }) {
-    return DecoratedBox(
-      key: key,
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest
-            .withValues(alpha: 0.18),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Padding(padding: const EdgeInsets.all(16), child: child),
+  Widget _buildWideMasterPane({required BuildContext context}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildMasterHeader(context),
+        const SizedBox(height: 16),
+        Expanded(child: _buildMasterListView()),
+      ],
     );
   }
 
@@ -389,11 +360,6 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
       return const Text('请先选择左侧条目。');
     }
 
-    final titleLabel = switch (selected.role) {
-      PresetPromptEditorRole.system => 'System 条目',
-      PresetPromptEditorRole.user => 'User 条目',
-      PresetPromptEditorRole.assistant => 'Assistant 条目',
-    };
     final contentField = TextField(
       key: const ValueKey('preset-prompt-content-field'), // test-key
       controller: selected.contentController,
@@ -410,19 +376,16 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(titleLabel, style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 16),
-        TextFormField(
-          key: const ValueKey('preset-prompt-title-field'), // test-key
-          controller: selected.titleController,
-          decoration: const InputDecoration(
-            labelText: '标题',
-            hintText: '例如：前置约束、最新输入前提醒、后置收尾说明',
-          ),
-        ),
-        const SizedBox(height: 12),
         AppFieldGroup(
           children: [
+            TextFormField(
+              key: const ValueKey('preset-prompt-title-field'), // test-key
+              controller: selected.titleController,
+              decoration: const InputDecoration(
+                labelText: '标题',
+                hintText: '例如：前置约束、最新输入前提醒、后置收尾说明',
+              ),
+            ),
             AppDropdownField<PresetPromptEditorRole>(
               key: const ValueKey('preset-prompt-role-field'), // test-key
               initialValue: selected.role,
@@ -477,8 +440,8 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
         if (isWide) Expanded(child: contentField) else contentField,
         const SizedBox(height: 16),
         Align(
-          alignment: Alignment.centerLeft,
-          child: OutlinedButton.icon(
+          alignment: Alignment.centerRight,
+          child: TextButton.icon(
             onPressed: () => _removeSelectedItem(),
             icon: const Icon(Icons.delete_outline_rounded),
             label: const Text('删除当前条目'),

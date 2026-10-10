@@ -7,7 +7,7 @@ import 'package:oh_my_llm/features/chat/application/composer/template_prompt_com
 import 'package:oh_my_llm/features/settings/domain/template_prompt_language/template_prompt_evaluator.dart';
 import 'package:oh_my_llm/features/settings/domain/template_prompt_language/template_prompt_program.dart';
 
-import '../../../application/workspace/chat_workspace_view_state.dart';
+import '../../../application/workspace/chat_workspace_composer_state.dart';
 import '../workspace/chat_workspace_bindings.dart';
 import 'composer_helpers.dart';
 import '../images/chat_image_strip.dart';
@@ -112,7 +112,6 @@ class ChatComposerCard extends ConsumerWidget {
   ) {
     // 是否有可用模型决定「去设置新增」还是「请先选择服务商」的提示。
     // 可选模型列表非空即等价于已配置任何模型（模型总被归入某服务商）。
-    final hasModels = state.readModel.modelConfigs.isNotEmpty;
     final selectedTemplate = state.selectedTemplatePrompt;
     return Card(
       child: LayoutBuilder(
@@ -196,57 +195,6 @@ class ChatComposerCard extends ConsumerWidget {
                           ),
                         ),
                       ),
-                    LayoutBuilder(
-                      builder: (context, fields) {
-                        final compact = AppBreakpoints.useCompactFormActions(
-                          fields.maxWidth,
-                        );
-                        final template = ComposerTemplateHeader(
-                          selectedTemplatePrompt: selectedTemplate,
-                          templatePrompts: state.readModel.templatePrompts,
-                          onTemplatePromptSelected:
-                              bindings.onTemplatePromptSelected,
-                        );
-                        final collapse = IconButton(
-                          onPressed: bindings.onToggleComposerCollapsed,
-                          tooltip: '收起输入区',
-                          icon: const Icon(Icons.keyboard_arrow_up_rounded),
-                        );
-                        final selectors = ComposerProviderModelRow(
-                          templateField: compact ? null : template,
-                          hasModels: hasModels,
-                          modelProviders: state.readModel.modelProviders,
-                          modelConfigs: state.readModel.modelConfigs,
-                          selectedProviderId:
-                              state.readModel.selectedProviderId,
-                          selectedModel: state.readModel.selectedModel,
-                          onProviderSelected: bindings.onProviderSelected,
-                          onModelSelected: bindings.onModelSelected,
-                        );
-                        if (compact) {
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Row(
-                                children: [
-                                  Expanded(child: template),
-                                  collapse,
-                                ],
-                              ),
-                              const SizedBox(height: AppSpacing.sm),
-                              selectors,
-                            ],
-                          );
-                        }
-                        return Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(child: selectors),
-                            collapse,
-                          ],
-                        );
-                      },
-                    ),
                     if (selectedTemplate != null) ...[
                       const SizedBox(height: 10),
                       // program 为 null 也并入诊断分支：不依赖「编译失败必有
@@ -291,31 +239,25 @@ class ChatComposerCard extends ConsumerWidget {
                       ),
                       const SizedBox(height: 8),
                     ],
-                    Row(
-                      children: [
-                        IconButton(
-                          tooltip: '添加图片',
-                          onPressed: state.isImportingImages
-                              ? null
-                              : bindings.onAddImages,
-                          icon: const Icon(Icons.add),
-                        ),
-                        if (state.isImportingImages)
-                          Expanded(
-                            child: Semantics(
-                              liveRegion: true,
-                              child: const Text('正在处理图片…'),
+                    if (state.isImportingImages || state.images.isNotEmpty)
+                      Row(
+                        children: [
+                          if (state.isImportingImages)
+                            Expanded(
+                              child: Semantics(
+                                liveRegion: true,
+                                child: const Text('正在处理图片…'),
+                              ),
+                            )
+                          else if (state.images.isNotEmpty)
+                            Expanded(
+                              child: Text(
+                                '${state.images.length}/8 张图片 · 点击预览',
+                                style: theme.textTheme.bodySmall,
+                              ),
                             ),
-                          )
-                        else if (state.images.isNotEmpty)
-                          Expanded(
-                            child: Text(
-                              '${state.images.length}/8 张图片 · 点击预览',
-                              style: theme.textTheme.bodySmall,
-                            ),
-                          ),
-                      ],
-                    ),
+                        ],
+                      ),
                     if (state.imageError != null)
                       Row(
                         children: [
@@ -347,6 +289,8 @@ class ChatComposerCard extends ConsumerWidget {
                       onSendPressed: effectiveOnSend,
                     ),
                     const SizedBox(height: 8),
+                    _buildSelectors(),
+                    const SizedBox(height: 8),
                     if (isCompactComposer)
                       ComposerCompactActionRow(
                         state: state.readModel,
@@ -375,6 +319,60 @@ class ChatComposerCard extends ConsumerWidget {
   String _formatCacheHitRate(double? value) {
     return value == null ? '暂无数据' : '${(value * 100).toStringAsFixed(1)}%';
   }
+
+  Widget _buildSelectors() => LayoutBuilder(
+    builder: (context, fields) {
+      final compact = AppBreakpoints.useCompactFormActions(fields.maxWidth);
+      final template = ComposerTemplateHeader(
+        selectedTemplatePrompt: state.selectedTemplatePrompt,
+        templatePrompts: state.readModel.templatePrompts,
+        onTemplatePromptSelected: bindings.onTemplatePromptSelected,
+      );
+      final addImage = IconButton(
+        tooltip: '添加图片',
+        onPressed: state.isImportingImages ? null : bindings.onAddImages,
+        icon: const Icon(Icons.add),
+      );
+      final collapse = IconButton(
+        onPressed: bindings.onToggleComposerCollapsed,
+        tooltip: '收起输入区',
+        icon: const Icon(Icons.keyboard_arrow_up_rounded),
+      );
+      final selectors = ComposerProviderModelRow(
+        templateField: compact ? null : template,
+        hasModels: state.readModel.modelConfigs.isNotEmpty,
+        modelProviders: state.readModel.modelProviders,
+        modelConfigs: state.readModel.modelConfigs,
+        selectedProviderId: state.readModel.selectedProviderId,
+        selectedModel: state.readModel.selectedModel,
+        onProviderSelected: bindings.onProviderSelected,
+        onModelSelected: bindings.onModelSelected,
+      );
+      if (compact) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                addImage,
+                Expanded(child: template),
+                collapse,
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            selectors,
+          ],
+        );
+      }
+      return Row(
+        children: [
+          addImage,
+          Expanded(child: selectors),
+          collapse,
+        ],
+      );
+    },
+  );
 
   /// 由当前编译结果与控制器值求一次校验快照。
   ///

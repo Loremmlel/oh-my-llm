@@ -2,10 +2,9 @@ import 'package:flutter/material.dart';
 
 import 'package:oh_my_llm/core/constants/app_animations.dart';
 
-/// 聊天 composer 区域的通用药丸切换按钮。
+/// 聊天工具栏的轻量切换按钮。
 ///
-/// 整个圆角矩形 pill 本身即为开关——根据背景颜色区分启用/禁用状态，
-/// 不再内嵌 [Switch] 组件，以减少宽度并降低行高，配合单行输入区布局使用。
+/// 选中背景表达状态，未选中时融入工具栏，不为每项设置再套独立边框。
 class ComposerPillToggle extends StatelessWidget {
   const ComposerPillToggle({
     required this.enabled,
@@ -28,14 +27,9 @@ class ComposerPillToggle extends StatelessWidget {
     // 禁用视觉、Semantics enabled/action 与 InkWell onTap 必须同源，
     // 禁止出现视觉可用但实际是 no-op 的可聚焦 InkWell。
     final isInteractive = enabled && onChanged != null;
-    final backgroundColor = !isInteractive
-        ? theme.colorScheme.surfaceContainerLow
-        : value
+    final backgroundColor = isInteractive && value
         ? theme.colorScheme.primaryContainer
-        : theme.colorScheme.surfaceContainerHigh;
-    final borderColor = value
-        ? theme.colorScheme.primary.withValues(alpha: 0.28)
-        : theme.colorScheme.outlineVariant.withValues(alpha: 0.75);
+        : Colors.transparent;
     final labelColor = isInteractive && value
         ? theme.colorScheme.onPrimaryContainer
         : theme.colorScheme.onSurfaceVariant;
@@ -47,13 +41,12 @@ class ComposerPillToggle extends StatelessWidget {
       duration: AppAnimations.quickTransition,
       decoration: BoxDecoration(
         color: backgroundColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: borderColor),
+        borderRadius: BorderRadius.circular(4),
       ),
       // InkWell 挂在 Material 上以正确显示水波纹；clipBehavior 限定在圆角内
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(4),
         clipBehavior: Clip.antiAlias,
         child: Semantics(
           label: label,

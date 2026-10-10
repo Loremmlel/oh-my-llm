@@ -46,6 +46,10 @@ class ComposerMessageField extends StatelessWidget {
                   ? '输入你的问题、指令或待处理内容。'
                   : '输入要注入模板的正文内容。',
               alignLabelWithHint: true,
+              filled: false,
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
             ),
           ),
         );
