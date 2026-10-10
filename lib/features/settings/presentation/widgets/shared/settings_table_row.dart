@@ -24,9 +24,9 @@ class SettingsTableRow extends StatelessWidget {
         ),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(
+        padding: EdgeInsets.symmetric(
           horizontal: AppSpacing.md,
-          vertical: AppSpacing.xs,
+          vertical: header ? 0 : AppSpacing.xs,
         ),
         child: DefaultTextStyle.merge(
           style: header

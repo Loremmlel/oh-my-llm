@@ -7,7 +7,7 @@ import '../../../../domain/models/prompts/preset_prompt.dart';
 import '../../shared/settings_empty_state.dart';
 import '../../shared/settings_table_row.dart';
 
-const _columnFlexes = [4, 4, 2, 3, 4];
+const _columnFlexes = [4, 4, 2, 3, 5];
 const _systemHelp = '连续的前置 System 合为一条；其余 System 按 User 发送。';
 
 /// 列表只接收当前记录和命令，预览与真实页面使用同一布局。
@@ -39,7 +39,7 @@ class PresetPromptsView extends StatelessWidget {
       builder: (context, constraints) {
         final compact =
             constraints.maxWidth / MediaQuery.textScalerOf(context).scale(1) <
-            AppBreakpoints.formMasterDetail;
+            AppBreakpoints.contentMasterDetail;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
