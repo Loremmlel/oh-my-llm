@@ -17,26 +17,27 @@ class CheckpointSelectionHeader extends StatelessWidget {
     final theme = Theme.of(context);
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
+        border: Border(
+          bottom: BorderSide(color: theme.colorScheme.outlineVariant),
+        ),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('不使用检查点', style: theme.textTheme.titleMedium),
-                  const SizedBox(height: 4),
-                  Text(
-                    usingFullContext ? '当前使用完整上下文。' : '切换回完整上下文。',
-                    style: theme.textTheme.bodySmall,
-                  ),
-                ],
-              ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('不使用检查点', style: theme.textTheme.titleMedium),
+                const SizedBox(height: 4),
+                Text(
+                  usingFullContext ? '当前使用完整上下文。' : '切换回完整上下文。',
+                  style: theme.textTheme.bodySmall,
+                ),
+              ],
             ),
+            const SizedBox(height: 8),
             FilledButton.tonal(
               onPressed: isBusy ? null : onClearSelection,
               child: const Text('使用完整上下文'),

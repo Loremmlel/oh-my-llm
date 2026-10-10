@@ -6,10 +6,10 @@ import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.
 
 import 'preset_prompt_message_detail_dialog.dart';
 
-/// 预设 Prompt 单条消息的紧凑卡片。
+/// 预设 Prompt 单条消息的平铺记录。
 ///
 /// 显示消息标题、角色/位置摘要和一个即时生效的启用开关。
-/// 点击卡片弹出只读详情弹窗。
+/// 点击记录弹出只读详情弹窗。
 class PresetPromptMessageCard extends ConsumerWidget {
   const PresetPromptMessageCard({
     required this.presetId,
@@ -33,11 +33,13 @@ class PresetPromptMessageCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
 
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+    return Material(
+      color: Colors.transparent,
+      shape: Border(
+        bottom: BorderSide(color: theme.colorScheme.outlineVariant),
+      ),
       child: InkWell(
         onTap: () => _showDetailDialog(context),
-        borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           child: Row(

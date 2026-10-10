@@ -311,13 +311,12 @@ class _ConversationCheckpointsDialogState
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(
-          alpha: 0.24,
+        border: Border(
+          right: BorderSide(color: theme.colorScheme.outlineVariant),
         ),
-        borderRadius: BorderRadius.circular(20),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.only(right: 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -333,7 +332,7 @@ class _ConversationCheckpointsDialogState
               Expanded(
                 child: ListView.separated(
                   itemCount: conversation.checkpoints.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 8),
+                  separatorBuilder: (_, _) => const Divider(height: 1),
                   itemBuilder: (context, index) {
                     final checkpoint = conversation.checkpoints.reversed
                         .elementAt(index);
@@ -379,13 +378,7 @@ class _ConversationCheckpointsDialogState
   }) {
     final theme = Theme.of(context);
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(
-          alpha: 0.18,
-        ),
-        borderRadius: BorderRadius.circular(20),
-      ),
+    return SizedBox(
       child: checkpoint == null
           ? Center(
               child: Text(
@@ -394,7 +387,7 @@ class _ConversationCheckpointsDialogState
               ),
             )
           : Padding(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.only(left: 4),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -412,20 +405,12 @@ class _ConversationCheckpointsDialogState
                   ),
                   const SizedBox(height: 16),
                   Expanded(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: ColoredBox(
-                        color: theme.colorScheme.surface,
-                        child: SingleChildScrollView(
-                          key: ValueKey(
-                            'checkpoint-preview-${checkpoint.title}',
-                          ),
-                          padding: const EdgeInsets.all(12),
-                          child: StreamingMarkdownView(
-                            content: checkpoint.content.trim(),
-                            isStreaming: false,
-                          ),
-                        ),
+                    child: SingleChildScrollView(
+                      key: ValueKey('checkpoint-preview-${checkpoint.title}'),
+                      padding: const EdgeInsets.only(right: 12),
+                      child: StreamingMarkdownView(
+                        content: checkpoint.content.trim(),
+                        isStreaming: false,
                       ),
                     ),
                   ),
@@ -449,10 +434,14 @@ class _ConversationCheckpointsDialogState
     final previewContent = checkpoint.content.trim();
     final theme = Theme.of(context);
 
-    return Card(
-      margin: const EdgeInsets.only(top: 8),
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border(
+          top: BorderSide(color: theme.colorScheme.outlineVariant),
+        ),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.symmetric(vertical: 8),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -474,22 +463,14 @@ class _ConversationCheckpointsDialogState
             ),
             if (previewContent.isNotEmpty) ...[
               const SizedBox(height: 8),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: ColoredBox(
-                  color: theme.colorScheme.surfaceContainerHighest.withValues(
-                    alpha: 0.32,
-                  ),
-                  child: SizedBox(
-                    height: 180,
-                    child: SingleChildScrollView(
-                      key: ValueKey('checkpoint-preview-${checkpoint.title}'),
-                      padding: const EdgeInsets.all(12),
-                      child: StreamingMarkdownView(
-                        content: previewContent,
-                        isStreaming: false,
-                      ),
-                    ),
+              SizedBox(
+                height: 180,
+                child: SingleChildScrollView(
+                  key: ValueKey('checkpoint-preview-${checkpoint.title}'),
+                  padding: const EdgeInsets.only(right: 12),
+                  child: StreamingMarkdownView(
+                    content: previewContent,
+                    isStreaming: false,
                   ),
                 ),
               ),

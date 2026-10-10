@@ -184,13 +184,13 @@ class _MessageRequestFilterDialogState
       return const Center(child: Text('当前分支还没有消息。'));
     }
 
-    return Card(
-      margin: EdgeInsets.zero,
+    return Material(
+      color: Colors.transparent,
       child: ListView.separated(
         controller: scrollController,
-        padding: const EdgeInsets.all(12),
+        padding: EdgeInsets.zero,
         itemCount: messages.length + 1,
-        separatorBuilder: (_, _) => const SizedBox(height: 8),
+        separatorBuilder: (_, _) => const Divider(height: 1),
         itemBuilder: (context, index) {
           if (index == 0) {
             return Align(
@@ -243,23 +243,23 @@ class _MessageRequestFilterDialogState
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(
-          alpha: 0.24,
+        border: Border(
+          right: BorderSide(color: theme.colorScheme.outlineVariant),
         ),
-        borderRadius: BorderRadius.circular(20),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.only(right: 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             DecoratedBox(
               decoration: BoxDecoration(
-                color: theme.colorScheme.surface,
-                borderRadius: BorderRadius.circular(16),
+                border: Border(
+                  bottom: BorderSide(color: theme.colorScheme.outlineVariant),
+                ),
               ),
               child: Padding(
-                padding: const EdgeInsets.all(14),
+                padding: const EdgeInsets.symmetric(vertical: 8),
                 child: Row(
                   children: [
                     Expanded(
@@ -298,7 +298,7 @@ class _MessageRequestFilterDialogState
                 child: ListView.separated(
                   controller: scrollController,
                   itemCount: messages.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 8),
+                  separatorBuilder: (_, _) => const Divider(height: 1),
                   itemBuilder: (context, index) {
                     final message = messages[index];
                     final isExcluded = excludedMessageIds.contains(message.id);
@@ -335,13 +335,7 @@ class _MessageRequestFilterDialogState
   }) {
     final theme = Theme.of(context);
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(
-          alpha: 0.18,
-        ),
-        borderRadius: BorderRadius.circular(20),
-      ),
+    return SizedBox(
       child: message == null
           ? Center(
               child: Text(
@@ -350,7 +344,7 @@ class _MessageRequestFilterDialogState
               ),
             )
           : Padding(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.only(left: 4),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -387,34 +381,20 @@ class _MessageRequestFilterDialogState
                   ),
                   const SizedBox(height: 16),
                   Expanded(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: ColoredBox(
-                        color: theme.colorScheme.surface,
-                        child: SizedBox.expand(
-                          key: const ValueKey(
-                            'message-filter-preview-container',
-                          ),
-                          child: Scrollbar(
-                            key: const ValueKey(
-                              'message-filter-preview-scrollbar',
-                            ),
-                            controller: _detailPreviewScrollController,
-                            interactive: true,
-                            thumbVisibility: true,
-                            child: SingleChildScrollView(
-                              controller: _detailPreviewScrollController,
-                              primary: false,
-                              key: ValueKey(
-                                'message-filter-preview-${message.id}',
-                              ),
-                              padding: const EdgeInsets.all(12),
-                              child: SelectableText(
-                                message.content.isEmpty
-                                    ? '空内容。'
-                                    : message.content,
-                              ),
-                            ),
+                    child: SizedBox.expand(
+                      key: const ValueKey('message-filter-preview-container'),
+                      child: Scrollbar(
+                        key: const ValueKey('message-filter-preview-scrollbar'),
+                        controller: _detailPreviewScrollController,
+                        interactive: true,
+                        thumbVisibility: true,
+                        child: SingleChildScrollView(
+                          controller: _detailPreviewScrollController,
+                          primary: false,
+                          key: ValueKey('message-filter-preview-${message.id}'),
+                          padding: const EdgeInsets.only(right: 12),
+                          child: SelectableText(
+                            message.content.isEmpty ? '空内容。' : message.content,
                           ),
                         ),
                       ),
@@ -496,10 +476,8 @@ class _MessageFilterSelectionTile extends StatelessWidget {
     return Material(
       color: focused
           ? theme.colorScheme.primaryContainer.withValues(alpha: 0.52)
-          : theme.colorScheme.surface,
-      borderRadius: BorderRadius.circular(16),
+          : Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(16),
         onTap: onFocus,
         child: Padding(
           padding: const EdgeInsets.all(12),

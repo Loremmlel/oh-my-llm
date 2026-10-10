@@ -185,19 +185,12 @@ class _FixedPromptSequenceRunnerDialogState
                             mainAxisSize: MainAxisSize.min,
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              DecoratedBox(
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(16),
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .surfaceContainerHighest
-                                      .withValues(alpha: 0.4),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 8,
                                 ),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(16),
-                                  child: SelectableText(
-                                    currentStep?.content ?? '',
-                                  ),
+                                child: SelectableText(
+                                  currentStep?.content ?? '',
                                 ),
                               ),
                             ],

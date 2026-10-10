@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 
 import 'package:oh_my_llm/core/widgets/dialogs/app_confirm_dialog.dart';
 import 'package:oh_my_llm/core/widgets/app_dropdown_field.dart';
-import 'package:oh_my_llm/core/widgets/app_field_group.dart';
 import 'package:oh_my_llm/core/widgets/long_text_editing_controller.dart';
 
 import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
@@ -153,11 +152,16 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
                       color: Theme.of(context).colorScheme.error,
                     ),
                   ),
-                AppFieldGroup(
-                  children: [_buildNameField(), _buildSyntaxField()],
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(flex: 3, child: _buildNameField()),
+                    const SizedBox(width: 12),
+                    Expanded(flex: 2, child: _buildSyntaxField()),
+                  ],
                 ),
                 const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 16),
+                  padding: EdgeInsets.symmetric(vertical: 12),
                   child: Divider(height: 1),
                 ),
               ],
@@ -204,9 +208,28 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildMasterContent(context),
-        const SizedBox(height: 16),
-        const Divider(),
+        Row(
+          children: [
+            Expanded(child: _buildCompactItemSelector(context)),
+            const SizedBox(width: 4),
+            IconButton(
+              onPressed: _addMessageItem,
+              tooltip: '新增条目',
+              icon: const Icon(Icons.add),
+            ),
+            IconButton(
+              onPressed: _canMoveSelectedUp() ? () => _moveSelected(-1) : null,
+              tooltip: '上移',
+              icon: const Icon(Icons.arrow_upward_rounded),
+            ),
+            IconButton(
+              onPressed: _canMoveSelectedDown() ? () => _moveSelected(1) : null,
+              tooltip: '下移',
+              icon: const Icon(Icons.arrow_downward_rounded),
+            ),
+          ],
+        ),
+        const Divider(height: 24),
         _buildDetailContent(context, isWide: false),
       ],
     );
@@ -223,17 +246,6 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
     );
   }
 
-  Widget _buildMasterContent(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildMasterHeader(context),
-        const SizedBox(height: 16),
-        _buildCompactItemSelector(context),
-      ],
-    );
-  }
-
   Widget _buildMasterHeader(BuildContext context) {
     final canMoveUp = _canMoveSelectedUp();
     final canMoveDown = _canMoveSelectedDown();
@@ -241,7 +253,10 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('预设 Prompt 条目', style: Theme.of(context).textTheme.titleMedium),
+        Text(
+          '条目 ${_items.length}',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
         const SizedBox(height: 12),
         Wrap(
           spacing: 8,
@@ -373,69 +388,90 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
       ),
     );
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        AppFieldGroup(
-          children: [
-            TextFormField(
-              key: const ValueKey('preset-prompt-title-field'), // test-key
-              controller: selected.titleController,
-              decoration: const InputDecoration(
-                labelText: '标题',
-                hintText: '例如：前置约束、最新输入前提醒、后置收尾说明',
-              ),
-            ),
-            AppDropdownField<PresetPromptEditorRole>(
-              key: const ValueKey('preset-prompt-role-field'), // test-key
-              initialValue: selected.role,
-              items: const [
-                DropdownMenuItem(
-                  value: PresetPromptEditorRole.system,
-                  child: Text('System'),
-                ),
-                DropdownMenuItem(
-                  value: PresetPromptEditorRole.user,
-                  child: Text('User'),
-                ),
-                DropdownMenuItem(
-                  value: PresetPromptEditorRole.assistant,
-                  child: Text('Assistant'),
-                ),
-              ],
-              onChanged: (value) {
-                if (value != null) {
-                  setState(() {
-                    _replaceSelected(selected.copyWith(role: value));
-                  });
-                }
-              },
-              decoration: const InputDecoration(labelText: '角色'),
-            ),
-            AppDropdownField<PromptMessagePlacement>(
-              key: const ValueKey('preset-prompt-placement-field'), // test-key
-              initialValue: selected.placement,
-              items: PromptMessagePlacement.values
-                  .map((placement) {
-                    return DropdownMenuItem(
-                      value: placement,
-                      child: Text(switch (placement) {
-                        PromptMessagePlacement.before => '前置',
-                        PromptMessagePlacement.beforeLatestInput => '最新输入前',
-                        PromptMessagePlacement.after => '后置',
-                      }),
-                    );
-                  })
-                  .toList(growable: false),
-              onChanged: (value) {
-                if (value != null) {
-                  _changeSelectedPlacement(value);
-                }
-              },
-              decoration: const InputDecoration(labelText: '位置'),
-            ),
-          ],
+    final fields = <Widget>[
+      TextFormField(
+        key: const ValueKey('preset-prompt-title-field'), // test-key
+        controller: selected.titleController,
+        decoration: const InputDecoration(
+          labelText: '标题',
+          hintText: '例如：前置约束、最新输入前提醒、后置收尾说明',
         ),
+      ),
+      AppDropdownField<PresetPromptEditorRole>(
+        key: const ValueKey('preset-prompt-role-field'), // test-key
+        initialValue: selected.role,
+        items: const [
+          DropdownMenuItem(
+            value: PresetPromptEditorRole.system,
+            child: Text('System'),
+          ),
+          DropdownMenuItem(
+            value: PresetPromptEditorRole.user,
+            child: Text('User'),
+          ),
+          DropdownMenuItem(
+            value: PresetPromptEditorRole.assistant,
+            child: Text('Assistant'),
+          ),
+        ],
+        onChanged: (value) {
+          if (value != null) {
+            setState(() {
+              _replaceSelected(selected.copyWith(role: value));
+            });
+          }
+        },
+        decoration: const InputDecoration(labelText: '角色'),
+      ),
+      AppDropdownField<PromptMessagePlacement>(
+        key: const ValueKey('preset-prompt-placement-field'), // test-key
+        initialValue: selected.placement,
+        items: PromptMessagePlacement.values
+            .map((placement) {
+              return DropdownMenuItem(
+                value: placement,
+                child: Text(switch (placement) {
+                  PromptMessagePlacement.before => '前置',
+                  PromptMessagePlacement.beforeLatestInput => '最新输入前',
+                  PromptMessagePlacement.after => '后置',
+                }),
+              );
+            })
+            .toList(growable: false),
+        onChanged: (value) {
+          if (value != null) {
+            _changeSelectedPlacement(value);
+          }
+        },
+        decoration: const InputDecoration(labelText: '位置'),
+      ),
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (isWide)
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(flex: 2, child: fields[0]),
+              const SizedBox(width: 12),
+              Expanded(child: fields[1]),
+              const SizedBox(width: 12),
+              Expanded(child: fields[2]),
+            ],
+          )
+        else ...[
+          fields[0],
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: fields[1]),
+              const SizedBox(width: 12),
+              Expanded(child: fields[2]),
+            ],
+          ),
+        ],
         const SizedBox(height: 12),
         if (isWide) Expanded(child: contentField) else contentField,
         const SizedBox(height: 16),
