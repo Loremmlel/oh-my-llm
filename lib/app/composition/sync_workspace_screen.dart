@@ -9,7 +9,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../navigation/app_destination.dart';
 import '../shell/app_shell_scaffold.dart';
 
-import 'package:oh_my_llm/core/widgets/app_adaptive_actions.dart';
 import 'package:oh_my_llm/features/media/application/media_browser_controller.dart';
 import 'package:oh_my_llm/features/media/application/media_library_session_controller.dart';
 import 'package:oh_my_llm/features/media/application/media_root_directory_controller.dart';
@@ -17,8 +16,6 @@ import 'package:oh_my_llm/features/media/application/models/media_library_failur
 import 'package:oh_my_llm/features/media/application/models/media_library_source.dart';
 import 'package:oh_my_llm/features/media/application/shuffle_playback_controller.dart';
 import 'package:oh_my_llm/features/media/presentation/media_browser_tab.dart';
-import 'package:oh_my_llm/features/media/presentation/widgets/media_grid_density_actions.dart';
-import 'package:oh_my_llm/features/media/presentation/widgets/shuffle_appbar_actions.dart';
 import 'package:oh_my_llm/features/sync/application/sync_client_controller.dart';
 import 'package:oh_my_llm/features/sync/application/sync_server_controller.dart';
 import 'package:oh_my_llm/features/sync/application/sync_workspace_tab_preference_controller.dart';
@@ -150,35 +147,12 @@ class _SyncWorkspaceScreenState extends ConsumerState<SyncWorkspaceScreen>
   @override
   Widget build(BuildContext context) {
     final isMediaTab = _hasMediaTab && _tabController.index == 2;
-    final mediaSession = isMediaTab
-        ? ref.watch(mediaLibrarySessionProvider)
-        : null;
-    final mediaBrowser = isMediaTab
-        ? ref.watch(mediaBrowserControllerProvider)
-        : null;
     return AppShellScaffold(
       currentDestination: AppDestination.sync,
       title: '局域网同步',
       // 仅媒体 Tab 可见时声明本地返回目标：目录返回/切 Tab 优先于回对话页
       hasLocalBackTarget: isMediaTab,
       onLocalBack: _handleMediaBack,
-      // 随机播放按钮只在媒体 Tab 且会话 Active 时可见
-      actions: mediaSession is MediaLibrarySessionActive && mediaBrowser != null
-          ? [
-              ShuffleAppBarActions(
-                currentDirectoryPath: mediaBrowser.currentPath,
-              ),
-            ]
-          : null,
-      // 密度切换跟随壳层断点：宽布局展开三按钮，窄布局折叠为菜单。
-      // actions widget 自己消费密度 provider，本页面不直接 watch。
-      adaptiveActions:
-          mediaSession is MediaLibrarySessionActive && mediaBrowser != null
-          ? const AppAdaptiveActions(
-              wideActions: [MediaGridDensityActions.expanded()],
-              compactActions: [MediaGridDensityActions.menu()],
-            )
-          : null,
       body: Column(
         children: [
           TabBar(

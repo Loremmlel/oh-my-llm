@@ -79,7 +79,7 @@ void main() {
     );
   });
 
-  testWidgets('menu 显示密度菜单，选择标准更新 provider 并持久化', (tester) async {
+  testWidgets('文字密度菜单显示当前值，选择标准更新 provider 并持久化', (tester) async {
     // 初始舒适，选择「标准」后应回退并持久化 standard。
     final preferences = await _prefs(
       seed: {mediaGridDensityStorageKey: 'comfortable'},
@@ -87,11 +87,24 @@ void main() {
     final container = await _pumpActions(
       tester,
       preferences: preferences,
-      actions: const MediaGridDensityActions.menu(),
+      actions: const MediaGridDensityActions.labelled(),
     );
 
     // 窄布局形态只暴露「显示密度」菜单，不渲染三个展开 tooltip。
     expect(find.byTooltip('显示密度'), findsOneWidget);
+    expect(find.text('显示密度：舒适'), findsOneWidget);
+    expect(
+      tester.getSemantics(find.text('显示密度：舒适')),
+      matchesSemantics(
+        isButton: true,
+        label: '显示密度：舒适',
+        hasTapAction: true,
+        isFocusable: true,
+        hasFocusAction: true,
+        hasExpandedState: true,
+        tooltip: '显示密度',
+      ),
+    );
     expect(find.byTooltip('紧凑密度'), findsNothing);
 
     await tester.tap(find.byTooltip('显示密度'));

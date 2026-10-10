@@ -77,7 +77,7 @@ class _SyncOperationTabState extends ConsumerState<SyncOperationTab>
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _buildSyncStatusCard(context, ref, clientState),
-                const SizedBox(height: 16),
+                const Divider(height: AppSpacing.xl),
                 if (clientState.phase == SyncPhase.error) ...[
                   _buildErrorMessage(context, ref, clientState),
                 ] else ...[
@@ -140,8 +140,8 @@ class _SyncOperationTabState extends ConsumerState<SyncOperationTab>
   ) {
     final theme = Theme.of(context);
 
-    return SettingsSectionCard(
-      title: '连接状态',
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
       child: Row(
         children: [
           if (state.phase == SyncPhase.syncing) ...[
@@ -155,7 +155,11 @@ class _SyncOperationTabState extends ConsumerState<SyncOperationTab>
             Icon(Icons.error_outline, color: theme.colorScheme.error, size: 20),
             const SizedBox(width: 8),
           ] else ...[
-            Icon(Icons.check_circle, color: Colors.green.shade400, size: 20),
+            Icon(
+              Icons.check_circle,
+              color: theme.colorScheme.primary,
+              size: 20,
+            ),
             const SizedBox(width: 8),
           ],
           Expanded(
@@ -164,10 +168,15 @@ class _SyncOperationTabState extends ConsumerState<SyncOperationTab>
               children: [
                 Text(
                   '${state.isPaired ? '已配对' : '尚未配对，请在连接页输入配对码'}：${state.sourceDeviceName ?? '未知设备'}',
-                  style: theme.textTheme.bodyMedium?.copyWith(
+                  style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
                 ),
+                if (state.server != null)
+                  Text(
+                    'IP ${state.server!.ip} · 从服务端同步到本机',
+                    style: theme.textTheme.bodySmall,
+                  ),
                 if (state.phase == SyncPhase.syncing)
                   Text('正在同步配置...', style: theme.textTheme.bodyMedium)
                 else if (state.phase == SyncPhase.error)
@@ -180,6 +189,14 @@ class _SyncOperationTabState extends ConsumerState<SyncOperationTab>
                   ),
               ],
             ),
+          ),
+          TextButton(
+            onPressed: state.phase == SyncPhase.syncing
+                ? null
+                : ref
+                      .read(syncClientControllerProvider.notifier)
+                      .cancelAndReset,
+            child: const Text('断开连接'),
           ),
         ],
       ),
@@ -228,31 +245,34 @@ class _SyncOperationTabState extends ConsumerState<SyncOperationTab>
     return SettingsSectionCard(
       title: '同步内容',
       description: '选择要从服务端同步到本机的配置分组',
+      action: TextButton(
+        onPressed: allSelected ? null : notifier.selectAllGroups,
+        child: const Text('全选'),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Text('选择分组', style: Theme.of(context).textTheme.titleSmall),
-              const Spacer(),
-              TextButton(
-                onPressed: allSelected ? null : notifier.selectAllGroups,
-                child: const Text('全选'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
           ...state.availableGroups.map((group) {
-            return CheckboxListTile(
-              title: Text(
-                group.sensitivity == SettingsSyncSensitivity.credentialBearing
-                    ? '${group.label}（含敏感凭据）'
-                    : group.label,
+            return DecoratedBox(
+              decoration: BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(
+                    color: Theme.of(context).colorScheme.outlineVariant,
+                  ),
+                ),
               ),
-              value: state.selectedGroups.contains(group.id),
-              onChanged: (_) => notifier.toggleGroup(group.id),
-              dense: true,
-              contentPadding: EdgeInsets.zero,
+              child: CheckboxListTile(
+                controlAffinity: ListTileControlAffinity.leading,
+                title: Text(
+                  group.sensitivity == SettingsSyncSensitivity.credentialBearing
+                      ? '${group.label}（含敏感凭据）'
+                      : group.label,
+                ),
+                value: state.selectedGroups.contains(group.id),
+                onChanged: (_) => notifier.toggleGroup(group.id),
+                minTileHeight: AppInteractionSizes.minimumHitTarget,
+                contentPadding: EdgeInsets.zero,
+              ),
             );
           }),
         ],
@@ -272,9 +292,12 @@ class _SyncOperationTabState extends ConsumerState<SyncOperationTab>
           group.sensitivity == SettingsSyncSensitivity.credentialBearing,
     );
 
-    return SizedBox(
-      width: double.infinity,
+    return Align(
+      alignment: Alignment.centerLeft,
       child: FilledButton.icon(
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(200, AppInteractionSizes.minimumHitTarget),
+        ),
         onPressed: isSyncing || state.selectedGroups.isEmpty || !state.isPaired
             ? null
             : () async {

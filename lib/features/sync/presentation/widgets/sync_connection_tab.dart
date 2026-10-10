@@ -28,7 +28,7 @@ class SyncConnectionTab extends ConsumerStatefulWidget {
 class _SyncConnectionTabState extends ConsumerState<SyncConnectionTab>
     with AutomaticKeepAliveClientMixin {
   // 连接表单的可见操作块保持集中，避免短内容占据整个同步画布。
-  static const _connectionContentWidth = 480.0;
+  static const _connectionContentWidth = AppContentWidths.readable;
   bool _isServerMode = false;
   late TextEditingController _nameController;
 
@@ -151,7 +151,11 @@ class _SyncConnectionTabState extends ConsumerState<SyncConnectionTab>
       case SyncPhase.noNewData:
         return Row(
           children: [
-            Icon(Icons.check_circle, color: Colors.green.shade400, size: 20),
+            Icon(
+              Icons.check_circle,
+              color: theme.colorScheme.primary,
+              size: 20,
+            ),
             const SizedBox(width: 8),
             Expanded(
               child: Text(

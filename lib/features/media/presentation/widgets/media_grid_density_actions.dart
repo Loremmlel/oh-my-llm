@@ -4,19 +4,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:oh_my_llm/core/constants/app_layout_density.dart';
 import 'package:oh_my_llm/features/media/application/media_grid_density_controller.dart';
 
-/// 媒体网格密度切换控件，提供展开与菜单两种形态。
-///
-/// 展开形态用于宽布局 AppBar（三个并排 IconButton），菜单形态用于窄布局
-/// （一个带勾选的 [PopupMenuButton]）。具体展示哪个形态由 AppBar 的
-/// [AppAdaptiveActions] 按壳层断点决定；本组件自身不感知窗口宽度，也不做
-/// 平台判断（平台绑定留在 app/composition 层）。
-enum _MediaGridDensityActionsMode { expanded, menu }
+/// 密度切换复用同一控制器；路径栏用文字菜单直接显示当前值。
+enum _MediaGridDensityActionsMode { expanded, menu, labelled }
 
 class MediaGridDensityActions extends ConsumerWidget {
   const MediaGridDensityActions.expanded({super.key})
     : _mode = _MediaGridDensityActionsMode.expanded;
   const MediaGridDensityActions.menu({super.key})
     : _mode = _MediaGridDensityActionsMode.menu;
+  const MediaGridDensityActions.labelled({super.key})
+    : _mode = _MediaGridDensityActionsMode.labelled;
 
   final _MediaGridDensityActionsMode _mode;
 
@@ -51,19 +48,43 @@ class MediaGridDensityActions extends ConsumerWidget {
           ),
         ],
       ),
-      _MediaGridDensityActionsMode.menu => PopupMenuButton<AppLayoutDensity>(
-        tooltip: '显示密度',
-        icon: const Icon(Icons.view_module_rounded),
-        initialValue: density,
-        onSelected: controller.select,
-        itemBuilder: (context) => [
-          for (final value in AppLayoutDensity.values)
-            CheckedPopupMenuItem(
-              value: value,
-              checked: value == density,
-              child: Text(_label(value)),
-            ),
-        ],
+      _MediaGridDensityActionsMode.menu ||
+      _MediaGridDensityActionsMode.labelled => Semantics(
+        container: true,
+        child: PopupMenuButton<AppLayoutDensity>(
+          tooltip: '显示密度',
+          icon: _mode == _MediaGridDensityActionsMode.menu
+              ? const Icon(Icons.view_module_rounded)
+              : null,
+          initialValue: density,
+          onSelected: controller.select,
+          itemBuilder: (context) => [
+            for (final value in AppLayoutDensity.values)
+              CheckedPopupMenuItem(
+                value: value,
+                checked: value == density,
+                child: Text(_label(value)),
+              ),
+          ],
+          child: _mode == _MediaGridDensityActionsMode.labelled
+              ? Semantics(
+                  button: true,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 12,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('显示密度：${_label(density)}'),
+                        const Icon(Icons.arrow_drop_down),
+                      ],
+                    ),
+                  ),
+                )
+              : null,
+        ),
       ),
     };
   }

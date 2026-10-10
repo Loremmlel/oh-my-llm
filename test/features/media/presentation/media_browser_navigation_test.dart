@@ -337,7 +337,7 @@ void main() {
           ),
         );
 
-        expect(find.text('🏠'), findsOneWidget);
+        expect(find.text('根目录'), findsOneWidget);
         expect(find.text('相册'), findsOneWidget);
         expect(find.text('猫.jpg'), findsOneWidget);
         expect(find.text('demo.mp4'), findsOneWidget);

@@ -10,7 +10,7 @@ import '../application/media_library_session_controller.dart';
 import '../application/shuffle_playback_controller.dart';
 import '../domain/media_file_classification.dart';
 import 'widgets/media_grid_view.dart';
-import 'widgets/media_path_bar.dart';
+import 'widgets/media_browser_toolbar.dart';
 
 /// 媒体浏览器 Tab 内容组件。
 ///
@@ -79,7 +79,7 @@ class _MediaBrowserTabState extends ConsumerState<MediaBrowserTab> {
     return Column(
       children: [
         // 路径导航栏
-        MediaPathBar(
+        MediaBrowserToolbar(
           currentPath: state.currentPath,
           onPathSelected: (path) => controller.navigateTo(path),
         ),

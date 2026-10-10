@@ -213,7 +213,7 @@ void main() {
     await tester.pump();
 
     // 当前目录状态不变：路径栏仍停留在根目录
-    expect(find.text('🏠'), findsOneWidget);
+    expect(find.text('根目录'), findsOneWidget);
     // 同一可见缩略图没有新增解析调用
     expect(library.resolveThumbnailCalls, [topRequest]);
 
