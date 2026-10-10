@@ -14,6 +14,47 @@ import '../../../helpers/fixtures.dart';
 import '../../../helpers/async/widget_test_animation.dart';
 
 void main() {
+  testWidgets('已完成模型步骤按需展开且采用正文始终可读', (tester) async {
+    final workspace = AgentWorkspace(id: 'w', title: '作品');
+    final record = AgentRunRecord(
+      id: 'r',
+      workspaceId: 'w',
+      prompt: '继续写作',
+      startedAt: DateTime(2026),
+      status: AgentRunStatus.completed,
+      steps: const [AgentStep(label: '撰写正文', content: '中间候选稿')],
+    );
+    final round = AgentStoryRound(
+      id: 'r',
+      beforeWorkspace: workspace,
+      document: const AgentDocument(name: '第一章', content: '正式采用正文'),
+      beforeState: AgentStoryState(),
+      stateAgentId: 's',
+      status: AgentStoryRoundStatus.committed,
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AgentTranscript(
+            records: [record],
+            allRuns: [record],
+            storyRounds: [round],
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.text('展开执行过程 · 1 步'));
+    await tester.pump();
+    expect(find.text('中间候选稿'), findsNothing);
+    expect(find.text('正式采用正文'), findsOneWidget);
+    await tester.tap(find.text('撰写正文'));
+    await settleAnimatedWidgetTransition(tester);
+    expect(find.text('中间候选稿'), findsOneWidget);
+    expect(find.text('正式采用正文'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('正文选定后自动折叠整轮过程，仍可展开诊断与查看失败', (tester) async {
     final workspace = AgentWorkspace(id: 'w', title: '南川一中');
     final running = AgentRunRecord(

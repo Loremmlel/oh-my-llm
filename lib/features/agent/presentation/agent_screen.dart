@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:oh_my_llm/app/navigation/app_destination.dart';
 import 'package:oh_my_llm/app/shell/app_shell_scaffold.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
+import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
 import 'package:oh_my_llm/core/widgets/app_adaptive_actions.dart';
 import 'package:oh_my_llm/core/widgets/dialogs/app_confirm_dialog.dart';
 
@@ -63,6 +64,23 @@ class _AgentScreenState extends ConsumerState<AgentScreen> {
         .where((r) => r.parentId != null && r.status == AgentRunStatus.running)
         .toList();
     final pageActions = [
+      if (workspace != null) ...[
+        TextButton.icon(
+          onPressed: () => showAgentConfiguration(context),
+          icon: const Icon(Icons.tune),
+          label: const Text('模型与规则'),
+        ),
+        TextButton.icon(
+          onPressed: state.busy ? null : () => showAgentContext(context),
+          icon: const Icon(Icons.manage_search),
+          label: const Text('查看上下文'),
+        ),
+        TextButton.icon(
+          onPressed: () => showAgentSummaries(context),
+          icon: const Icon(Icons.summarize_outlined),
+          label: const Text('总结管理'),
+        ),
+      ],
       TextButton.icon(
         onPressed: state.busy ? null : controller.createWorkspace,
         label: const Text('新建作品'),
@@ -71,18 +89,34 @@ class _AgentScreenState extends ConsumerState<AgentScreen> {
     ];
     return AppShellScaffold(
       currentDestination: AppDestination.agent,
-      title: 'Agent 小说工作区',
+      title: workspace?.title ?? 'Agent 小说工作区',
       endDrawer: const AgentNavigationDrawer(),
       endDrawerOnWide: true,
       adaptiveActions: AppAdaptiveActions(
+        breakpoint: AppBreakpoints.workspaceSidebarWidth,
         wideActions: pageActions,
         compactActions: [
           PopupMenuButton<String>(
             tooltip: '工作区操作',
             onSelected: (value) {
               if (value == 'workspace') controller.createWorkspace();
+              if (value == 'configuration') showAgentConfiguration(context);
+              if (value == 'context') showAgentContext(context);
+              if (value == 'summary') showAgentSummaries(context);
             },
             itemBuilder: (_) => [
+              if (workspace != null) ...[
+                const PopupMenuItem(
+                  value: 'configuration',
+                  child: Text('模型与规则'),
+                ),
+                PopupMenuItem(
+                  value: 'context',
+                  enabled: !state.busy,
+                  child: const Text('查看上下文'),
+                ),
+                const PopupMenuItem(value: 'summary', child: Text('总结管理')),
+              ],
               PopupMenuItem(
                 value: 'workspace',
                 enabled: !state.busy,
@@ -115,48 +149,7 @@ class _AgentScreenState extends ConsumerState<AgentScreen> {
                         runSpacing: AppSpacing.xs,
                         crossAxisAlignment: WrapCrossAlignment.center,
                         alignment: WrapAlignment.spaceBetween,
-                        children: [
-                          if (workspace != null)
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        workspace.title,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .titleSmall,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                IconButton(
-                                  onPressed: () =>
-                                      showAgentConfiguration(context),
-                                  tooltip: '模型与规则',
-                                  icon: const Icon(Icons.tune),
-                                ),
-                                IconButton(
-                                  onPressed: state.busy
-                                      ? null
-                                      : () => showAgentContext(context),
-                                  tooltip: '查看上下文',
-                                  icon: const Icon(Icons.manage_search),
-                                ),
-                                IconButton(
-                                  onPressed: () => showAgentSummaries(context),
-                                  tooltip: '总结管理',
-                                  icon: const Icon(Icons.summarize_outlined),
-                                ),
-                              ],
-                            ),
-                          if (workspace != null) _buildViewTabs(),
-                        ],
+                        children: [if (workspace != null) _buildViewTabs()],
                       ),
                     ),
                     if (workspace != null)
@@ -241,10 +234,7 @@ class _AgentScreenState extends ConsumerState<AgentScreen> {
             if (workspace == null)
               const Expanded(
                 child: Center(
-                  child: Text(
-                    '新建作品，添加世界书和人物卡，再开始写作。\n文档和运行记录保存在本机。',
-                    textAlign: TextAlign.center,
-                  ),
+                  child: Text('新建作品后开始写作', textAlign: TextAlign.center),
                 ),
               )
             else ...[
@@ -303,31 +293,34 @@ class _AgentScreenState extends ConsumerState<AgentScreen> {
       spacing: AppSpacing.xs,
       children: [
         for (final item in [
-          (_WorkspaceView.transcript, '正文', Icons.article_outlined, '返回执行流'),
-          (
-            _WorkspaceView.documents,
-            '工作文档',
-            Icons.folder_open_outlined,
-            '工作文档',
-          ),
-          (_WorkspaceView.story, '剧情状态', Icons.table_chart_outlined, '剧情状态与正文'),
+          (_WorkspaceView.transcript, '正文', '返回执行流'),
+          (_WorkspaceView.documents, '工作文档', '工作文档'),
+          (_WorkspaceView.story, '剧情状态', '剧情状态与正文'),
         ])
           Tooltip(
-            message: item.$4,
-            child: TextButton.icon(
-              onPressed: () => setState(() => _view = item.$1),
-              style: TextButton.styleFrom(
-                backgroundColor: _view == item.$1
-                    ? colors.secondaryContainer
-                    : null,
-                foregroundColor: _view == item.$1
-                    ? colors.onSecondaryContainer
-                    : colors.onSurfaceVariant,
+            message: item.$3,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(
+                    color: _view == item.$1
+                        ? colors.primary
+                        : Colors.transparent,
+                    width: 2,
+                  ),
+                ),
               ),
-              icon: Icon(item.$3, size: 18),
-              label: Semantics(
-                selected: _view == item.$1,
-                child: Text(item.$2),
+              child: TextButton(
+                onPressed: () => setState(() => _view = item.$1),
+                style: TextButton.styleFrom(
+                  foregroundColor: _view == item.$1
+                      ? colors.primary
+                      : colors.onSurfaceVariant,
+                ),
+                child: Semantics(
+                  selected: _view == item.$1,
+                  child: Text(item.$2),
+                ),
               ),
             ),
           ),
@@ -394,60 +387,78 @@ class _ComposerState extends ConsumerState<_Composer> {
           heightFactor: 1,
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: AppContentWidths.form),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Flexible(
-                  child: CallbackShortcuts(
-                    bindings: {
-                      const SingleActivator(
-                        LogicalKeyboardKey.enter,
-                        control: true,
-                      ): send,
-                    },
-                    child: TextField(
-                      controller: _input,
-                      minLines: 1,
-                      maxLines: 4,
-                      enabled: !state.busy,
-                      decoration: const InputDecoration(
-                        labelText: '任务',
-                        hintText: '描述下一步要完成的任务…',
+            child: Container(
+              padding: const EdgeInsets.all(AppSpacing.sm),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                border: Border.all(
+                  color: Theme.of(context).colorScheme.outlineVariant,
+                ),
+                borderRadius: BorderRadius.circular(AppRadii.sm),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: CallbackShortcuts(
+                      bindings: {
+                        const SingleActivator(
+                          LogicalKeyboardKey.enter,
+                          control: true,
+                        ): send,
+                      },
+                      child: TextField(
+                        controller: _input,
+                        minLines: 1,
+                        maxLines: 4,
+                        enabled: !state.busy,
+                        decoration: const InputDecoration(
+                          hintText: '描述下一步要完成的任务…',
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          disabledBorder: InputBorder.none,
+                          filled: false,
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: AppSpacing.xxs,
+                            vertical: AppSpacing.xs,
+                          ),
+                        ),
+                        onChanged: (_) =>
+                            controller.setDraft(_input.textForSave()),
                       ),
-                      onChanged: (_) =>
-                          controller.setDraft(_input.textForSave()),
                     ),
                   ),
-                ),
-                const SizedBox(height: AppSpacing.xs),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        state.busy
-                            ? '主 Agent 与子 Agent 共享停止控制'
-                            : FocusManager.instance.highlightMode ==
-                                  FocusHighlightMode.traditional
-                            ? 'Ctrl + Enter 发送 · Enter 换行'
-                            : '输入任务后开始写作',
-                        style: Theme.of(context).textTheme.bodySmall,
+                  const SizedBox(height: AppSpacing.xs),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          state.busy
+                              ? '任务执行中'
+                              : FocusManager.instance.highlightMode ==
+                                    FocusHighlightMode.traditional
+                              ? 'Ctrl + Enter 发送 · Enter 换行'
+                              : '',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
                       ),
-                    ),
-                    if (state.busy)
-                      OutlinedButton.icon(
-                        onPressed: controller.stop,
-                        icon: const Icon(Icons.stop),
-                        label: const Text('停止全部'),
-                      )
-                    else
-                      FilledButton.icon(
-                        onPressed: canSend ? send : null,
-                        icon: const Icon(Icons.arrow_upward),
-                        label: const Text('开始任务'),
-                      ),
-                  ],
-                ),
-              ],
+                      if (state.busy)
+                        OutlinedButton.icon(
+                          onPressed: controller.stop,
+                          icon: const Icon(Icons.stop),
+                          label: const Text('停止全部'),
+                        )
+                      else
+                        FilledButton.icon(
+                          onPressed: canSend ? send : null,
+                          icon: const Icon(Icons.arrow_upward),
+                          label: const Text('开始任务'),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         ),

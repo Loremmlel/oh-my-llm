@@ -90,11 +90,13 @@ class AppShellScaffold extends StatelessWidget {
         final spacious =
             constraints.maxWidth >= AppBreakpoints.workspaceSidebarWidth &&
             constraints.maxHeight >= AppBreakpoints.workspaceSidebarHeight;
+        final hasWorkspaceSidebar =
+            currentDestination == AppDestination.chat ||
+            currentDestination == AppDestination.agent;
         final showEndDrawer =
             endDrawer != null &&
             (isCompact ||
-                (endDrawerOnWide &&
-                    (currentDestination != AppDestination.chat || !spacious)));
+                (endDrawerOnWide && (!hasWorkspaceSidebar || !spacious)));
 
         final appBar = AppBar(
           title: Text(title),
@@ -140,10 +142,7 @@ class AppShellScaffold extends StatelessWidget {
                 _DesktopNavigationRail(
                   currentDestination: currentDestination,
                   spacious: spacious,
-                  auxiliary:
-                      spacious && currentDestination == AppDestination.chat
-                      ? endDrawer
-                      : null,
+                  auxiliary: spacious && hasWorkspaceSidebar ? endDrawer : null,
                 ),
                 const VerticalDivider(width: 1),
               ],

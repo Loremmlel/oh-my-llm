@@ -43,7 +43,7 @@ void main() {
       find.textContaining('这是第 299 楼的原文', findRichText: true),
       findsWidgets,
     );
-    await tester.scrollUntilVisible(find.text('轮次历史'), 300);
+    await tester.scrollUntilVisible(find.text('轮次历史').hitTestable(), 300);
     await tester.tap(find.text('轮次历史'));
     await settleAnimatedWidgetTransition(tester);
     await tester.scrollUntilVisible(find.text('加载更多轮次').hitTestable(), 300);

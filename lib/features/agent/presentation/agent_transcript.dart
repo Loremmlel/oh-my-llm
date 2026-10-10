@@ -5,6 +5,7 @@ import 'package:flutter_smooth_markdown/flutter_smooth_markdown.dart'
     as smooth_md;
 import 'package:go_router/go_router.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
+import 'package:oh_my_llm/core/widgets/reading_markdown_style.dart';
 
 import '../domain/agent_models.dart';
 import '../domain/agent_story_state.dart';
@@ -114,10 +115,7 @@ class _AgentTranscriptState extends State<AgentTranscript> {
       return const Center(
         child: Padding(
           padding: EdgeInsets.all(AppSpacing.lg),
-          child: Text(
-            '从一个任务开始\n\n添加工作文档，再描述要写作、审查或改写的内容。\n思考、工具调用和子 Agent 将在这里依次出现。',
-            textAlign: TextAlign.center,
-          ),
+          child: Text('描述下一步任务，开始写作。', textAlign: TextAlign.center),
         ),
       );
     }
@@ -246,42 +244,67 @@ class _RunTranscriptState extends State<_RunTranscript> {
           Container(
             padding: const EdgeInsets.all(AppSpacing.md),
             decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainer,
-              borderRadius: BorderRadius.circular(AppRadii.md),
+              color: theme.colorScheme.primaryContainer.withValues(alpha: .45),
+              borderRadius: BorderRadius.circular(AppRadii.sm),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  record.parentId == null ? '你' : '委派任务',
-                  style: theme.textTheme.labelLarge,
-                ),
-                const SizedBox(height: AppSpacing.xs),
+                if (record.parentId != null)
+                  Text('委派任务', style: theme.textTheme.labelLarge),
                 SelectableText(record.prompt),
               ],
             ),
           ),
-          Wrap(
-            spacing: AppSpacing.sm,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              TextButton.icon(
-                onPressed: () => setState(() => _expanded = !_expanded),
-                icon: Icon(
-                  _expanded ? Icons.expand_less : Icons.expand_more,
-                  size: 18,
-                ),
-                label: Text(
-                  '${_expanded ? '收起' : '展开'}执行过程 · ${record.steps.length} 步',
-                ),
+          if (widget.round != null ||
+              (record.status != AgentRunStatus.running &&
+                  record.content.isNotEmpty))
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    agentRoleLabel(record.role),
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  _AgentMarkdown(
+                    content: widget.round?.document.content ?? record.content,
+                  ),
+                ],
               ),
-              if (widget.showRetry)
+            ),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(color: theme.colorScheme.outlineVariant),
+              ),
+            ),
+            child: Wrap(
+              spacing: AppSpacing.sm,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
                 TextButton.icon(
-                  onPressed: widget.onRetry,
-                  icon: const Icon(Icons.refresh, size: 18),
-                  label: const Text('重试'),
+                  onPressed: () => setState(() => _expanded = !_expanded),
+                  icon: Icon(
+                    _expanded ? Icons.expand_less : Icons.expand_more,
+                    size: 18,
+                  ),
+                  label: Text(
+                    '${_expanded ? '收起' : '展开'}执行过程 · ${record.steps.length} 步',
+                  ),
                 ),
-            ],
+                if (widget.showRetry)
+                  TextButton.icon(
+                    onPressed: widget.onRetry,
+                    icon: const Icon(Icons.refresh, size: 18),
+                    label: const Text('重试'),
+                  ),
+              ],
+            ),
           ),
           if (_expanded) ...[
             if (children.isNotEmpty)
@@ -303,16 +326,6 @@ class _RunTranscriptState extends State<_RunTranscript> {
               style: theme.textTheme.bodySmall,
             ),
           ],
-          if (widget.round != null ||
-              (record.status != AgentRunStatus.running &&
-                  record.content.isNotEmpty &&
-                  (!_expanded || record.steps.isEmpty)))
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-              child: _AgentMarkdown(
-                content: widget.round?.document.content ?? record.content,
-              ),
-            ),
           if (widget.round?.status == AgentStoryRoundStatus.pending)
             const Text('正文已选定，剧情状态待更新。'),
           if (record.status == AgentRunStatus.running &&
@@ -399,7 +412,7 @@ class _StepView extends StatelessWidget {
         ],
       );
     }
-    return Padding(
+    final details = Padding(
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -426,6 +439,17 @@ class _StepView extends StatelessWidget {
         ],
       ),
     );
+    if (step.isRunning || record.status == AgentRunStatus.running) {
+      return details;
+    }
+    return ExpansionTile(
+      tilePadding: EdgeInsets.zero,
+      minTileHeight: 48,
+      dense: true,
+      leading: Icon(step.isError ? Icons.error_outline : Icons.check, size: 18),
+      title: Text(step.label),
+      children: [details],
+    );
   }
 }
 
@@ -436,7 +460,7 @@ class _AgentMarkdown extends StatelessWidget {
   Widget build(BuildContext context) => smooth_md.SmoothMarkdown(
     data: content,
     selectable: true,
-    styleSheet: smooth_md.MarkdownStyleSheet.fromTheme(Theme.of(context)),
+    styleSheet: readingMarkdownStyle(Theme.of(context), fontSize: 18),
   );
 }
 
