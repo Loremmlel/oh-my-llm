@@ -1,84 +1,37 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 
 import '../../../../domain/models/providers/llm_provider_config.dart';
-import 'provider_meta_chip.dart';
 
 class ProviderInfoBody extends StatelessWidget {
-  const ProviderInfoBody({required this.provider, super.key});
-
+  const ProviderInfoBody({
+    required this.provider,
+    required this.onEdit,
+    super.key,
+  });
   final LlmProviderConfig provider;
+  final VoidCallback onEdit;
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(
+      horizontal: AppSpacing.md,
+      vertical: AppSpacing.xs,
+    ),
+    child: Wrap(
+      spacing: AppSpacing.lg,
+      runSpacing: AppSpacing.xs,
+      crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            ProviderMetaChip(
-              icon: Icons.hub_outlined,
-              label: '模型数量：${provider.models.length}',
-            ),
-            ProviderMetaChip(
-              icon: Icons.api_rounded,
-              label: '协议：${provider.apiProtocol.displayName}',
-            ),
-            Tooltip(
-              message: provider.apiUrl,
-              child: ProviderMetaChip(
-                icon: Icons.link_rounded,
-                label: 'API URL：${_buildApiUrlLabel(provider.apiUrl)}',
-              ),
-            ),
-            ProviderMetaChip(
-              icon: Icons.key_outlined,
-              label: 'API Key：${_maskApiKey(provider.apiKey)}',
-            ),
-          ],
+        Text('API 地址', style: Theme.of(context).textTheme.labelLarge),
+        SelectableText(provider.apiUrl),
+        Text('API Key：${provider.apiKey.trim().isEmpty ? '未设置' : '已保存'}'),
+        TextButton.icon(
+          onPressed: onEdit,
+          icon: const Icon(Icons.edit_outlined, size: 18),
+          label: const Text('编辑连接'),
         ),
-        if (provider.models.isNotEmpty) ...[
-          const SizedBox(height: 8),
-          Text(
-            '模型摘要：${_buildModelSummary(provider.models)}',
-            style: theme.textTheme.bodySmall,
-          ),
-        ],
       ],
-    );
-  }
-
-  String _buildApiUrlLabel(String apiUrl) {
-    final uri = Uri.tryParse(apiUrl.trim());
-    final host = uri?.host.trim() ?? '';
-    return host.isNotEmpty ? host : apiUrl.trim();
-  }
-
-  String _buildModelSummary(List<LlmProviderModelConfig> models) {
-    if (models.isEmpty) {
-      return '无';
-    }
-    const previewLimit = 2;
-    final preview = models
-        .take(previewLimit)
-        .map((model) => model.displayName)
-        .join('、');
-    final remainingCount = models.length - previewLimit;
-    if (remainingCount <= 0) {
-      return preview;
-    }
-    return '$preview 等 $remainingCount 个模型';
-  }
-
-  String _maskApiKey(String apiKey) {
-    final trimmed = apiKey.trim();
-    if (trimmed.length <= 8) {
-      return '已保存';
-    }
-
-    return '${trimmed.substring(0, 4)}****${trimmed.substring(trimmed.length - 4)}';
-  }
+    ),
+  );
 }

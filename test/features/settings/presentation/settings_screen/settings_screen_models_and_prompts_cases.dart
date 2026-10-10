@@ -16,7 +16,7 @@ import 'package:oh_my_llm/features/settings/domain/models/prompts/template_promp
 import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_transfer_document_codec.dart';
 import 'package:oh_my_llm/features/settings/presentation/settings_screen.dart';
 import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/template_prompt_form_dialog.dart';
-import 'package:oh_my_llm/features/settings/presentation/widgets/shared/settings_entity_card.dart';
+import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/lists/preset_prompts_view.dart';
 
 import '../../../../helpers/fixtures.dart';
 import '../../../../helpers/async/widget_test_animation.dart';
@@ -46,10 +46,10 @@ void registerSettingsScreenModelsAndPromptsTests() {
     expect(createdProvider.name, 'OpenAI 官方');
     expect(repository.loadAll(), isEmpty);
     expect(find.text('OpenAI 官方'), findsWidgets);
-    expect(find.text('Chat Completions · 0 个模型'), findsOneWidget);
+    expect(find.text('0 个模型 · Chat Completions'), findsOneWidget);
   });
 
-  testWidgets('新增模型后可以直接切换卡片中的思考与图像能力并保存', (tester) async {
+  testWidgets('新增模型后可以直接切换表格中的思考与图像能力并保存', (tester) async {
     await setUpSettingsScreen(tester);
     final repository = ProviderScope.containerOf(
       tester.element(find.byType(SettingsScreen)),
@@ -73,18 +73,18 @@ void registerSettingsScreenModelsAndPromptsTests() {
     expect(createdModel.modelName, 'gpt-4.1');
     expect(createdModel.supportsReasoning, isTrue);
     expect(find.text('OpenAI 4.1'), findsWidgets);
-    final reasoningChip = find.widgetWithText(FilterChip, '深度思考');
+    final reasoningChip = find.bySemanticsLabel('OpenAI 4.1 深度思考');
     await tester.ensureVisible(reasoningChip);
     await tester.tap(reasoningChip);
     await tester.pump();
-    final imageChip = find.widgetWithText(FilterChip, '图像');
+    final imageChip = find.bySemanticsLabel('OpenAI 4.1 图像');
     await tester.tap(imageChip);
     await tester.pump();
     expect(repository.loadAll().single.supportsReasoning, isFalse);
     expect(repository.loadAll().single.supportsImageInput, isTrue);
   });
 
-  testWidgets('从 API 拉取模型时分别保存深度思考与图像能力', (tester) async {
+  testWidgets('批量添加直接进入 API 拉取并分别保存深度思考与图像能力', (tester) async {
     final workflow = ModelCatalogWorkflow(
       fetchModels:
           ({
@@ -107,10 +107,8 @@ void registerSettingsScreenModelsAndPromptsTests() {
     ).read(llmModelConfigRepositoryProvider);
     await createTestProvider(tester);
 
-    await tester.tap(find.text('新增模型'));
+    await tester.tap(find.text('批量添加'));
     await settleOverlayTransition(tester);
-    await tester.tap(find.text('从 API 拉取'));
-    await tester.pump();
     await tester.tap(find.widgetWithText(FilledButton, '拉取模型'));
     await tester.pump();
 
@@ -179,7 +177,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
 
     expect(find.textContaining('gpt-4.1'), findsNothing);
 
-    await tester.tap(find.text('展开模型（2）'));
+    await tester.tap(find.byTooltip('展开模型（2）'));
     await tester.pump();
 
     expect(find.textContaining('gpt-4.1'), findsOneWidget);
@@ -196,13 +194,13 @@ void registerSettingsScreenModelsAndPromptsTests() {
       ],
     );
 
-    // 锚定「代码审阅」卡片上的「复制」按钮：避免被同名的其它控件干扰。
+    // 锚定「代码审阅」记录的操作，避免同名控件干扰。
     final copyButton = find.descendant(
       of: find.ancestor(
         of: find.text('代码审阅'),
-        matching: find.byType(SettingsEntityCard),
+        matching: find.byType(PresetPromptRow),
       ),
-      matching: find.widgetWithText(OutlinedButton, '复制'),
+      matching: find.widgetWithText(TextButton, '复制'),
     );
     await tester.tap(copyButton);
     // 复制是直接 Future（写剪贴板 + 提示），单帧即可。
@@ -265,7 +263,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
     await tester.tap(find.text('保存'));
     await settleOverlayTransition(tester);
     expect(find.text('多 system 模板'), findsWidgets);
-    expect(find.textContaining('共 2 条消息'), findsOneWidget);
+    expect(find.text('2 条'), findsOneWidget);
     final saved = presetPromptRepository.loadAll(database).single;
     expect(saved.singleSystemPrompt, isFalse);
     await tester.tap(find.byType(Switch).last);
@@ -274,7 +272,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
       presetPromptRepository.loadAll(database).single.singleSystemPrompt,
       isTrue,
     );
-    await tester.tap(find.widgetWithText(OutlinedButton, '编辑'));
+    await tester.tap(find.widgetWithText(TextButton, '编辑'));
     await settleOverlayTransition(tester);
     await tester.tap(find.text('保存'));
     await settleOverlayTransition(tester);
@@ -290,7 +288,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
     );
   });
 
-  testWidgets('窄屏预设卡片的单 System 开关可切换且无溢出', (tester) async {
+  testWidgets('窄屏预设记录的单 System 开关可切换且无溢出', (tester) async {
     final database = await setUpSettingsScreen(
       tester,
       size: const Size(390, 844),
@@ -306,6 +304,33 @@ void registerSettingsScreenModelsAndPromptsTests() {
       isTrue,
     );
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('预设删除可取消且确认后才移除记录', (tester) async {
+    final database = await setUpSettingsScreen(
+      tester,
+      initialTabIndex: 1,
+      presetPrompts: [
+        TestFixtures.presetPrompt(id: 'delete-preset', name: '待删除预设'),
+      ],
+    );
+    Future<void> openDelete() async {
+      await tester.tap(find.byTooltip('预设操作'));
+      await settleOverlayTransition(tester);
+      await tester.tap(find.text('删除'));
+      await settleOverlayTransition(tester);
+    }
+
+    await openDelete();
+    expect(find.textContaining('已有聊天记录会保留'), findsOneWidget);
+    await tester.tap(find.text('取消'));
+    await settleOverlayTransition(tester);
+    expect(presetPromptRepository.loadAll(database), hasLength(1));
+    await openDelete();
+    await tester.tap(find.widgetWithText(FilledButton, '删除预设'));
+    await settleOverlayTransition(tester);
+    expect(presetPromptRepository.loadAll(database), isEmpty);
+    expect(find.text('还没有预设 Prompt'), findsOneWidget);
   });
 
   testWidgets('预设条目插入选中项之后，保存正文与注入位置顺序', (tester) async {

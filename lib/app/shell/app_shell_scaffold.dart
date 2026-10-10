@@ -96,16 +96,17 @@ class AppShellScaffold extends StatelessWidget {
                 (endDrawerOnWide &&
                     (currentDestination != AppDestination.chat || !spacious)));
 
+        final appBar = AppBar(
+          title: Text(title),
+          actions: [
+            ...?actions,
+            // 响应式动作跟随壳层断点切换紧凑/宽侧分支，排在固定动作之后。
+            ...?adaptiveActions?.resolve(constraints.maxWidth),
+            if (showEndDrawer) _buildDrawerButton(),
+          ],
+        );
         return Scaffold(
-          appBar: AppBar(
-            title: Text(title),
-            actions: [
-              ...?actions,
-              // 响应式动作跟随壳层断点切换紧凑/宽侧分支，排在固定动作之后。
-              ...?adaptiveActions?.resolve(constraints.maxWidth),
-              if (showEndDrawer) _buildDrawerButton(),
-            ],
-          ),
+          appBar: spacious ? null : appBar,
           endDrawer: showEndDrawer ? endDrawer : null,
           // Android 边缘返回手势与抽屉右缘拖拽抢占同一块屏幕边缘：禁用
           // open drag，把右缘让回系统 Back。抽屉仍可由图标打开，由
@@ -146,7 +147,16 @@ class AppShellScaffold extends StatelessWidget {
                 ),
                 const VerticalDivider(width: 1),
               ],
-              Expanded(child: body),
+              Expanded(
+                child: spacious
+                    ? Column(
+                        children: [
+                          appBar,
+                          Expanded(child: body),
+                        ],
+                      )
+                    : body,
+              ),
             ],
           ),
         );

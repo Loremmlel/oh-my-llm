@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'settings_screen_test_helpers.dart';
+import '../../../../helpers/async/widget_test_animation.dart';
 
 /// 每个 tab 的关键 heading（内容区可滚动到达的文案）。
 const _tabHeadingByIndex = <int, String>{
-  0: '服务商设置',
+  0: '新增服务商',
   1: '预设 Prompt',
   2: '记忆总结提示词',
   3: '请求头定义',
@@ -17,6 +18,21 @@ const _tabHeadingByIndex = <int, String>{
 const _promptsTabAdditionalHeadings = ['模板提示词', '固定顺序提示词'];
 
 void registerSettingsScreenResponsiveTests() {
+  testWidgets('提示词分类可直接进入对应分组并返回总览', (tester) async {
+    await setUpSettingsScreen(tester, useDefaultsSeed: true);
+    await tester.tap(find.byTooltip('提示词分类'));
+    await settleOverlayTransition(tester);
+    await tester.tap(find.text('模板提示词'));
+    await settleOverlayTransition(tester);
+    expect(find.text('模板提示词'), findsOneWidget);
+    expect(find.text('记忆总结提示词'), findsNothing);
+    expect(find.text('固定顺序提示词'), findsNothing);
+    await tester.tap(find.text('提示词'));
+    await settleOverlayTransition(tester);
+    expect(find.text('记忆总结提示词'), findsOneWidget);
+    expect(find.text('固定顺序提示词'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
   testWidgets('窄屏恢复保存的标签，切换全部设置分组无溢出', (tester) async {
     // 1500 高度视口下各 tab 内容区的关键 heading 均在首屏直接可见，
     // 无需滚动；若内容超高产生 overflow，takeException 会直接失败。

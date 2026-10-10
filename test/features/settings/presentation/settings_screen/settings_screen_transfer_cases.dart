@@ -25,7 +25,7 @@ void registerSettingsScreenTransferTests() {
       clipboardWrites: clipboardWrites,
     );
 
-    await tester.tap(find.byIcon(Icons.upload_rounded));
+    await tester.tap(find.widgetWithText(TextButton, '导出'));
     await tester.pump();
 
     expect(clipboardWrites, hasLength(1));
@@ -51,7 +51,9 @@ void registerSettingsScreenTransferTests() {
     expect(find.text('检测到配置导入数据'), findsOneWidget);
     expect(find.textContaining('标签不匹配'), findsNothing);
 
-    await tester.tap(find.text('导入'));
+    await tester.tap(
+      find.descendant(of: find.byType(AlertDialog), matching: find.text('导入')),
+    );
     await settleOverlayTransition(tester);
 
     final container = ProviderScope.containerOf(
@@ -68,7 +70,7 @@ void registerSettingsScreenTransferTests() {
       clipboardWrites: clipboardWrites,
     );
 
-    await tester.tap(find.byIcon(Icons.upload_rounded));
+    await tester.tap(find.widgetWithText(TextButton, '导出'));
     await settleOverlayTransition(tester);
 
     expect(find.textContaining('系统剪贴板'), findsOneWidget);
@@ -77,7 +79,7 @@ void registerSettingsScreenTransferTests() {
     await settleOverlayTransition(tester);
 
     expect(clipboardWrites, isEmpty);
-    await tester.tap(find.byIcon(Icons.upload_rounded));
+    await tester.tap(find.widgetWithText(TextButton, '导出'));
     await settleOverlayTransition(tester);
     await tester.tap(find.text('确认复制'));
     await settleOverlayTransition(tester);
@@ -93,7 +95,7 @@ void registerSettingsScreenTransferTests() {
     await setUpSettingsScreen(tester, clipboardWrites: clipboardWrites);
     await switchToTab(tester, 3);
 
-    await tester.tap(find.byIcon(Icons.upload_rounded));
+    await tester.tap(find.widgetWithText(TextButton, '导出'));
     await settleOverlayTransition(tester);
     await tester.tap(find.text('确认复制'));
     await settleOverlayTransition(tester);
@@ -108,7 +110,7 @@ void registerSettingsScreenTransferTests() {
     await setUpSettingsScreen(tester, clipboardWrites: clipboardWrites);
     await switchToTab(tester, 4);
 
-    await tester.tap(find.byIcon(Icons.upload_rounded));
+    await tester.tap(find.widgetWithText(TextButton, '导出'));
     await tester.pump();
 
     final document = _decodeDocument(clipboardWrites.single);
@@ -194,7 +196,9 @@ void registerSettingsScreenTransferTests() {
 
     await tester.tap(find.byType(Checkbox));
     await tester.pump();
-    await tester.tap(find.text('导入'));
+    await tester.tap(
+      find.descendant(of: find.byType(AlertDialog), matching: find.text('导入')),
+    );
     await settleOverlayTransition(tester);
 
     expect(find.text('设置已成功导入'), findsOneWidget);

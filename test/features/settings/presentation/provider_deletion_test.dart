@@ -89,7 +89,7 @@ void main() {
     await container
         .read(chatDefaultsProvider.notifier)
         .rememberModelId('model-1');
-    await tester.tap(find.text('展开模型（2）'));
+    await tester.tap(find.byTooltip('展开模型（2）'));
     await tester.pump();
     await tester.tap(find.byTooltip('模型操作').first);
     await settleOverlayTransition(tester);

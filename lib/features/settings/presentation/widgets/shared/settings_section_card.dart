@@ -10,6 +10,7 @@ class SettingsSectionCard extends StatelessWidget {
     this.description,
     required this.child,
     this.action,
+    this.titleStyle,
     super.key,
   });
 
@@ -17,6 +18,7 @@ class SettingsSectionCard extends StatelessWidget {
   final String? description;
   final Widget child;
   final Widget? action;
+  final TextStyle? titleStyle;
 
   @override
   Widget build(BuildContext context) {
@@ -39,9 +41,12 @@ class SettingsSectionCard extends StatelessWidget {
                         ? AppHelpTitle(
                             title: title,
                             message: description!,
-                            style: theme.textTheme.titleMedium,
+                            style: titleStyle ?? theme.textTheme.titleMedium,
                           )
-                        : Text(title, style: theme.textTheme.titleMedium);
+                        : Text(
+                            title,
+                            style: titleStyle ?? theme.textTheme.titleMedium,
+                          );
                     if (action == null) return heading;
                     if (AppBreakpoints.useCompactFormActions(
                       constraints.maxWidth,

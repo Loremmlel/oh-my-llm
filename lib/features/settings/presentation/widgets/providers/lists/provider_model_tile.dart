@@ -8,8 +8,10 @@ import '../../../../application/providers/llm_model_configs_controller.dart';
 import '../../../../domain/models/providers/llm_provider_config.dart';
 import '../../shared/settings_helpers.dart';
 import '../model_capability_chips.dart';
+import '../../shared/settings_table_row.dart';
 
 class ProviderModelTile extends ConsumerStatefulWidget {
+  static const columnFlexes = [3, 4, 2, 2, 3];
   const ProviderModelTile({
     required this.provider,
     required this.model,
@@ -99,9 +101,9 @@ class _ProviderModelTileState extends ConsumerState<ProviderModelTile> {
     );
     return LayoutBuilder(
       builder: (context, constraints) {
-        final compact = AppBreakpoints.useCompactFormActions(
-          constraints.maxWidth / MediaQuery.textScalerOf(context).scale(1),
-        );
+        final compact =
+            constraints.maxWidth / MediaQuery.textScalerOf(context).scale(1) <
+            AppBreakpoints.contentMasterDetail;
         final name = Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -137,22 +139,92 @@ class _ProviderModelTileState extends ConsumerState<ProviderModelTile> {
               ? null
               : (value) => _setCapability(image: value),
         );
+        final edit = TextButton.icon(
+          onPressed: _isSaving
+              ? null
+              : () => widget.onEditModelRequested(provider, model),
+          icon: const Icon(Icons.edit_outlined, size: 18),
+          label: const Text('编辑'),
+        );
+        if (!compact) {
+          Widget capability(
+            String label,
+            bool value,
+            ValueChanged<bool> onChanged,
+          ) => Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: Semantics(
+              label: '${model.displayName} $label',
+              child: Checkbox(
+                value: value,
+                onChanged: _isSaving ? null : (v) => onChanged(v!),
+              ),
+            ),
+          );
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SettingsTableRow(
+                flexes: ProviderModelTile.columnFlexes,
+                cells: [
+                  Tooltip(
+                    message: model.displayName,
+                    child: Text(
+                      model.displayName,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleSmall,
+                    ),
+                  ),
+                  Tooltip(
+                    message: model.modelName,
+                    child: Text(
+                      model.modelName,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  capability(
+                    '深度思考',
+                    model.supportsReasoning,
+                    (v) => _setCapability(reasoning: v),
+                  ),
+                  capability(
+                    '图像',
+                    model.supportsImageInput,
+                    (v) => _setCapability(image: v),
+                  ),
+                  Row(children: [edit, menu]),
+                ],
+              ),
+              if (_error != null)
+                Semantics(
+                  liveRegion: true,
+                  child: Text(
+                    _error!,
+                    style: TextStyle(color: theme.colorScheme.error),
+                  ),
+                ),
+            ],
+          );
+        }
         return Padding(
-          padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+          padding: const EdgeInsets.symmetric(
+            vertical: AppSpacing.xs,
+            horizontal: AppSpacing.md,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
                   Expanded(child: name),
-                  if (!compact) ...[
-                    const SizedBox(width: AppSpacing.sm),
-                    capabilities,
-                  ],
+                  edit,
                   menu,
                 ],
               ),
-              if (compact) capabilities,
+              capabilities,
+              const Divider(height: 1),
               if (_error != null)
                 Semantics(
                   liveRegion: true,

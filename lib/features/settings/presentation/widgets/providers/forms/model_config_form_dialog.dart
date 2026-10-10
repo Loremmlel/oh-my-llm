@@ -47,6 +47,7 @@ class ModelConfigFormDialog extends StatefulWidget {
     required this.onBatchAdd,
     required this.fetchModels,
     this.initialValue,
+    this.initialBatchMode = false,
     super.key,
   });
 
@@ -60,6 +61,7 @@ class ModelConfigFormDialog extends StatefulWidget {
   fetchModels;
 
   final LlmProviderModelConfig? initialValue;
+  final bool initialBatchMode;
 
   @override
   State<ModelConfigFormDialog> createState() => _ModelConfigFormDialogState();
@@ -79,6 +81,7 @@ class _ModelConfigFormDialogState extends State<ModelConfigFormDialog>
   @override
   void initState() {
     super.initState();
+    _mode = widget.initialBatchMode ? _FormMode.fetch : _FormMode.manual;
     _displayNameController = initController(
       widget.initialValue?.displayName ?? '',
     );
