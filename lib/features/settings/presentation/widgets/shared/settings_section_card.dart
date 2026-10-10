@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
 import 'package:oh_my_llm/core/widgets/app_help_button.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 
@@ -11,6 +10,7 @@ class SettingsSectionCard extends StatelessWidget {
     required this.child,
     this.action,
     this.titleStyle,
+    this.maxWidth = AppContentWidths.wide,
     super.key,
   });
 
@@ -19,6 +19,7 @@ class SettingsSectionCard extends StatelessWidget {
   final Widget child;
   final Widget? action;
   final TextStyle? titleStyle;
+  final double maxWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -27,11 +28,11 @@ class SettingsSectionCard extends StatelessWidget {
     return Align(
       alignment: Alignment.topCenter,
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: AppContentWidths.wide),
+        constraints: BoxConstraints(maxWidth: maxWidth),
         child: SizedBox(
           width: double.infinity,
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -48,31 +49,16 @@ class SettingsSectionCard extends StatelessWidget {
                             style: titleStyle ?? theme.textTheme.titleMedium,
                           );
                     if (action == null) return heading;
-                    if (AppBreakpoints.useCompactFormActions(
-                      constraints.maxWidth,
-                    )) {
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          heading,
-                          const SizedBox(height: AppSpacing.xs),
-                          Align(
-                            alignment: AlignmentDirectional.centerEnd,
-                            child: action,
-                          ),
-                        ],
-                      );
-                    }
-                    return Row(
-                      children: [
-                        Expanded(child: heading),
-                        const SizedBox(width: AppSpacing.md),
-                        action!,
-                      ],
+                    return OverflowBar(
+                      alignment: MainAxisAlignment.spaceBetween,
+                      overflowAlignment: OverflowBarAlignment.end,
+                      spacing: AppSpacing.xs,
+                      overflowSpacing: AppSpacing.xs,
+                      children: [heading, action!],
                     );
                   },
                 ),
-                const SizedBox(height: AppSpacing.md),
+                const SizedBox(height: AppSpacing.xs),
                 child,
               ],
             ),

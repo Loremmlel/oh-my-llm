@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
-import 'package:oh_my_llm/core/widgets/adaptive_grid/app_adaptive_grid.dart';
 import 'package:oh_my_llm/core/widgets/dialogs/app_confirm_dialog.dart';
 import 'package:oh_my_llm/core/widgets/app_adaptive_actions.dart';
 import 'package:oh_my_llm/core/widgets/app_help_button.dart';
@@ -276,11 +275,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                   constraints: const BoxConstraints(
                     maxWidth: AppContentWidths.wide,
                   ),
-                  child: AppAdaptiveGrid.content(
-                    equalRowHeights: false,
-                    maxCrossAxisExtent: 400,
-                    crossAxisSpacing: AppSpacing.lg,
-                    mainAxisSpacing: AppSpacing.sm,
+                  child: Column(
                     children: [
                       if (_promptCategory == null || _promptCategory == 0)
                         SettingsSectionCard(
@@ -293,6 +288,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                             label: const Text('新增记忆提示词'),
                           ),
                           child: MemoryPromptsList(
+                            onDelete: ref
+                                .read(memoryPromptsProvider.notifier)
+                                .deleteById,
                             memoryPrompts: memoryPrompts,
                             onEditRequested: (memoryPrompt) {
                               _showMemoryPromptDialog(
@@ -314,6 +312,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                             label: const Text('新增模板提示词'),
                           ),
                           child: TemplatePromptsList(
+                            onDelete: ref
+                                .read(templatePromptsProvider.notifier)
+                                .deleteById,
                             templatePrompts: templatePrompts,
                             onEditRequested: (templatePrompt) {
                               _showTemplatePromptDialog(
@@ -335,6 +336,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                             label: const Text('新增序列'),
                           ),
                           child: FixedPromptSequencesList(
+                            onDelete: ref
+                                .read(fixedPromptSequencesProvider.notifier)
+                                .deleteById,
                             sequences: fixedPromptSequences,
                             onEditRequested: (sequence) {
                               _showFixedPromptSequenceDialog(

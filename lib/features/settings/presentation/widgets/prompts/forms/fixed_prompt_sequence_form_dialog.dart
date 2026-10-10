@@ -131,14 +131,10 @@ class _FixedPromptSequenceFormDialogState
     required Widget child,
     required Key key,
   }) {
-    return DecoratedBox(
+    return Padding(
       key: key,
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest
-            .withValues(alpha: 0.22),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Padding(padding: const EdgeInsets.all(16), child: child),
+      padding: const EdgeInsets.only(left: 16),
+      child: child,
     );
   }
 
@@ -146,12 +142,14 @@ class _FixedPromptSequenceFormDialogState
     return DecoratedBox(
       key: const ValueKey('fixed-prompt-sequence-master-pane'), // test-key
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest
-            .withValues(alpha: 0.22),
-        borderRadius: BorderRadius.circular(20),
+        border: Border(
+          right: BorderSide(
+            color: Theme.of(context).colorScheme.outlineVariant,
+          ),
+        ),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.only(right: 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -187,15 +185,7 @@ class _FixedPromptSequenceFormDialogState
     required Widget child,
     required Key key,
   }) {
-    return DecoratedBox(
-      key: key,
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest
-            .withValues(alpha: 0.18),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Padding(padding: const EdgeInsets.all(16), child: child),
-    );
+    return SizedBox(key: key, child: child);
   }
 
   Widget _buildMasterContent(BuildContext context) {
@@ -247,8 +237,6 @@ class _FixedPromptSequenceFormDialogState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('步骤列表', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 12),
         _buildNameField(),
         const SizedBox(height: 16),
         Wrap(
@@ -298,8 +286,6 @@ class _FixedPromptSequenceFormDialogState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('步骤详情', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 16),
         TextFormField(
           key: const ValueKey('fixed-step-title-field'), // test-key
           controller: selected.titleController,
@@ -463,10 +449,8 @@ class _FixedPromptStepListTile extends StatelessWidget {
         return Material(
           color: isSelected
               ? colorScheme.secondaryContainer
-              : colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
-          borderRadius: BorderRadius.circular(16),
+              : Colors.transparent,
           child: InkWell(
-            borderRadius: BorderRadius.circular(16),
             onTap: onTap,
             child: Padding(
               padding: const EdgeInsets.all(14),

@@ -32,10 +32,7 @@ class SettingsWorkspace extends StatelessWidget {
                 maxWidth: AppContentWidths.wide,
               ),
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.md,
-                  vertical: AppSpacing.xs,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
                 child: Column(
                   children: [
                     Row(

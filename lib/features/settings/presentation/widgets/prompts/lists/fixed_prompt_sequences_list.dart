@@ -1,28 +1,27 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:oh_my_llm/core/utils/text_formatting.dart';
 
-import '../../../../application/prompts/fixed_prompt_sequences_controller.dart';
 import '../../../../domain/models/prompts/fixed_prompt_sequence.dart';
-import '../../shared/settings_card_grid.dart';
 import '../../shared/settings_empty_state.dart';
-import '../../shared/settings_entity_card.dart';
+import '../../shared/settings_entity_row.dart';
 import '../../shared/settings_helpers.dart';
 
 /// 固定顺序提示词列表，负责展示、编辑和删除序列。
-class FixedPromptSequencesList extends ConsumerWidget {
+class FixedPromptSequencesList extends StatelessWidget {
   const FixedPromptSequencesList({
     required this.sequences,
     required this.onEditRequested,
+    required this.onDelete,
     super.key,
   });
 
   final List<FixedPromptSequence> sequences;
   final ValueChanged<FixedPromptSequence> onEditRequested;
+  final Future<void> Function(String id) onDelete;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     if (sequences.isEmpty) {
       return const SettingsEmptyState(
         icon: Icons.playlist_play_rounded,
@@ -31,31 +30,34 @@ class FixedPromptSequencesList extends ConsumerWidget {
       );
     }
 
-    return SettingsCardGrid(
+    return Column(
       children: [
         for (final sequence in sequences)
           _FixedPromptSequenceTile(
             sequence: sequence,
             onEditRequested: onEditRequested,
+            onDelete: onDelete,
           ),
       ],
     );
   }
 }
 
-/// 单个固定顺序提示词序列卡片。
-class _FixedPromptSequenceTile extends ConsumerWidget {
+/// 单个固定顺序提示词序列记录。
+class _FixedPromptSequenceTile extends StatelessWidget {
   const _FixedPromptSequenceTile({
     required this.sequence,
     required this.onEditRequested,
+    required this.onDelete,
   });
 
   final FixedPromptSequence sequence;
   final ValueChanged<FixedPromptSequence> onEditRequested;
+  final Future<void> Function(String id) onDelete;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return SettingsEntityCard(
+  Widget build(BuildContext context) {
+    return SettingsEntityRow(
       title: sequence.name,
       body: [
         const SizedBox(height: 8),
@@ -80,14 +82,11 @@ class _FixedPromptSequenceTile extends ConsumerWidget {
       actions: editDeleteActions(
         onEdit: () => onEditRequested(sequence),
         onDelete: () {
-          ref
-              .read(fixedPromptSequencesProvider.notifier)
-              .deleteById(sequence.id)
-              .then((_) {
-                if (context.mounted) {
-                  showSettingsSnackbar(context, '固定顺序提示词已删除');
-                }
-              });
+          onDelete(sequence.id).then((_) {
+            if (context.mounted) {
+              showSettingsSnackbar(context, '固定顺序提示词已删除');
+            }
+          });
         },
       ),
     );

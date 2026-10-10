@@ -112,11 +112,15 @@ class _HeaderEntryTile extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Padding(
-      padding: EdgeInsets.only(top: index > 0 ? 8 : 0),
-      child: Card(
-        margin: EdgeInsets.zero,
+      padding: EdgeInsets.zero,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(color: theme.colorScheme.outlineVariant),
+          ),
+        ),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: const EdgeInsets.symmetric(vertical: 12),
           child: Row(
             children: [
               Expanded(
