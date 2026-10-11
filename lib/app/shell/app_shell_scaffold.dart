@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/constants/app_identity.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 import 'package:go_router/go_router.dart';
 
@@ -224,8 +225,31 @@ class _DesktopNavigationRail extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
-              padding: const EdgeInsets.all(24),
-              child: Text('oh-my-llm', style: theme.textTheme.titleLarge),
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Text(
+                    AppIdentity.displayName,
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontSize: 28,
+                      letterSpacing: 2,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Flexible(
+                    child: Text(
+                      AppIdentity.latinName,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
             for (final destination in AppDestination.values.where(
               (destination) =>

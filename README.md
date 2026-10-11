@@ -1,4 +1,4 @@
-# Oh My LLM
+# 四月 · Siyue
 
 **用于聊天与长篇写作的 LLM 客户端，支持 Windows 和 Android。**
 

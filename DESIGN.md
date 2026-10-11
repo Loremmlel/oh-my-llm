@@ -1,6 +1,6 @@
 ---
 version: alpha
-name: oh-my-llm
+name: siyue
 description: 面向长文本阅读与创作的本地 Flutter 工作台
 colors:
   primary-light: '#2F5D46'
@@ -40,6 +40,8 @@ components:
 参考图遗漏的既有功能必须按当前布局补齐；图中新增功能不直接实现。整体一致性优先于逐像素照搬，偏离参考图的结构选择需要说明理由。移动端压缩标题和工具区留白，不缩减正文可读性、交互命中区或常用入口。
 
 ## 产品与视觉方向
+
+产品名称为 **四月 / Siyue**。左上角字标由 `AppShellScaffold` 统一呈现：中文沿用主题 `titleLarge` 的 Noto Serif SC、600 字重，局部字号 28、字距 2；英文使用 `labelLarge` 的 Noto Sans SC、字距 0.5 和次级前景色，二者基线对齐。复用现有字体形成品牌与操作的层级，不新增字体资产、装饰图标或口号。Dart 对外名称统一来自 `AppIdentity`，不改变持久化或协议标识。
 
 Windows、Android 双端中文本地 LLM 客户端，主要用户是开发者，主要任务是长文本阅读、对话与写作。产品界面使用简体中文，模型与协议名称保留原文。不依据语言字符推断其他市场的业务规则。
 

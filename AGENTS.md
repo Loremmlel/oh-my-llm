@@ -1,6 +1,6 @@
 # AGENTS.md
 
-本地 LLM 聊天客户端，Flutter 应用，Windows + Android 双端。无厂商绑定，兼容任意 OpenAI 接口。
+四月（Siyue），本地 AI 聊天与创作客户端，Flutter 应用，Windows + Android 双端。无厂商绑定，支持 Chat Completions、Responses 和 Anthropic Messages。
 
 **技术栈**：Flutter 3.47.x stable（CI 固定 3.47.1）/ Dart `^3.13.1` · Riverpod 3（`NotifierProvider`）· `sqlite3`（原始包，非 drift/sqflite）· 原始 `package:http`（无厂商 SDK）· `go_router`。
 
@@ -71,6 +71,8 @@ flutter test --reporter compact 2>&1 | Out-File -Encoding utf8 logs/fltest.log; 
 Agent 若重定向脚本输出，Windows/Android 分别使用 `logs/build-windows.log`、`logs/build-android.log`。
 
 产物命名固定 `oh_my_llm-{platform}-{version}`，版本号从 `pubspec.yaml` 读取。
+
+对外名称为 **四月 / Siyue**，Dart 统一使用 `AppIdentity`。仓库地址、`oh_my_llm` 包名与产物前缀、应用 ID、存储路径、通知身份及同步／交换格式标识保留原值，避免改名影响升级、旧数据和已配对设备。不要全局替换技术标识。
 
 ---
 

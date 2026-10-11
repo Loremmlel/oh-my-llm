@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart'
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:oh_my_llm/core/constants/app_identity.dart';
 import 'package:oh_my_llm/core/http/http_client_provider.dart';
 import 'package:oh_my_llm/core/widgets/notification_bubble/notification_bubble_stack.dart';
 import 'package:oh_my_llm/features/settings/application/preferences/font_size_settings_controller.dart';
@@ -41,7 +42,7 @@ class _OhMyLlmAppState extends ConsumerState<OhMyLlmApp> {
     final router = ref.watch(appRouterProvider);
 
     return MaterialApp.router(
-      title: 'Oh My LLM',
+      title: AppIdentity.displayName,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme(bodyFontSize: bodyFontSize),
       darkTheme: AppTheme.darkTheme(bodyFontSize: bodyFontSize),

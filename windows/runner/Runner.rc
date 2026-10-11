@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "yuzu.shiki" "\0"
-            VALUE "FileDescription", "oh_my_llm" "\0"
+            VALUE "FileDescription", "四月 Siyue" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "oh_my_llm" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 yuzu.shiki. All rights reserved." "\0"
             VALUE "OriginalFilename", "oh_my_llm.exe" "\0"
-            VALUE "ProductName", "oh_my_llm" "\0"
+            VALUE "ProductName", "四月" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

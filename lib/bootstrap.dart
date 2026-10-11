@@ -10,6 +10,7 @@ import 'app/app.dart';
 import 'app/composition/cross_feature_bindings.dart';
 import 'app/platform/chat_generation_terminal_notification.dart';
 import 'app/theme/app_theme.dart';
+import 'core/constants/app_identity.dart';
 import 'core/constants/app_layout_tokens.dart';
 import 'core/http/custom_headers_provider.dart';
 import 'core/logging/app_network_logger.dart';
@@ -116,7 +117,7 @@ class _StartupFailureApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'oh_my_llm',
+      title: AppIdentity.displayName,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme(),
       darkTheme: AppTheme.darkTheme(),
