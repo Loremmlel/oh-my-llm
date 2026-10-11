@@ -18,22 +18,23 @@ flutter run -d windows
 
 ## 测试执行与日志
 
-测试约定见 [test/AGENTS.md](test/AGENTS.md)。全量测试使用 `flutter test --reporter compact`；单文件追加文件路径，单用例再追加 `--plain-name "用例名称"`。并发与 per-test timeout 以 [dart_test.yaml](dart_test.yaml) 为准。
-
-所有测试（包括单文件）都必须重定向到日志并保留退出码，例如：
+本地与 Agent 测试统一使用 [scripts/run-tests.ps1](scripts/run-tests.ps1)，无需再手写重定向、退出码和进程超时。测试约定见 [test/AGENTS.md](test/AGENTS.md)，并发与 per-test timeout 以 [dart_test.yaml](dart_test.yaml) 为准。
 
 ```powershell
-New-Item -ItemType Directory -Force logs | Out-Null
-flutter test --reporter compact 2>&1 | Out-File -Encoding utf8 logs/fltest.log
-$TestExit = $LASTEXITCODE; Write-Host "EXIT=$TestExit"; Get-Content -Tail 150 logs/fltest.log
+.\scripts\run-tests.ps1
+.\scripts\run-tests.ps1 -TestPath test/core/http/sse_event_decoder_test.dart -LogName sse.log
+.\scripts\run-tests.ps1 -TestPath test/core/http/sse_event_decoder_test.dart -PlainName '单个完整事件：data 与 rawData 分离' -LogName sse-one.log
+.\scripts\run-tests.ps1 -FlutterArgs @('--exclude-tags=udp', '--coverage')
 ```
 
-执行上述命令还必须有进程级硬超时：单文件 60 秒、全量 240 秒，到点杀整棵子进程树。使用工具的硬超时能力，或 PowerShell 7 的 `Process.WaitForExit` / `Kill(true)`；工具仅返回 session ID 或后台运行不等于设置了超时。per-test timeout 不覆盖编译、启动、setup/teardown、DLL 锁或进程退出阶段，不得用无超时后台任务等待同步测试结果。
+脚本从任意工作目录均在仓库根目录执行，默认 compact reporter；单个 Dart 文件硬超时 60 秒，目录、多文件与全量 240 秒。到点只终止本次进程树，返回 `EXIT=124` 并保留部分日志。诊断时可用 `-TimeoutSeconds` 显式调整超时；日常使用默认值。per-test timeout 不覆盖编译、启动、setup/teardown、DLL 锁或进程退出，工具返回 session ID 也不代表已设置超时，不得以无超时后台任务替代脚本。
 
-- `EXIT=0` 才表示通过；非零时查看完整日志，不能只凭 tail 判断失败原因。详情用 `Select-String -Pattern "关键词" -Path logs/fltest.log -Context 0,30`。
+- 默认日志 `logs/fltest.log`，`-LogName` 只接受文件名且始终落在仓库 `logs/` 下；脚本显示最后 150 行和 `EXIT`，返回 Flutter 的真实退出码，`EXIT=0` 才表示通过。非零时查看完整日志，不能只凭 tail 判断失败原因；详情用 `Select-String -Pattern "关键词" -Path logs/fltest.log -Context 0,30`。
 - 不直接输出全量测试或使用 `tee`。测试、分析、构建和诊断日志统一放在 ignored 的 `logs/`；全量测试用 `logs/fltest.log`，回归证据用 `logs/<任务>-red.log` / `logs/<任务>-green.log`。
 - 超时或测试启动卡住时，先排查残留 Dart / `flutter_tester` 对 `build/native_assets/windows/sqlite3.dll` 的锁；确认是本仓库残留进程后运行 `.\scripts\kill-stale-test-processes.ps1`，再诊断重跑。该脚本是异常退出后的缓解措施，会结束非 IDE 的 Dart 测试进程，不在正常测试前例行运行。
 - `logs/` 可覆盖或清理。CI runner 的根目录 `fltest.log` 上传流程和应用 AppData 的 `network.log` 不受本地日志规则影响。
+
+维护测试入口时，在 Windows 执行 `.\scripts\verify-test-runner.ps1`；它使用本地假 Flutter 验证参数/中文日志、stderr、退出码和挂起子进程清理，不替代真实 Flutter 测试。运行时生成的 fixture 和日志全部在 ignored 的 `logs/`。
 
 ## 构建与版本
 

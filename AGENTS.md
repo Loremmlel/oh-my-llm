@@ -29,7 +29,7 @@
 - `master` 受保护，禁止直接提交或 push。使用 `feat/`、`fix/`、`refactor/`、`test/`、`chore/`、`docs/` 加简短 kebab-case 描述的新分支；每个功能或修复独立提交，通过 PR 合入。
 - commit subject/body 与 PR 标题/正文使用简体中文，保留英文 Conventional Commit 前缀。PR 说明为什么改、改了什么、改后效果；模板见 [.github/pull_request_template.md](.github/pull_request_template.md)。
 - 每次提交前格式化所有改动的 Dart 文件，暂存后再次执行格式检查。代码变更须通过 `flutter analyze`、导入边界门禁和相关测试；纯文档变更可免 Flutter 检查，并说明原因。
-- 测试必须落盘日志、保留真实退出码，并设置能终止整棵子进程树的硬超时：单文件 60 秒，全量 240 秒。分析、构建和诊断日志也写入 ignored 的 `logs/`，不要在根目录生成日志或用 `tee` 输出全量测试。
+- 测试统一使用 [scripts/run-tests.ps1](scripts/run-tests.ps1)，自动落盘日志、保留真实退出码并限制本次进程树：单文件 60 秒，全量 240 秒。分析、构建和诊断日志也写入 ignored 的 `logs/`，不要在根目录生成日志或用 `tee` 输出全量测试。
 - 只报告当前提交实际完成的验证；区分本地检查、设备/服务商验收、未执行项与实际 CI 状态。提交后检查最终 HEAD 和工作区，版本 hook 会 amend 本次提交。
 
 ## 通用代码约定
