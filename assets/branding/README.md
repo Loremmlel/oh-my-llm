@@ -10,14 +10,15 @@
 
 ## 生成与校验
 
-在仓库根目录运行，复用已有的 `image` 依赖：
+在仓库根目录运行。重新抠图需要 PATH 中有 `ffmpeg`；各尺寸生成复用已有的 `image` 依赖：
 
 ```powershell
+dart run tool/generate_app_icons.dart --from-original
 dart run tool/generate_app_icons.dart
 dart run tool/generate_app_icons.dart --check
 ```
 
-`--check` 不写文件，检查主图透明通道及已提交资源是否与主图生成结果一致。替换主图后重新生成，再检查原生平台预览。
+`--from-original` 使用 FFmpeg 从原图重新生成两张透明主图及全部平台尺寸。默认命令只生成平台尺寸。`--check` 不写文件，检查主图透明通道、与原图的逐像素 RGB 一致性，以及已提交资源是否与主图生成结果一致。
 
 Windows 的 `windows/runner/resources/app_icon.ico` 包含 16、20、24、30、32、36、40、48、60、64、72、80、96、128、256 像素的 32 位图像。窗口创建及跨显示器 DPI 改变时，按系统要求的大小分别加载标题栏和大图标；由 Windows Shell 从同一 ICO 选择文件及快捷方式图标。
 
@@ -35,12 +36,6 @@ Android 使用原生密度目录；Android 8.0 以下保留透明圆角 PNG，8.
 
 ## 图片处理记录
 
-两张透明主图均使用内置 imagegen 编辑，尺寸资源由 Dart 脚本生成。使用的提示词如下。
+透明主图均直接由原图经 FFmpeg 色键生成，只修改 Alpha，所有像素的 RGB 与原图完全一致。主图的白色色键仅作用于四角，中央花瓣始终不透明；Android 前景使用深绿色键，并清除没有花瓣的四角。滤镜及阈值集中在 `tool/generate_app_icons.dart`，随仓库保存，不依赖图片生成模型。
 
-主图：
-
-> Edit target: the attached Siyue application icon. Remove ONLY the white exterior background outside the dark forest green rounded-square tile and replace that exterior with true alpha transparency. Preserve the entire dark green rounded-square tile, its original corner radius, subtle green texture/gradient, and the cream folded-paper four-petal flower with the golden four-point center exactly as closely as possible. Keep the original flower geometry, cream paper folds, fine paper texture, shadows, colors, scale, center alignment and square composition. Do not remove the dark green tile. Do not redesign or add anything. Do not draw a transparency checkerboard. Output a square PNG with a real transparent background outside the rounded tile, with clean antialiased edges and no white halo. This is a final app-icon master for Windows and Android.
-
-Android 前景：
-
-> Edit target: this Siyue app icon. Create the foreground layer for an Android adaptive icon: remove ONLY the entire dark green rounded-square background, leaving just the existing cream folded-paper four-petal flower and its golden four-point center on true alpha transparency. Keep the flower exactly the same: original shape, orientation, proportions, paper texture, folds, colors, shadows within the petals, center point and original centered positioning within the same square canvas. Do not enlarge or shrink the flower; retain the square canvas with generous transparent margins. Preserve clean antialiased edges, no green halo or external drop shadow. No redesign, no text, no background, no checkerboard.
+色键的过渡带保留边缘抗锯齿；源图已有的混色边缘保留原始 RGB。各尺寸缩放使用预乘 Alpha，避免全透明像素中的背景颜色混入可见边缘；前景裁切明确依据透明度。高分辨率主图及最终各尺寸资源均需在深浅背景上检查。滤镜说明见 [FFmpeg colorkey](https://ffmpeg.org/ffmpeg-filters.html#colorkey) 与 [geq](https://ffmpeg.org/ffmpeg-filters.html#geq)。

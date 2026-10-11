@@ -31,8 +31,20 @@ const _densities = {
 
 void main(List<String> arguments) {
   final check = arguments.contains('--check');
+  if (arguments.contains('--from-original')) {
+    if (check) {
+      throw ArgumentError('--from-original 与 --check 不能同时使用。');
+    }
+    _cutOutOriginal();
+  }
   final icon = _readMaster('siyue-icon.png');
-  final flower = img.trim(_readMaster('siyue-icon-foreground.png'));
+  final foregroundMaster = _readMaster('siyue-icon-foreground.png');
+  final original = img.decodePng(
+    File('$_branding/siyue-icon-original.png').readAsBytesSync(),
+  )!;
+  _checkOriginalPixels(original, icon);
+  _checkOriginalPixels(original, foregroundMaster);
+  final flower = img.trim(foregroundMaster, mode: img.TrimMode.transparent);
 
   void output(String path, List<int> bytes) {
     final file = File(path);
@@ -88,6 +100,56 @@ void main(List<String> arguments) {
   }
 }
 
+void _cutOutOriginal() {
+  // 原图的花瓣不在四角，限定区域后白色色键不会误伤奶油色纸面。
+  const corners = '(lt(X,W/4)+gte(X,3*W/4))*(lt(Y,H/4)+gte(Y,3*H/4))';
+  const colors = "r='r(X,Y)':g='g(X,Y)':b='b(X,Y)'";
+  final filters = {
+    'siyue-icon.png':
+        "format=rgba,colorkey=0xffffff:0.01:0.06,"
+        "geq=$colors:a='if($corners,alpha(X,Y),255)':interpolation=nearest,"
+        'format=rgba',
+    'siyue-icon-foreground.png':
+        "format=rgba,colorkey=0x123522:0.12:0.08,"
+        "geq=$colors:a='if($corners,0,alpha(X,Y))':interpolation=nearest,"
+        'format=rgba',
+  };
+  for (final entry in filters.entries) {
+    final result = Process.runSync('ffmpeg', [
+      '-hide_banner',
+      '-loglevel',
+      'error',
+      '-y',
+      '-i',
+      '$_branding/siyue-icon-original.png',
+      '-vf',
+      entry.value,
+      '-frames:v',
+      '1',
+      '-update',
+      '1',
+      '-pix_fmt',
+      'rgba',
+      '$_branding/${entry.key}',
+    ]);
+    if (result.exitCode != 0) {
+      throw StateError('FFmpeg 抠图失败：${result.stderr}');
+    }
+  }
+}
+
+void _checkOriginalPixels(img.Image original, img.Image cutout) {
+  if (original.width != cutout.width || original.height != cutout.height) {
+    throw StateError('透明主图必须保留原图尺寸。');
+  }
+  for (final pixel in original) {
+    final actual = cutout.getPixel(pixel.x, pixel.y);
+    if (pixel.r != actual.r || pixel.g != actual.g || pixel.b != actual.b) {
+      throw StateError('透明主图改变了原图 RGB：(${pixel.x}, ${pixel.y})。');
+    }
+  }
+}
+
 img.Image _readMaster(String name) {
   final image = img.decodePng(File('$_branding/$name').readAsBytesSync());
   if (image == null ||
@@ -103,9 +165,28 @@ img.Image _readMaster(String name) {
   return image;
 }
 
-img.Image _resize(img.Image image, int size) => img.copyResize(
-  image,
-  width: image.width >= image.height ? size : null,
-  height: image.height > image.width ? size : null,
-  interpolation: img.Interpolation.average,
-);
+img.Image _resize(img.Image image, int size) {
+  // 预乘后缩放，避免透明像素保留的白色或绿色 RGB 渗入可见边缘。
+  final premultiplied = image.convert(format: img.Format.float32);
+  for (final pixel in premultiplied) {
+    pixel
+      ..r *= pixel.a
+      ..g *= pixel.a
+      ..b *= pixel.a;
+  }
+  final resized = img.copyResize(
+    premultiplied,
+    width: image.width >= image.height ? size : null,
+    height: image.height > image.width ? size : null,
+    interpolation: img.Interpolation.average,
+  );
+  for (final pixel in resized) {
+    if (pixel.a > 0) {
+      pixel
+        ..r /= pixel.a
+        ..g /= pixel.a
+        ..b /= pixel.a;
+    }
+  }
+  return resized.convert(format: img.Format.uint8);
+}
