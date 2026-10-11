@@ -29,25 +29,23 @@ class PresetPromptFormData {
   final PresetPromptSyntax syntax;
 }
 
-/// 新增或编辑预设 Prompt 的对话框。
-class PresetPromptFormDialog extends StatefulWidget {
-  const PresetPromptFormDialog({
+/// 新增或编辑预设 Prompt 的页面工作区。
+class PresetPromptEditor extends StatefulWidget {
+  const PresetPromptEditor({
     required this.onSubmit,
     this.initialValue,
-    this.fullPage = false,
     super.key,
   });
 
   final Future<void> Function(PresetPromptFormData formData) onSubmit;
   final PresetPrompt? initialValue;
-  final bool fullPage;
 
   @override
-  State<PresetPromptFormDialog> createState() => _PresetPromptFormDialogState();
+  State<PresetPromptEditor> createState() => _PresetPromptEditorState();
 }
 
 /// 预设 Prompt 表单的输入与选中状态。
-class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
+class _PresetPromptEditorState extends State<PresetPromptEditor>
     with SettingsFormDialogStateMixin {
   late final TextEditingController _nameController;
   late final List<EditablePresetPromptItem> _items;
@@ -122,12 +120,12 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
     final isEditing = widget.initialValue != null;
 
     return PopScope<void>(
-      canPop: !widget.fullPage || _leaveAllowed,
+      canPop: _leaveAllowed,
       onPopInvokedWithResult: (didPop, result) {
-        if (!didPop && widget.fullPage) _requestLeave();
+        if (!didPop) _requestLeave();
       },
       child: SettingsFormDialogScaffold(
-        fullPage: widget.fullPage,
+        fullPage: true,
         title: isEditing ? '编辑预设' : '新增预设',
         helpText:
             '条目标题仅用于识别。System / User / Assistant 条目均可增删。\n\n'
@@ -174,7 +172,7 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
               );
             }
             return SizedBox(
-              height: widget.fullPage ? constraints.maxHeight : 620,
+              height: constraints.maxHeight,
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -838,7 +836,7 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
         await widget.onSubmit(
           PresetPromptFormData(name: name, messages: messages, syntax: _syntax),
         );
-        if (mounted && widget.fullPage) {
+        if (mounted) {
           setState(() => _leaveAllowed = true);
           await WidgetsBinding.instance.endOfFrame;
         }

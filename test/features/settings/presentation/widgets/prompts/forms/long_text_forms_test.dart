@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:oh_my_llm/core/widgets/long_text_editing_controller.dart';
 import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/fixed_prompt_sequence_form_dialog.dart';
 import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/memory_prompt_form_dialog.dart';
-import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/preset_prompt_form_dialog.dart';
+import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/preset_prompt_editor.dart';
 import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/template_prompt_form_dialog.dart';
 
 import '../../../../../../helpers/fixtures.dart';
@@ -24,7 +24,7 @@ void main() {
       ),
       onSubmit: (data) => save(data.steps.single.content),
     ),
-    '预设提示词': (save) => PresetPromptFormDialog(
+    '预设提示词': (save) => PresetPromptEditor(
       initialValue: TestFixtures.presetPrompt(
         id: 'preset',
         messages: [
@@ -62,10 +62,15 @@ void main() {
           child: Scaffold(
             body: Builder(
               builder: (context) => TextButton(
-                onPressed: () => showDialog<void>(
-                  context: context,
-                  builder: (_) => entry.value((text) async => saved = text),
-                ),
+                onPressed: () {
+                  final form = entry.value((text) async => saved = text);
+                  if (form is PresetPromptEditor) {
+                    Navigator.of(context)
+                        .push<void>(MaterialPageRoute(builder: (_) => form));
+                  } else {
+                    showDialog<void>(context: context, builder: (_) => form);
+                  }
+                },
                 child: const Text('打开'),
               ),
             ),

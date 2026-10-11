@@ -127,19 +127,6 @@ GoRouter createAppRouter({
               favoriteId: state.pathParameters[AppRouteParameter.favoriteId],
             ),
           ),
-          // 旧版扁平详情 URL 的兼容入口：必须排在静态 collections/items
-          // 之后，且保留段直接回总览，避免被解析成畸形收藏 ID。
-          GoRoute(
-            path: ':${AppRouteParameter.favoriteId}',
-            redirect: (context, state) {
-              final favoriteId =
-                  state.pathParameters[AppRouteParameter.favoriteId] ?? '';
-              if (favoriteId == 'collections' || favoriteId == 'items') {
-                return AppDestination.favorites.path;
-              }
-              return '${AppDestination.favorites.path}/items/$favoriteId';
-            },
-          ),
         ],
       ),
       GoRoute(

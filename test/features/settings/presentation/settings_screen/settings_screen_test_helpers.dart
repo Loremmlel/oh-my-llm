@@ -21,7 +21,7 @@ import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/f
 import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/memory_prompt_form_dialog.dart';
 import 'package:oh_my_llm/features/settings/presentation/widgets/providers/forms/model_config_form_dialog.dart';
 import 'package:oh_my_llm/features/settings/presentation/widgets/providers/forms/model_provider_form_dialog.dart';
-import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/preset_prompt_form_dialog.dart';
+import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/preset_prompt_editor.dart';
 import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/template_prompt_form_dialog.dart';
 
 import '../../../../helpers/fixtures.dart';
@@ -233,12 +233,12 @@ Finder modelSupportsReasoningField() => find.descendant(
 );
 
 Finder presetPromptNameField() =>
-    fieldInDialog<PresetPromptFormDialog>('预设 Prompt 名称');
+    fieldInDialog<PresetPromptEditor>('预设 Prompt 名称');
 
-Finder presetPromptTitleField() => fieldInDialog<PresetPromptFormDialog>('标题');
+Finder presetPromptTitleField() => fieldInDialog<PresetPromptEditor>('标题');
 
 Finder presetPromptContentField() =>
-    fieldInDialog<PresetPromptFormDialog>('Prompt 内容', wrapsText: true);
+    fieldInDialog<PresetPromptEditor>('Prompt 内容', wrapsText: true);
 
 Finder fixedPromptSequenceNameField() =>
     fieldInDialog<FixedPromptSequenceFormDialog>('序列名称');

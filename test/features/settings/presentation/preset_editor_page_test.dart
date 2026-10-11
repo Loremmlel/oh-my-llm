@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.dart';
-import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/preset_prompt_form_dialog.dart';
+import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/preset_prompt_editor.dart';
 
 import '../../../helpers/async/widget_test_animation.dart';
 
@@ -25,8 +25,7 @@ void main() {
         ),
         GoRoute(
           path: '/edit',
-          builder: (_, _) => PresetPromptFormDialog(
-            fullPage: true,
+          builder: (_, _) => PresetPromptEditor(
             initialValue: PresetPrompt(
               id: 'p',
               name: '原名称',

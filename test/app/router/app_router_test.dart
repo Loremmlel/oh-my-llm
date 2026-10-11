@@ -45,7 +45,7 @@ void main() {
       preferences: prefs,
       database: db,
       router: createAppRouter(
-        initialLocation: '/favorites/fav-rebuild',
+        initialLocation: '/favorites/items/fav-rebuild',
         videoPlayerBindingsFactory: _mobileTestBindings,
       ),
     );
@@ -62,7 +62,7 @@ void main() {
       preferences: prefs,
       database: db,
       router: createAppRouter(
-        initialLocation: '/favorites/fav-rebuild',
+        initialLocation: '/favorites/items/fav-rebuild',
         videoPlayerBindingsFactory: _mobileTestBindings,
       ),
     );
@@ -88,37 +88,13 @@ void main() {
     SqliteFavoritesRepository(db).deleteMany({'fav-deleted'});
 
     final router = createAppRouter(
-      initialLocation: '/favorites/fav-deleted',
+      initialLocation: '/favorites/items/fav-deleted',
       videoPlayerBindingsFactory: _mobileTestBindings,
     );
     await pumpTestApp(tester, preferences: prefs, database: db, router: router);
 
     expect(find.text('收藏不存在'), findsOneWidget);
     expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('旧收藏详情 URL 自动重定向到新路由并显示内容', (tester) async {
-    final db = AppDatabase.inMemory();
-    addTearDown(db.close);
-    seedFavorite(
-      db,
-      id: 'fav-legacy',
-      userMessageContent: '旧链接的问题',
-      assistantContent: '旧链接的回复',
-    );
-    final prefs = await _testPrefs(db);
-
-    final router = createAppRouter(
-      initialLocation: '/favorites/fav-legacy',
-      videoPlayerBindingsFactory: _mobileTestBindings,
-    );
-    await pumpTestApp(tester, preferences: prefs, database: db, router: router);
-
-    expect(
-      router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
-      '/favorites/items/fav-legacy',
-    );
-    expect(find.text('旧链接的问题'), findsOneWidget);
   });
 
   testWidgets('收藏夹深链命中目标路由并规范化非法容量', (tester) async {

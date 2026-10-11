@@ -6,7 +6,7 @@ import 'package:oh_my_llm/features/chat/presentation/widgets/messages/bubble/str
 
 import '../../domain/models/favorite.dart';
 
-/// 单条收藏卡片：元信息行 + 用户消息、折叠推理与 Markdown 模型回复。
+/// 收藏全文阅读区：元信息行、用户消息、折叠推理与 Markdown 模型回复。
 ///
 /// 只负责内容渲染；重命名/移动/删除等操作由页面层的溢出菜单承担，
 /// 收藏夹入口通过 [onCollectionTap] 上抛导航意图。
