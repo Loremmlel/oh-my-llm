@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:oh_my_llm/core/constants/app_identity.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_foreground_service.dart';
 
 /// 展示一次聊天生成终态系统通知。
@@ -18,7 +19,7 @@ final chatGenerationTerminalNotificationSenderProvider =
 const _initializationSettings = InitializationSettings(
   android: AndroidInitializationSettings('ic_chat_generation'),
   windows: WindowsInitializationSettings(
-    appName: 'Oh My LLM',
+    appName: AppIdentity.displayName,
     appUserModelId: 'YuzuShiki.OhMyLlm',
     guid: '7e4b2c91-5d4a-4a8e-9f1b-2c6d3a80e751',
   ),

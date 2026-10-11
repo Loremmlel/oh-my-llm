@@ -75,7 +75,7 @@ void main() {
 
     expect(calls, 1);
     expect(find.text('对话'), findsWidgets);
-    expect(find.text('oh-my-llm'), findsOneWidget);
+    expect(find.text('四月'), findsOneWidget);
     final container = boot.container;
     expect(container.read(sharedPreferencesProvider), same(boot.preferences));
     expect(container.read(appDatabaseProvider), same(boot.database));

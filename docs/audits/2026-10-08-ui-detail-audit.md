@@ -110,8 +110,8 @@
 
 | 问题 | 主要文件 |
 |---|---|
-| UI-01、08、12 | [卡片操作区](../../lib/features/settings/presentation/widgets/shared/settings_entity_card.dart)、[卡片网格](../../lib/features/settings/presentation/widgets/shared/settings_card_grid.dart)、[分区标题](../../lib/features/settings/presentation/widgets/shared/settings_section_card.dart) |
-| UI-02、03 | [预设编辑](../../lib/features/settings/presentation/widgets/prompts/forms/preset_prompt_form_dialog.dart)、[固定顺序编辑](../../lib/features/settings/presentation/widgets/prompts/forms/fixed_prompt_sequence_form_dialog.dart)、[短字段共享布局](../../lib/core/widgets/app_field_group.dart) |
+| UI-01、08、12 | 当时的卡片操作区与卡片网格（现已移除）、[分区标题](../../lib/features/settings/presentation/widgets/shared/settings_section_card.dart) |
+| UI-02、03 | 当时的预设编辑弹窗（现已由独立编辑页替代）、[固定顺序编辑](../../lib/features/settings/presentation/widgets/prompts/forms/fixed_prompt_sequence_form_dialog.dart)、[短字段共享布局](../../lib/core/widgets/app_field_group.dart) |
 | UI-05、06、10、17 | [Agent 配置](../../lib/features/agent/presentation/agent_configuration_dialog.dart)、[文档编辑](../../lib/features/agent/presentation/agent_document_editor.dart)、[总结管理](../../lib/features/agent/presentation/agent_summary_dialog.dart)、[记忆编辑](../../lib/features/settings/presentation/widgets/prompts/forms/memory_prompt_form_dialog.dart)、[固定顺序运行器](../../lib/features/chat/presentation/widgets/dialogs/fixed_prompt_sequence_runner_dialog.dart) |
 | UI-09、15 | [收藏详情](../../lib/features/favorites/presentation/favorite_detail_screen.dart)、[收藏卡片](../../lib/features/favorites/presentation/widgets/favorite_collection_tile.dart)、[收藏网格](../../lib/features/favorites/presentation/widgets/favorite_collection_grid.dart) |
 | UI-11、14 | [服务商与模型字段](../../lib/features/chat/presentation/widgets/composer/layout/composer_provider_model_row.dart)、[输入区更多设置](../../lib/features/chat/presentation/widgets/composer/chat_composer_card.dart) |
