@@ -74,6 +74,8 @@ Agent 若重定向脚本输出，Windows/Android 分别使用 `logs/build-window
 
 对外名称为 **四月 / Siyue**，Dart 统一使用 `AppIdentity`。仓库地址、`oh_my_llm` 包名与产物前缀、应用 ID、存储路径、通知身份及同步／交换格式标识保留原值，避免改名影响升级、旧数据和已配对设备。不要全局替换技术标识。
 
+Windows `Runner.rc` 的 `CompanyName=yuzu.shiki` 与 `ProductName=oh_my_llm` 共同决定 `path_provider` / `shared_preferences` 的数据目录，属于持久化身份，禁止随品牌改名；窗口标题与 `FileDescription` 使用对外名称。
+
 ---
 
 ## 2. Git 工作流
@@ -89,7 +91,7 @@ Agent 若重定向脚本输出，Windows/Android 分别使用 `logs/build-window
 
 ### Pull Request 格式与撰写要求
 
-PR 是代码审查和变更记录，不是 commit 列表的复制。保持单一目标、规模可审查；如变更已经大到需要多个独立审查重点，应拆成多个 PR。详细原则参考 [GitHub 的审查友好性指南](https://docs.github.com/en/pull-requests/concepts/helping-others-review-your-changes) 与 [Sourcery 审查文档](https://docs.sourcery.ai/reviews/)。
+PR 是代码审查和变更记录，不是 commit 列表的复制。保持单一目标、规模可审查；如变更已经大到需要多个独立审查重点，应拆成多个 PR。详细原则参考 [GitHub 的审查友好性指南](https://docs.github.com/en/pull-requests/concepts/helping-others-review-your-changes)。
 
 #### 标题
 
@@ -136,15 +138,8 @@ PR 正文一律使用简体中文，并保留以下六个二级标题；某项�
 - 用可回读的 UTF-8 Markdown 文件传入 `gh pr create --body-file <path>`，不在 PowerShell 的 `--body` 参数中手工拼接多行文本和转义字符。
 - 创建后必须用 `gh pr view --json title,body,baseRefName,headRefName,isDraft,url` 回读，确认标题、正文、base/head、draft 状态和 URL 正确。
 - 尚未准备好接受人工审查时使用 draft PR；验证证据和正文齐备后再标记 Ready for review。
-
-#### Sourcery AI 自动审查
-
-仓库已接入 [Sourcery AI GitHub App](https://github.com/apps/sourcery-ai)。Sourcery 是补充审查者，不是验证命令、人工审查或 PR 正文的替代品。
-
-- Sourcery 默认在 PR 打开及新 commit push 后审查，draft PR 默认跳过；标记 Ready for review 后确认 `Sourcery review` check 已触发。
-- Sourcery 会在 PR 正文中追加自己的摘要，并发布 reviewer guide、inline comments 和 status check。人工撰写的六个章节仍必须完整；后续编辑正文时保留 Sourcery 生成的区块。
-- 自动 re-review 不会重新生成摘要，摘要过期时发布独立评论 `@sourcery-ai summary`；需要重新完整审查或自动 re-review 计数已用尽时，发布独立评论 `@sourcery-ai review`。
-- 对 Sourcery 意见先对照需求、代码和可复现证据判断是否成立，再决定接受、修正或拒绝；不得无条件套用自动建议。
+- 发布后核对当前 PR 实际存在的 CI 检查并如实报告状态。
+- 对审查意见先对照需求、代码和可复现证据判断是否成立，再决定接受、修正或拒绝。
 - 每条意见都要有可追踪结果：成立则修改并回归验证，不成立则简要说明证据，已处理的对话再 resolve；超出本 PR 范围的建议不应顺手扩大当前 diff。
 
 #### 完整示例
@@ -154,7 +149,7 @@ PR 正文一律使用简体中文，并保留以下六个二级标题；某项�
 ```markdown
 PR 标题：
 
-docs: 规范 Pull Request 描述与 Sourcery 审查流程
+docs: 规范 Pull Request 描述与审查流程
 
 PR 正文：
 
@@ -162,18 +157,18 @@ PR 正文：
 
 - 在 `AGENTS.md` 中增加 Pull Request 标题与正文规范。
 - 提供统一的中文 PR 描述模板。
-- 补充 Sourcery AI 自动审查的处理流程。
+- 明确审查意见的核验与处理要求。
 
 ## 变更原因
 
-仓库已启用 Sourcery AI 自动审查，但目前缺少统一的 PR 描述要求。不同作者可能遗漏变更背景、验证证据或审查重点，影响人工审查和自动审查对改动意图的理解。
+目前缺少统一的 PR 描述要求。不同作者可能遗漏变更背景、验证证据或审查重点，影响审查者对改动意图的理解。
 
 ## 实现说明
 
 - PR 标题沿用 Conventional Commit 前缀，描述使用简体中文。
 - PR 正文统一包含变更摘要、变更原因、实现说明、验证、风险与影响、审查重点。
 - 要求如实记录已执行的验证命令与结果。
-- 说明 Sourcery 的自动摘要、重新审查命令和反馈处理要求。
+- 审查意见依据需求、代码和可复现证据核验，并记录处理结果。
 
 ## 验证
 
@@ -191,7 +186,7 @@ PR 正文：
 
 - PR 模板是否足够明确且便于直接填写。
 - 验证要求是否能阻止未执行测试却声称通过的情况。
-- Sourcery 相关说明是否与仓库当前审查流程一致。
+- 审查意见处理要求是否清晰且与仓库当前流程一致。
 ```
 
 ### 版本号自动 bump（post-commit hook）
