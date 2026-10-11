@@ -8,7 +8,7 @@
 
 ## 1. 命令
 
-仓库命令示例统一使用 **PowerShell 7**。原生 Windows Agent 应优先使用 PowerShell；仅执行 `.sh`、Git hook 验证或 POSIX 工具链时显式调用 Git Bash（如 `bash scripts/verify-version-hook.sh`）。不要在 Bash 中直接解释 PowerShell 语法，反之亦然。Claude Code 用户应启用原生 PowerShell tool（`CLAUDE_CODE_USE_POWERSHELL_TOOL=1`）；`CLAUDE.md` 通过 `@AGENTS.md` 复用本文件，不再维护第二份命令版本。
+仓库命令示例统一使用 **PowerShell 7**。原生 Windows Agent 应优先使用 PowerShell；仅执行 `.sh`、Git hook 验证或 POSIX 工具链时显式调用 Git Bash（如 `bash scripts/verify-version-hook.sh`）。不要在 Bash 中直接解释 PowerShell 语法，反之亦然。Claude Code 用户应启用原生 PowerShell tool（`CLAUDE_CODE_USE_POWERSHELL_TOOL=1`），并直接读取本文件。
 
 ```powershell
 flutter pub get
