@@ -92,6 +92,7 @@ class _FavoriteCollectionTileState extends State<FavoriteCollectionTile> {
         child: Card(
           margin: EdgeInsets.zero,
           elevation: 0,
+          color: Colors.transparent,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadii.md),
             side: BorderSide(color: theme.colorScheme.outlineVariant),
@@ -117,8 +118,8 @@ class _FavoriteCollectionTileState extends State<FavoriteCollectionTile> {
                     children: [
                       Icon(
                         isSystem
-                            ? Icons.folder_special_rounded
-                            : Icons.folder_rounded,
+                            ? Icons.folder_special_outlined
+                            : Icons.folder_outlined,
                         color: theme.colorScheme.primary,
                       ),
                       const Spacer(),

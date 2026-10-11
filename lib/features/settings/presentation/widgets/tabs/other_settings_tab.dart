@@ -2,13 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:oh_my_llm/core/widgets/app_field_group.dart';
+import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 
 import '../../../application/preferences/auto_retry_settings_controller.dart';
 import '../../../application/preferences/font_size_settings_controller.dart';
 import '../../../domain/models/preferences/auto_retry_settings.dart';
 import '../shared/settings_section_card.dart';
 
-/// 自动重试卡片内 Switch 项的统一形状：hover 高亮带圆角。
+/// 自动重试分组内 Switch 项的统一形状：hover 高亮带圆角。
 /// contentPadding 保持 EdgeInsets.zero，让 title 与上方
 /// SegmentedButton / 数字输入框的左基线对齐。
 const _switchTileShape = RoundedRectangleBorder(
@@ -29,6 +30,7 @@ class OtherSettingsTab extends ConsumerWidget {
       children: [
         SettingsSectionCard(
           title: '显示',
+          maxWidth: AppContentWidths.readable,
           description: '调整正文字号。修改后全局生效，影响聊天消息、Markdown 渲染及所有使用 body 字体的界面文字。',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -68,6 +70,7 @@ class OtherSettingsTab extends ConsumerWidget {
         const SizedBox(height: 16),
         SettingsSectionCard(
           title: '自动重试',
+          maxWidth: AppContentWidths.readable,
           description:
               '当请求失败时自动重试的间隔与次数控制。'
               '每分钟窗口：每分钟在前 n 秒内随机一个毫秒发起重试；'
@@ -128,7 +131,7 @@ class OtherSettingsTab extends ConsumerWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
+              const Divider(height: 24),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 shape: _switchTileShape,
@@ -142,7 +145,7 @@ class OtherSettingsTab extends ConsumerWidget {
                       );
                 },
               ),
-              const SizedBox(height: 16),
+              const Divider(height: 1),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 shape: _switchTileShape,

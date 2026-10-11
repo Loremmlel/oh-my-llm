@@ -47,7 +47,8 @@ class _AgentNavigationDrawerState extends ConsumerState<AgentNavigationDrawer> {
         .toList();
     void select(void Function() action) {
       action();
-      if (ref.read(agentWorkspaceProvider).error.isEmpty) {
+      if (ref.read(agentWorkspaceProvider).error.isEmpty &&
+          Scaffold.of(context).hasEndDrawer) {
         Scaffold.of(context).closeEndDrawer();
       }
     }
@@ -61,6 +62,19 @@ class _AgentNavigationDrawerState extends ConsumerState<AgentNavigationDrawer> {
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
             child: Column(
               children: [
+                if (!Scaffold.of(context).hasEndDrawer)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: AppSpacing.sm,
+                    ),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        '作品',
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                    ),
+                  ),
                 TextField(
                   controller: _search,
                   focusNode: _searchFocus,
@@ -106,26 +120,33 @@ class _AgentNavigationDrawerState extends ConsumerState<AgentNavigationDrawer> {
                     itemCount: entries.length,
                     itemBuilder: (context, index) {
                       final entry = entries[index];
-                      return ListTile(
-                        selected: entry.id == state.workspace?.id,
-                        enabled: !state.busy,
-                        title: Tooltip(
-                          message: entry.title,
-                          child: Text(
-                            entry.title,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
+                      return Material(
+                        color: Colors.transparent,
+                        child: ListTile(
+                          selectedTileColor: Theme.of(context)
+                              .colorScheme
+                              .primaryContainer,
+                          selected: entry.id == state.workspace?.id,
+                          enabled: !state.busy,
+                          title: Tooltip(
+                            message: entry.title,
+                            child: Text(
+                              entry.title,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          trailing: IconButton(
+                            tooltip: '重命名作品「${entry.title}」',
+                            icon: const Icon(Icons.edit_outlined),
+                            onPressed: state.busy
+                                ? null
+                                : () => _rename(entry.id, entry.title),
+                          ),
+                          onTap: () => select(
+                            () => controller.selectWorkspace(entry.id),
                           ),
                         ),
-                        trailing: IconButton(
-                          tooltip: '重命名作品「${entry.title}」',
-                          icon: const Icon(Icons.edit_outlined),
-                          onPressed: state.busy
-                              ? null
-                              : () => _rename(entry.id, entry.title),
-                        ),
-                        onTap: () =>
-                            select(() => controller.selectWorkspace(entry.id)),
                       );
                     },
                   ),

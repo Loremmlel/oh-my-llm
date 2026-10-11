@@ -1,28 +1,29 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../domain/models/providers/llm_provider_config.dart';
 import '../../shared/settings_empty_state.dart';
 import 'provider_tile.dart';
 
 /// 服务商配置列表，负责展示服务商信息和其下模型。
-class ModelConfigsList extends ConsumerWidget {
+class ModelConfigsList extends StatelessWidget {
   const ModelConfigsList({
     required this.providers,
     required this.onEditProviderRequested,
     required this.onAddModelRequested,
     required this.onEditModelRequested,
+    this.onBatchAddModelsRequested,
     super.key,
   });
 
   final List<LlmProviderConfig> providers;
   final ValueChanged<LlmProviderConfig> onEditProviderRequested;
   final ValueChanged<LlmProviderConfig> onAddModelRequested;
+  final ValueChanged<LlmProviderConfig>? onBatchAddModelsRequested;
   final void Function(LlmProviderConfig provider, LlmProviderModelConfig model)
   onEditModelRequested;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     if (providers.isEmpty) {
       return const SettingsEmptyState(
         icon: Icons.hub_outlined,
@@ -36,11 +37,13 @@ class ModelConfigsList extends ConsumerWidget {
       children: [
         for (final provider in providers)
           Padding(
+            key: ValueKey(provider.id),
             padding: const EdgeInsets.only(bottom: 12),
             child: ProviderTile(
               provider: provider,
               onEditProviderRequested: onEditProviderRequested,
               onAddModelRequested: onAddModelRequested,
+              onBatchAddModelsRequested: onBatchAddModelsRequested,
               onEditModelRequested: onEditModelRequested,
             ),
           ),

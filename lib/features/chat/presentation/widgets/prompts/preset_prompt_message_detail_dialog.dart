@@ -23,23 +23,11 @@ class PresetPromptMessageDetailDialog extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Wrap(
-            spacing: 8,
-            runSpacing: 4,
-            children: [
-              ActionChip(
-                avatar: const Icon(Icons.person_outline_rounded, size: 16),
-                label: Text(message.role.apiValue),
-                visualDensity: VisualDensity.compact,
-              ),
-              ActionChip(
-                avatar: const Icon(Icons.swap_vert_rounded, size: 16),
-                label: Text(message.placement.label),
-                visualDensity: VisualDensity.compact,
-              ),
-            ],
+          Text(
+            '${message.role.apiValue} · ${message.placement.label}',
+            style: theme.textTheme.bodySmall,
           ),
-          const SizedBox(height: 12),
+          const Divider(height: 24),
           SelectableText(message.content),
         ],
       ),

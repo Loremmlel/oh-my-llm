@@ -38,6 +38,20 @@ Future<void> _openFirstRowMenuAndTap(WidgetTester tester, String action) async {
 }
 
 void registerHistoryScreenActionsTests() {
+  testWidgets('批量选择入口先进入空选择态并可退出', (tester) async {
+    await setUpHistoryScreen(tester);
+    await tester.tap(find.text('批量选择'));
+    await tester.pump();
+    expect(find.text('已选择 0 项'), findsOneWidget);
+    await tester.tap(find.text('Flutter 路线图'));
+    await tester.pump();
+    expect(find.text('已选择 1 项'), findsOneWidget);
+    expect(find.text('聊天落点'), findsNothing);
+    await tester.tap(find.text('退出选择'));
+    await tester.pump();
+    expect(find.text('批量选择'), findsOneWidget);
+  });
+
   testWidgets('长按进入选择后整行点击只切换选择而不导航', (tester) async {
     await setUpHistoryScreen(tester);
 
@@ -47,7 +61,7 @@ void registerHistoryScreenActionsTests() {
     await tester.pump();
 
     expect(find.text('聊天落点'), findsNothing);
-    expect(find.widgetWithText(FilledButton, '删除 2 项'), findsOneWidget);
+    expect(find.widgetWithText(TextButton, '删除 2 项'), findsOneWidget);
   });
 
   testWidgets('普通态 Ctrl+A 全选，Esc 退出后 Ctrl 与 Shift 可建立闭区间选择', (tester) async {
@@ -60,7 +74,7 @@ void registerHistoryScreenActionsTests() {
     expect(find.textContaining('已选择 3 项'), findsOneWidget);
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pump();
-    expect(find.byTooltip('退出选择'), findsNothing);
+    expect(find.text('退出选择'), findsNothing);
     expect(find.textContaining('已选择'), findsNothing);
     expect(find.text('Rust 重构计划'), findsOneWidget);
 
@@ -68,10 +82,10 @@ void registerHistoryScreenActionsTests() {
     // 先 Ctrl 点击建立锚点，再 Shift 点击取闭区间。
     await _tapWithModifiers(tester, 'Rust 重构计划', control: true);
     expect(find.text('聊天落点'), findsNothing);
-    expect(find.widgetWithText(FilledButton, '删除 1 项'), findsOneWidget);
+    expect(find.widgetWithText(TextButton, '删除 1 项'), findsOneWidget);
     await _tapWithModifiers(tester, 'Flutter 路线图', shift: true);
 
-    expect(find.widgetWithText(FilledButton, '删除 2 项'), findsOneWidget);
+    expect(find.widgetWithText(TextButton, '删除 2 项'), findsOneWidget);
   });
 
   testWidgets('Delete 弹出批量删除确认', (tester) async {
@@ -92,7 +106,7 @@ void registerHistoryScreenActionsTests() {
 
     await _openFirstRowMenuAndTap(tester, '选择');
 
-    expect(find.widgetWithText(FilledButton, '删除 1 项'), findsOneWidget);
+    expect(find.widgetWithText(TextButton, '删除 1 项'), findsOneWidget);
   });
 
   testWidgets('通过行内 overflow 菜单重命名会话', (tester) async {
@@ -144,12 +158,12 @@ void registerHistoryScreenActionsTests() {
     await tester.longPress(find.text('Flutter 路线图'));
     await tester.pump();
 
-    expect(find.byTooltip('退出选择'), findsOneWidget);
+    expect(find.text('退出选择'), findsOneWidget);
     await tester.binding.handlePopRoute();
     await tester.pump();
 
     // 选择态是页面本地返回目标，Back 优先清选择而非离开页面。
-    expect(find.byTooltip('退出选择'), findsNothing);
+    expect(find.text('退出选择'), findsNothing);
     expect(find.text('聊天落点'), findsNothing);
     expect(find.text('Flutter 路线图'), findsOneWidget);
   });
@@ -162,7 +176,7 @@ void registerHistoryScreenActionsTests() {
     await tester.longPress(find.text('项目复盘'));
     await tester.pump();
 
-    await tester.tap(find.widgetWithText(FilledButton, '删除 2 项'));
+    await tester.tap(find.widgetWithText(TextButton, '删除 2 项'));
     await settleOverlayTransition(tester);
     await tester.tap(find.widgetWithText(FilledButton, '确认删除'));
     await settleOverlayTransition(tester);

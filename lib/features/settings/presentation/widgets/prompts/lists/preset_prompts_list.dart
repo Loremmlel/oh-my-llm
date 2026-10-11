@@ -1,17 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:oh_my_llm/core/utils/text_formatting.dart';
-
 import '../../../../application/preferences/chat_defaults_controller.dart';
 import '../../../../application/prompts/preset_prompts_controller.dart';
 import '../../../../domain/models/prompts/preset_prompt.dart';
-import '../../shared/settings_card_grid.dart';
-import '../../shared/settings_empty_state.dart';
-import '../../shared/settings_entity_card.dart';
 import '../../shared/settings_helpers.dart';
+import 'preset_prompts_view.dart';
 
-/// Prompt 模板列表，负责展示、编辑和删除模板。
 class PresetPromptsList extends ConsumerWidget {
   const PresetPromptsList({
     required this.templates,
@@ -19,125 +14,32 @@ class PresetPromptsList extends ConsumerWidget {
     required this.onEditRequested,
     super.key,
   });
-
   final List<PresetPrompt> templates;
   final Future<void> Function(PresetPrompt template) onCopyToClipboardRequested;
   final ValueChanged<PresetPrompt> onEditRequested;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    if (templates.isEmpty) {
-      return const SettingsEmptyState(
-        icon: Icons.notes_rounded,
-        title: '还没有预设 Prompt',
-        description: '添加后，聊天页就可以把它们作为 system、前置或后置上下文插入到对话里。',
-      );
-    }
-
-    return SettingsCardGrid(
-      children: [
-        for (final template in templates)
-          _PresetPromptTile(
-            template: template,
-            onCopyToClipboardRequested: onCopyToClipboardRequested,
-            onEditRequested: onEditRequested,
-          ),
-      ],
-    );
-  }
-}
-
-/// 单个 Prompt 模板卡片。
-class _PresetPromptTile extends ConsumerWidget {
-  const _PresetPromptTile({
-    required this.template,
-    required this.onCopyToClipboardRequested,
-    required this.onEditRequested,
-  });
-
-  final PresetPrompt template;
-  final Future<void> Function(PresetPrompt template) onCopyToClipboardRequested;
-  final ValueChanged<PresetPrompt> onEditRequested;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-
-    return SettingsEntityCard(
-      title: template.name,
-      trailing: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 180),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Flexible(
-              child: Text(
-                '单 System Prompt',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            Semantics(
-              label: '单 System Prompt',
-              child: Tooltip(
-                message: '连续的前置 System 合为一条；其余 System 按 User 发送',
-                child: Switch.adaptive(
-                  value: template.singleSystemPrompt,
-                  onChanged: (enabled) => ref
-                      .read(presetPromptsProvider.notifier)
-                      .setSingleSystemPrompt(template.id, enabled),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-      body: [
-        const SizedBox(height: 8),
-        Text(template.summary),
-        if (template.messages.isNotEmpty) ...[
-          const SizedBox(height: 8),
-          for (final message in template.messages.take(3))
-            Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Text(
-                '${message.placement.label} · ${message.role.label} · ${message.title}：${summarizeText(message.content)}',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-        ] else ...[
-          const SizedBox(height: 8),
-          Text('当前模板还没有任何条目。', style: theme.textTheme.bodySmall),
-        ],
-      ],
-      actions: [
-        OutlinedButton.icon(
-          onPressed: () async {
-            await onCopyToClipboardRequested(template);
-          },
-          icon: const Icon(Icons.content_copy_rounded),
-          label: const Text('复制'),
-        ),
-        ...editDeleteActions(
-          onEdit: () => onEditRequested(template),
-          onDelete: () {
-            ref
-                .read(presetPromptsProvider.notifier)
-                .deleteById(template.id)
-                .then((_) {
-                  ref
-                      .read(chatDefaultsProvider.notifier)
-                      .clearRememberedPresetPromptIdIfMatches(template.id)
-                      .then((_) {
-                        if (context.mounted) {
-                          showSettingsSnackbar(context, '预设 Prompt 已删除');
-                        }
-                      });
-                });
-          },
-        ),
-      ],
-    );
-  }
+  Widget build(BuildContext context, WidgetRef ref) => PresetPromptsView(
+    templates: templates,
+    onCopy: onCopyToClipboardRequested,
+    onEdit: onEditRequested,
+    onSingleSystemChanged: (template, enabled) => ref
+        .read(presetPromptsProvider.notifier)
+        .setSingleSystemPrompt(template.id, enabled),
+    onDelete: (template) async {
+      if (!await confirmSettingsDeletion(
+            context,
+            title: '删除预设',
+            message: '将删除预设“${template.name}”。已有聊天记录会保留。',
+          ) ||
+          !context.mounted) {
+        return;
+      }
+      await ref.read(presetPromptsProvider.notifier).deleteById(template.id);
+      await ref
+          .read(chatDefaultsProvider.notifier)
+          .clearRememberedPresetPromptIdIfMatches(template.id);
+      if (context.mounted) showSettingsSnackbar(context, '预设 Prompt 已删除');
+    },
+  );
 }

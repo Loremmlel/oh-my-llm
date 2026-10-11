@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
@@ -86,19 +87,28 @@ class AppShellScaffold extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isCompact = AppBreakpoints.useCompactShell(constraints.maxWidth);
+        final spacious =
+            constraints.maxWidth >= AppBreakpoints.workspaceSidebarWidth &&
+            constraints.maxHeight >= AppBreakpoints.workspaceSidebarHeight;
+        final hasWorkspaceSidebar =
+            currentDestination == AppDestination.chat ||
+            currentDestination == AppDestination.agent;
         final showEndDrawer =
-            endDrawer != null && (isCompact || endDrawerOnWide);
+            endDrawer != null &&
+            (isCompact ||
+                (endDrawerOnWide && (!hasWorkspaceSidebar || !spacious)));
 
+        final appBar = AppBar(
+          title: Text(title),
+          actions: [
+            ...?actions,
+            // 响应式动作跟随壳层断点切换紧凑/宽侧分支，排在固定动作之后。
+            ...?adaptiveActions?.resolve(constraints.maxWidth),
+            if (showEndDrawer) _buildDrawerButton(),
+          ],
+        );
         return Scaffold(
-          appBar: AppBar(
-            title: Text(title),
-            actions: [
-              ...?actions,
-              // 响应式动作跟随壳层断点切换紧凑/宽侧分支，排在固定动作之后。
-              ...?adaptiveActions?.resolve(constraints.maxWidth),
-              if (showEndDrawer) _buildDrawerButton(),
-            ],
-          ),
+          appBar: spacious ? null : appBar,
           endDrawer: showEndDrawer ? endDrawer : null,
           // Android 边缘返回手势与抽屉右缘拖拽抢占同一块屏幕边缘：禁用
           // open drag，把右缘让回系统 Back。抽屉仍可由图标打开，由
@@ -129,10 +139,23 @@ class AppShellScaffold extends StatelessWidget {
           body: Row(
             children: [
               if (!isCompact) ...[
-                _DesktopNavigationRail(currentDestination: currentDestination),
+                _DesktopNavigationRail(
+                  currentDestination: currentDestination,
+                  spacious: spacious,
+                  auxiliary: spacious && hasWorkspaceSidebar ? endDrawer : null,
+                ),
                 const VerticalDivider(width: 1),
               ],
-              Expanded(child: body),
+              Expanded(
+                child: spacious
+                    ? Column(
+                        children: [
+                          appBar,
+                          Expanded(child: body),
+                        ],
+                      )
+                    : body,
+              ),
             ],
           ),
         );
@@ -158,7 +181,13 @@ Widget _buildDrawerButton() {
 
 /// 供 [AppShellScaffold] 在桌面端使用的导航栏。
 class _DesktopNavigationRail extends StatelessWidget {
-  const _DesktopNavigationRail({required this.currentDestination});
+  const _DesktopNavigationRail({
+    required this.currentDestination,
+    required this.spacious,
+    this.auxiliary,
+  });
+  final Widget? auxiliary;
+  final bool spacious;
 
   final AppDestination currentDestination;
 
@@ -167,29 +196,86 @@ class _DesktopNavigationRail extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return NavigationRail(
-      selectedIndex: currentDestination.index,
-      onDestinationSelected: (index) {
-        final destination = AppDestination.values[index];
-        if (destination == currentDestination) {
-          return;
-        }
+    if (!spacious) {
+      return NavigationRail(
+        selectedIndex: currentDestination.index,
+        labelType: NavigationRailLabelType.all,
+        minWidth: 68,
+        onDestinationSelected: (index) {
+          final destination = AppDestination.values[index];
+          if (destination != currentDestination) context.go(destination.path);
+        },
+        destinations: [
+          for (final destination in AppDestination.values)
+            NavigationRailDestination(
+              icon: Icon(destination.icon),
+              selectedIcon: Icon(destination.selectedIcon),
+              label: Text(destination.label),
+            ),
+        ],
+      );
+    }
 
-        context.go(destination.path);
-      },
-      labelType: NavigationRailLabelType.all,
-      minWidth: 68,
-      minExtendedWidth: 220,
-      useIndicator: true,
-      backgroundColor: theme.scaffoldBackgroundColor,
-      destinations: [
-        for (final destination in AppDestination.values)
-          NavigationRailDestination(
-            icon: Icon(destination.icon),
-            selectedIcon: Icon(destination.selectedIcon),
-            label: Text(destination.label),
-          ),
-      ],
+    return SizedBox(
+      width: AppContentWidths.workspaceSidebar,
+      child: Material(
+        color: theme.colorScheme.surfaceContainer,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text('oh-my-llm', style: theme.textTheme.titleLarge),
+            ),
+            for (final destination in AppDestination.values.where(
+              (destination) =>
+                  destination != AppDestination.settings &&
+                  destination != AppDestination.sync,
+            ))
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: ListTile(
+                  dense: true,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  selected: destination == currentDestination,
+                  selectedTileColor: theme.colorScheme.primaryContainer,
+                  leading: Icon(destination.icon),
+                  title: Text(destination.label),
+                  onTap: () {
+                    if (destination != currentDestination) {
+                      context.go(destination.path);
+                    }
+                  },
+                ),
+              ),
+            if (auxiliary != null)
+              Expanded(child: auxiliary!)
+            else
+              const Spacer(),
+            for (final destination in const [
+              AppDestination.settings,
+              AppDestination.sync,
+            ])
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: ListTile(
+                  dense: true,
+                  selected: destination == currentDestination,
+                  selectedTileColor: theme.colorScheme.primaryContainer,
+                  leading: Icon(destination.icon),
+                  title: Text(destination.label),
+                  onTap: () {
+                    if (destination != currentDestination) {
+                      context.go(destination.path);
+                    }
+                  },
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }

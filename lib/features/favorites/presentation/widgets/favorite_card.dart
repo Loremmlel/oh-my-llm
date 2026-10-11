@@ -6,7 +6,7 @@ import 'package:oh_my_llm/features/chat/presentation/widgets/messages/bubble/str
 
 import '../../domain/models/favorite.dart';
 
-/// 单条收藏卡片：元信息行 + 用户消息、折叠推理与 Markdown 模型回复。
+/// 收藏全文阅读区：元信息行、用户消息、折叠推理与 Markdown 模型回复。
 ///
 /// 只负责内容渲染；重命名/移动/删除等操作由页面层的溢出菜单承担，
 /// 收藏夹入口通过 [onCollectionTap] 上抛导航意图。
@@ -30,8 +30,8 @@ class FavoriteCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Card(
-      margin: EdgeInsets.zero,
+    return Material(
+      color: Colors.transparent,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -130,14 +130,16 @@ class FavoriteCard extends StatelessWidget {
                   vertical: 8,
                 ),
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.primaryContainer.withValues(
-                    alpha: 0.5,
+                  border: Border(
+                    left: BorderSide(
+                      color: theme.colorScheme.outlineVariant,
+                      width: 2,
+                    ),
                   ),
-                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: SelectableText(
                   favorite.userMessageContent,
-                  style: theme.textTheme.bodySmall,
+                  style: theme.textTheme.bodyMedium,
                 ),
               ),
               const SizedBox(height: 8),

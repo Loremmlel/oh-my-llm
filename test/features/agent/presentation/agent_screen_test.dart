@@ -34,7 +34,7 @@ void main() {
       database: database,
       child: const AgentScreen(),
     );
-    final field = find.widgetWithText(TextField, '任务');
+    final field = find.widgetWithText(TextField, '描述下一步要完成的任务…');
     final input = tester.widget<TextField>(field).controller!;
     expect(input.text, '甲\n乙');
     expect(store.loadWorkspace('novel')!.draft, '甲\r\n乙');
@@ -80,6 +80,7 @@ void main() {
       preferences: await TestFixtures.seedPreferences(database: database),
       database: database,
       child: const AgentScreen(),
+      viewportSize: const Size(1000, 1000),
     );
     await tester.tap(find.byTooltip('打开侧边内容'));
     await settleOverlayTransition(tester);
@@ -158,7 +159,9 @@ void main() {
     await tester.tap(find.text('保存'));
     await settleOverlayTransition(tester);
     expect(find.text('世界书 1'), findsOneWidget);
-    await tester.tap(find.byTooltip('模型与规则'));
+    await tester.tap(find.byTooltip('工作区操作'));
+    await settleOverlayTransition(tester);
+    await tester.tap(find.text('模型与规则'));
     await settleOverlayTransition(tester);
     expect(find.text('切换模型会丢弃不兼容的原生推理与厂商字段。'), findsOneWidget);
     await tester.tap(find.byTooltip('模型与规则说明'));
@@ -189,7 +192,9 @@ void main() {
     expect(saved.configuration.modelFor(AgentRole.reviewer), 'model-2');
     await tester.tap(find.byTooltip('返回执行流'));
     await tester.pump();
-    await tester.tap(find.byTooltip('查看上下文'));
+    await tester.tap(find.byTooltip('工作区操作'));
+    await settleOverlayTransition(tester);
+    await tester.tap(find.text('查看上下文'));
     await settleOverlayTransition(tester);
     expect(find.textContaining('日落后禁止出城。'), findsOneWidget);
     await tester.tap(find.text('关闭'));
@@ -276,7 +281,10 @@ void main() {
       }
     });
     addTearDown(subscription.close);
-    await tester.enterText(find.widgetWithText(TextField, '任务'), '请委派审稿');
+    await tester.enterText(
+      find.widgetWithText(TextField, '描述下一步要完成的任务…'),
+      '请委派审稿',
+    );
     await tester.pump();
     await tester.tap(find.text('开始任务'));
     await tester.runAsync(() => childStarted.future);
@@ -335,8 +343,13 @@ void main() {
       router: router,
       extraOverrides: [llmClientProvider.overrideWithValue(client)],
     );
-    expect(find.text('Agent 小说工作区'), findsOneWidget);
-    await tester.enterText(find.widgetWithText(TextField, '任务'), '审阅正文');
+    expect(find.widgetWithText(AppBar, '小说工作区'), findsOneWidget);
+    expect(find.widgetWithText(TextField, '搜索作品'), findsOneWidget);
+    expect(find.byTooltip('打开侧边内容'), findsNothing);
+    await tester.enterText(
+      find.widgetWithText(TextField, '描述下一步要完成的任务…'),
+      '审阅正文',
+    );
     await tester.pump();
     final container = ProviderScope.containerOf(
       tester.element(find.byType(AgentScreen)),
@@ -396,7 +409,10 @@ void main() {
       extraOverrides: [llmClientProvider.overrideWithValue(client)],
     );
     const task = '继续写作\n读取设定\n检查动机\n审查对白\n保存正文';
-    await tester.enterText(find.widgetWithText(TextField, '任务'), task);
+    await tester.enterText(
+      find.widgetWithText(TextField, '描述下一步要完成的任务…'),
+      task,
+    );
     tester.view.viewInsets = const FakeViewPadding(bottom: 300);
     addTearDown(tester.view.resetViewInsets);
     await tester.pump();

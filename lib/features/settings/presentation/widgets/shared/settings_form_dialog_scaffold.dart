@@ -11,6 +11,7 @@ class SettingsFormDialogScaffold extends StatelessWidget {
     required this.isSaving,
     required this.onSubmit,
     this.helpText,
+    this.fullPage = false,
     this.width = 720,
     this.submitLabel = '保存',
     this.savingLabel = '保存中...',
@@ -22,6 +23,7 @@ class SettingsFormDialogScaffold extends StatelessWidget {
   static bool _alwaysScrollContent(BoxConstraints _) => true;
 
   final String title;
+  final bool fullPage;
   final String? helpText;
   final GlobalKey<FormState> formKey;
   final Widget child;
@@ -42,7 +44,45 @@ class SettingsFormDialogScaffold extends StatelessWidget {
       onSubmit: (isSaving || !submitEnabled) ? null : onSubmit,
       child: PopScope<void>(
         canPop: !isSaving,
-        child: _buildAlertDialog(context),
+        child: fullPage
+            ? Scaffold(
+                appBar: AppBar(
+                  title: helpText == null
+                      ? Text(title)
+                      : AppHelpTitle(title: title, message: helpText!),
+                  actions: [
+                    TextButton(
+                      onPressed: isSaving
+                          ? null
+                          : () => Navigator.of(context).maybePop(),
+                      child: const Text('取消'),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(right: 16),
+                      child: FilledButton(
+                        onPressed: (isSaving || !submitEnabled)
+                            ? null
+                            : onSubmit,
+                        child: Text(isSaving ? savingLabel : submitLabel),
+                      ),
+                    ),
+                  ],
+                ),
+                body: SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: LayoutBuilder(
+                      builder: (context, constraints) => Form(
+                        key: formKey,
+                        child: shouldScrollContent(constraints)
+                            ? SingleChildScrollView(child: child)
+                            : child,
+                      ),
+                    ),
+                  ),
+                ),
+              )
+            : _buildAlertDialog(context),
       ),
     );
   }

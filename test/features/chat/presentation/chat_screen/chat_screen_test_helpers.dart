@@ -7,6 +7,8 @@ import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/features/chat/application/sessions/chat_sessions_controller.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
+import 'package:oh_my_llm/features/chat/presentation/widgets/composer/fields/composer_message_field.dart';
+import 'package:oh_my_llm/features/chat/presentation/widgets/composer/layout/composer_template_header.dart';
 
 import '../../../../helpers/async/async_test_signals.dart';
 import '../../../../helpers/chat/fake_chat_generation_client.dart';
@@ -125,12 +127,22 @@ Future<ChatScreenMountScope> pumpChatScreenScope(
   return ChatScreenMountScope(scope: scope, showChat: showChat);
 }
 
-/// composer 输入框：ChatScreen 范围内带「正文」label 的 TextField。
-///
-/// 用可见 label 定位而非内部 test-key，输入框结构调整时测试不耦合实现细节。
+/// 正文的提示随模板变化，通过所属组件区分模板变量字段。
 final chatMessageComposerFinder = find.descendant(
-  of: find.byType(ChatScreen),
-  matching: find.widgetWithText(TextField, '正文'),
+  of: find.byType(ComposerMessageField),
+  matching: find.byType(TextField),
+);
+
+final chatTemplateSelectorFinder = find.descendant(
+  of: find.byType(ComposerTemplateHeader),
+  matching: find.byWidgetPredicate((w) => w is DropdownButtonFormField),
+);
+
+final chatModelSelectorFinder = find.descendant(
+  of: find.byWidgetPredicate(
+    (w) => w is Semantics && w.properties.label == '模型',
+  ),
+  matching: find.byWidgetPredicate((w) => w is DropdownButtonFormField),
 );
 
 /// 在聊天输入框中填入内容并点击发送按钮。

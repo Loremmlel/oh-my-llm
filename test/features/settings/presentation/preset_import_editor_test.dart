@@ -7,7 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:oh_my_llm/features/settings/application/ports/preset_import_source.dart';
 import 'package:oh_my_llm/features/settings/application/prompts/preset_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.dart';
-import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/preset_prompt_form_dialog.dart';
+import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/preset_prompt_editor.dart';
 import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/silly_tavern_import_dialog.dart';
 
 import '../../../helpers/test_harness.dart';
@@ -46,13 +46,14 @@ void main() {
       child: Scaffold(
         body: Builder(
           builder: (context) => TextButton(
-            onPressed: () => showDialog<void>(
-              context: context,
-              builder: (_) => PresetPromptFormDialog(
-                initialValue: preset,
-                onSubmit: (value) async {
-                  submitted.complete(value);
-                },
+            onPressed: () => Navigator.of(context).push<void>(
+              MaterialPageRoute(
+                builder: (_) => PresetPromptEditor(
+                  initialValue: preset,
+                  onSubmit: (value) async {
+                    submitted.complete(value);
+                  },
+                ),
               ),
             ),
             child: const Text('编辑'),

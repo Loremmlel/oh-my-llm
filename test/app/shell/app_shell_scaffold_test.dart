@@ -94,7 +94,7 @@ void main() {
         );
       } else {
         await tester.tap(
-          find.descendant(of: find.byType(NavigationRail), matching: navLabel),
+          find.descendant(of: find.byType(ListTile), matching: navLabel),
         );
       }
       await settleRouteTransition(tester);

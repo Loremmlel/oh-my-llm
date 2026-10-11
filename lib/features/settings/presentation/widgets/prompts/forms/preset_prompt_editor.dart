@@ -1,11 +1,13 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+
+import 'package:oh_my_llm/core/widgets/dialogs/app_confirm_dialog.dart';
 import 'package:oh_my_llm/core/widgets/app_dropdown_field.dart';
-import 'package:oh_my_llm/core/widgets/app_field_group.dart';
 import 'package:oh_my_llm/core/widgets/long_text_editing_controller.dart';
 
 import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
 import 'package:oh_my_llm/core/utils/id_generator.dart';
-import 'package:oh_my_llm/core/widgets/adaptive_master_detail_layout.dart';
 
 import '../../../../domain/models/prompts/preset_prompt.dart';
 import '../../shared/settings_form_dialog_scaffold.dart';
@@ -27,9 +29,9 @@ class PresetPromptFormData {
   final PresetPromptSyntax syntax;
 }
 
-/// 新增或编辑预设 Prompt 的对话框。
-class PresetPromptFormDialog extends StatefulWidget {
-  const PresetPromptFormDialog({
+/// 新增或编辑预设 Prompt 的页面工作区。
+class PresetPromptEditor extends StatefulWidget {
+  const PresetPromptEditor({
     required this.onSubmit,
     this.initialValue,
     super.key,
@@ -39,16 +41,56 @@ class PresetPromptFormDialog extends StatefulWidget {
   final PresetPrompt? initialValue;
 
   @override
-  State<PresetPromptFormDialog> createState() => _PresetPromptFormDialogState();
+  State<PresetPromptEditor> createState() => _PresetPromptEditorState();
 }
 
 /// 预设 Prompt 表单的输入与选中状态。
-class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
+class _PresetPromptEditorState extends State<PresetPromptEditor>
     with SettingsFormDialogStateMixin {
   late final TextEditingController _nameController;
   late final List<EditablePresetPromptItem> _items;
   String? _selectedItemId;
   late PresetPromptSyntax _syntax;
+  late String _initialSnapshot;
+  bool _leaveAllowed = false;
+  bool _confirmingLeave = false;
+  String? _saveError;
+  String get _snapshot => jsonEncode([
+    _nameController.text,
+    _syntax.name,
+    (_clearInsertionOrder.map((placement) => placement.name).toList()..sort()),
+    for (final item in _items)
+      [
+        item.id,
+        item.role.name,
+        item.placement?.name,
+        item.titleController.text,
+        item.contentController.text,
+      ],
+  ]);
+
+  Future<void> _requestLeave() async {
+    if (isSaving || _confirmingLeave) return;
+    _confirmingLeave = true;
+    final leave =
+        _snapshot == _initialSnapshot ||
+        await showDialog<bool>(
+              context: context,
+              builder: (_) => const AppConfirmDialog(
+                title: '放弃未保存的修改？',
+                message: '返回后，本次对预设的修改将丢失。',
+                confirmLabel: '放弃修改',
+                isDestructive: true,
+              ),
+            ) ==
+            true;
+    _confirmingLeave = false;
+    if (!mounted || !leave) return;
+    setState(() => _leaveAllowed = true);
+    await WidgetsBinding.instance.endOfFrame;
+    if (mounted) Navigator.of(context).pop();
+  }
+
   final _clearInsertionOrder = <PromptMessagePlacement>{};
   bool get _usesMacros => _syntax == PresetPromptSyntax.sillyTavernSubsetV1;
 
@@ -59,6 +101,7 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
     _syntax = widget.initialValue?.syntax ?? PresetPromptSyntax.plain;
     _items = _buildInitialItems(widget.initialValue);
     _selectedItemId = _items.isEmpty ? null : _items.first.id;
+    _initialSnapshot = _snapshot;
   }
 
   @override
@@ -76,32 +119,83 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
   Widget build(BuildContext context) {
     final isEditing = widget.initialValue != null;
 
-    return SettingsFormDialogScaffold(
-      title: isEditing ? '编辑预设 Prompt' : '新增预设 Prompt',
-      helpText:
-          '条目标题仅用于识别。System / User / Assistant 条目均可增删。\n\n'
-          '前置消息位于历史之前；最新输入前消息位于历史之后、新输入之前；后置消息位于最后。System 条目以 system 角色发送。\n\n'
-          'SillyTavern 有限宏按列表顺序求值启用条目，再按位置注入。支持 setvar / getvar / 文本 addvar、user、lastUserMessage、注释和 trim。导入注入顺序可在上下文中查看；移动条目会恢复该位置的列表顺序。普通文本模式不执行宏。',
-      formKey: formKey,
-      isSaving: isSaving,
-      onSubmit: _handleSubmit,
-      width: 1120,
-      shouldScrollContent: (constraints) =>
-          constraints.maxWidth < AppBreakpoints.formMasterDetail,
-      child: AdaptiveMasterDetailLayout(
-        key: const ValueKey('preset-prompt-form-layout'), // test-key
-        breakpoint: AppBreakpoints.formMasterDetail,
-        masterWidth: 340,
-        minHeight: 620,
-        compactChild: _buildCompactLayout(context),
-        master: _buildWideMasterPane(
-          context: context,
-          key: const ValueKey('preset-prompt-master-pane'), // test-key
-        ),
-        detail: _buildWidePane(
-          context: context,
-          key: const ValueKey('preset-prompt-detail-pane'), // test-key
-          child: _buildDetailContent(context, isWide: true),
+    return PopScope<void>(
+      canPop: _leaveAllowed,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) _requestLeave();
+      },
+      child: SettingsFormDialogScaffold(
+        fullPage: true,
+        title: isEditing ? '编辑预设' : '新增预设',
+        helpText:
+            '条目标题仅用于识别。System / User / Assistant 条目均可增删。\n\n'
+            '前置消息位于历史之前；最新输入前消息位于历史之后、新输入之前；后置消息位于最后。System 条目以 system 角色发送。\n\n'
+            'SillyTavern 有限宏按列表顺序求值启用条目，再按位置注入。支持 setvar / getvar / 文本 addvar、user、lastUserMessage、注释和 trim。导入注入顺序可在上下文中查看；移动条目会恢复该位置的列表顺序。普通文本模式不执行宏。',
+        formKey: formKey,
+        isSaving: isSaving,
+        onSubmit: _handleSubmit,
+        width: 1120,
+        shouldScrollContent: (constraints) =>
+            constraints.maxWidth < AppBreakpoints.formMasterDetail,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final header = Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_saveError != null)
+                  Text(
+                    _saveError!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(flex: 3, child: _buildNameField()),
+                    const SizedBox(width: 12),
+                    Expanded(flex: 2, child: _buildSyntaxField()),
+                  ],
+                ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Divider(height: 1),
+                ),
+              ],
+            );
+            if (constraints.maxWidth < AppBreakpoints.formMasterDetail) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [header, _buildCompactLayout(context)],
+              );
+            }
+            return SizedBox(
+              height: constraints.maxHeight,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SizedBox(
+                    width: 280,
+                    child: _buildWideMasterPane(context: context),
+                  ),
+                  const VerticalDivider(width: 33),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        header,
+                        Expanded(
+                          child: _buildDetailContent(context, isWide: true),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
         ),
       ),
     );
@@ -112,81 +206,40 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildMasterContent(context),
-        const SizedBox(height: 16),
-        _buildCompactPane(
-          context: context,
-          key: const ValueKey('preset-prompt-detail-pane'), // test-key
-          child: _buildDetailContent(context, isWide: false),
+        Row(
+          children: [
+            Expanded(child: _buildCompactItemSelector(context)),
+            const SizedBox(width: 4),
+            IconButton(
+              onPressed: _addMessageItem,
+              tooltip: '新增条目',
+              icon: const Icon(Icons.add),
+            ),
+            IconButton(
+              onPressed: _canMoveSelectedUp() ? () => _moveSelected(-1) : null,
+              tooltip: '上移',
+              icon: const Icon(Icons.arrow_upward_rounded),
+            ),
+            IconButton(
+              onPressed: _canMoveSelectedDown() ? () => _moveSelected(1) : null,
+              tooltip: '下移',
+              icon: const Icon(Icons.arrow_downward_rounded),
+            ),
+          ],
         ),
+        const Divider(height: 24),
+        _buildDetailContent(context, isWide: false),
       ],
     );
   }
 
-  Widget _buildWidePane({
-    required BuildContext context,
-    required Widget child,
-    required Key key,
-  }) {
-    return DecoratedBox(
-      key: key,
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest
-            .withValues(alpha: 0.24),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Padding(padding: const EdgeInsets.all(16), child: child),
-    );
-  }
-
-  Widget _buildWideMasterPane({
-    required BuildContext context,
-    required Key key,
-  }) {
-    return DecoratedBox(
-      key: key,
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest
-            .withValues(alpha: 0.24),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildMasterHeader(context),
-            const SizedBox(height: 16),
-            Expanded(child: _buildMasterListView()),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCompactPane({
-    required BuildContext context,
-    required Widget child,
-    required Key key,
-  }) {
-    return DecoratedBox(
-      key: key,
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest
-            .withValues(alpha: 0.18),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Padding(padding: const EdgeInsets.all(16), child: child),
-    );
-  }
-
-  Widget _buildMasterContent(BuildContext context) {
+  Widget _buildWideMasterPane({required BuildContext context}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildMasterHeader(context),
         const SizedBox(height: 16),
-        _buildCompactItemSelector(context),
+        Expanded(child: _buildMasterListView()),
       ],
     );
   }
@@ -198,42 +251,11 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('预设 Prompt 条目', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 12),
-        _buildNameField(),
-        const SizedBox(height: 12),
-        AppDropdownField<PresetPromptSyntax>(
-          initialValue: _syntax,
-          isExpanded: true,
-          decoration: const InputDecoration(labelText: '模板语法'),
-          items: const [
-            DropdownMenuItem(
-              value: PresetPromptSyntax.plain,
-              child: Text('普通文本'),
-            ),
-            DropdownMenuItem(
-              value: PresetPromptSyntax.sillyTavernSubsetV1,
-              child: Text('SillyTavern 有限宏'),
-            ),
-          ],
-          onChanged: (value) {
-            if (value != null) {
-              setState(() {
-                _syntax = value;
-                if (!_usesMacros) {
-                  final grouped = [
-                    for (final placement in PromptMessagePlacement.values)
-                      ..._items.where((item) => item.placement == placement),
-                  ];
-                  _items
-                    ..clear()
-                    ..addAll(grouped);
-                }
-              });
-            }
-          },
+        Text(
+          '条目 ${_items.length}',
+          style: Theme.of(context).textTheme.titleMedium,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
         Wrap(
           spacing: 8,
           runSpacing: 8,
@@ -258,6 +280,35 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
       ],
     );
   }
+
+  Widget _buildSyntaxField() => AppDropdownField<PresetPromptSyntax>(
+    initialValue: _syntax,
+    isExpanded: true,
+    decoration: const InputDecoration(labelText: '模板语法'),
+    items: const [
+      DropdownMenuItem(value: PresetPromptSyntax.plain, child: Text('普通文本')),
+      DropdownMenuItem(
+        value: PresetPromptSyntax.sillyTavernSubsetV1,
+        child: Text('SillyTavern 有限宏'),
+      ),
+    ],
+    onChanged: (value) {
+      if (value != null) {
+        setState(() {
+          _syntax = value;
+          if (!_usesMacros) {
+            final grouped = [
+              for (final placement in PromptMessagePlacement.values)
+                ..._items.where((item) => item.placement == placement),
+            ];
+            _items
+              ..clear()
+              ..addAll(grouped);
+          }
+        });
+      }
+    },
+  );
 
   Widget _buildMasterListView() {
     return ListView.separated(
@@ -322,11 +373,6 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
       return const Text('请先选择左侧条目。');
     }
 
-    final titleLabel = switch (selected.role) {
-      PresetPromptEditorRole.system => 'System 条目',
-      PresetPromptEditorRole.user => 'User 条目',
-      PresetPromptEditorRole.assistant => 'Assistant 条目',
-    };
     final contentField = TextField(
       key: const ValueKey('preset-prompt-content-field'), // test-key
       controller: selected.contentController,
@@ -340,78 +386,96 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
       ),
     );
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(titleLabel, style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 16),
-        TextFormField(
-          key: const ValueKey('preset-prompt-title-field'), // test-key
-          controller: selected.titleController,
-          decoration: const InputDecoration(
-            labelText: '标题',
-            hintText: '例如：前置约束、最新输入前提醒、后置收尾说明',
+    final fields = <Widget>[
+      TextFormField(
+        key: const ValueKey('preset-prompt-title-field'), // test-key
+        controller: selected.titleController,
+        decoration: const InputDecoration(
+          labelText: '标题',
+          hintText: '例如：前置约束、最新输入前提醒、后置收尾说明',
+        ),
+      ),
+      AppDropdownField<PresetPromptEditorRole>(
+        key: const ValueKey('preset-prompt-role-field'), // test-key
+        initialValue: selected.role,
+        items: const [
+          DropdownMenuItem(
+            value: PresetPromptEditorRole.system,
+            child: Text('System'),
           ),
-        ),
-        const SizedBox(height: 12),
-        AppFieldGroup(
-          children: [
-            AppDropdownField<PresetPromptEditorRole>(
-              key: const ValueKey('preset-prompt-role-field'), // test-key
-              initialValue: selected.role,
-              items: const [
-                DropdownMenuItem(
-                  value: PresetPromptEditorRole.system,
-                  child: Text('System'),
-                ),
-                DropdownMenuItem(
-                  value: PresetPromptEditorRole.user,
-                  child: Text('User'),
-                ),
-                DropdownMenuItem(
-                  value: PresetPromptEditorRole.assistant,
-                  child: Text('Assistant'),
-                ),
-              ],
-              onChanged: (value) {
-                if (value != null) {
-                  setState(() {
-                    _replaceSelected(selected.copyWith(role: value));
-                  });
-                }
-              },
-              decoration: const InputDecoration(labelText: '角色'),
-            ),
-            AppDropdownField<PromptMessagePlacement>(
-              key: const ValueKey('preset-prompt-placement-field'), // test-key
-              initialValue: selected.placement,
-              items: PromptMessagePlacement.values
-                  .map((placement) {
-                    return DropdownMenuItem(
-                      value: placement,
-                      child: Text(switch (placement) {
-                        PromptMessagePlacement.before => '前置',
-                        PromptMessagePlacement.beforeLatestInput => '最新输入前',
-                        PromptMessagePlacement.after => '后置',
-                      }),
-                    );
-                  })
-                  .toList(growable: false),
-              onChanged: (value) {
-                if (value != null) {
-                  _changeSelectedPlacement(value);
-                }
-              },
-              decoration: const InputDecoration(labelText: '位置'),
-            ),
-          ],
-        ),
+          DropdownMenuItem(
+            value: PresetPromptEditorRole.user,
+            child: Text('User'),
+          ),
+          DropdownMenuItem(
+            value: PresetPromptEditorRole.assistant,
+            child: Text('Assistant'),
+          ),
+        ],
+        onChanged: (value) {
+          if (value != null) {
+            setState(() {
+              _replaceSelected(selected.copyWith(role: value));
+            });
+          }
+        },
+        decoration: const InputDecoration(labelText: '角色'),
+      ),
+      AppDropdownField<PromptMessagePlacement>(
+        key: const ValueKey('preset-prompt-placement-field'), // test-key
+        initialValue: selected.placement,
+        items: PromptMessagePlacement.values
+            .map((placement) {
+              return DropdownMenuItem(
+                value: placement,
+                child: Text(switch (placement) {
+                  PromptMessagePlacement.before => '前置',
+                  PromptMessagePlacement.beforeLatestInput => '最新输入前',
+                  PromptMessagePlacement.after => '后置',
+                }),
+              );
+            })
+            .toList(growable: false),
+        onChanged: (value) {
+          if (value != null) {
+            _changeSelectedPlacement(value);
+          }
+        },
+        decoration: const InputDecoration(labelText: '位置'),
+      ),
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (isWide)
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(flex: 2, child: fields[0]),
+              const SizedBox(width: 12),
+              Expanded(child: fields[1]),
+              const SizedBox(width: 12),
+              Expanded(child: fields[2]),
+            ],
+          )
+        else ...[
+          fields[0],
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: fields[1]),
+              const SizedBox(width: 12),
+              Expanded(child: fields[2]),
+            ],
+          ),
+        ],
         const SizedBox(height: 12),
         if (isWide) Expanded(child: contentField) else contentField,
         const SizedBox(height: 16),
         Align(
-          alignment: Alignment.centerLeft,
-          child: OutlinedButton.icon(
+          alignment: Alignment.centerRight,
+          child: TextButton.icon(
             onPressed: () => _removeSelectedItem(),
             icon: const Icon(Icons.delete_outline_rounded),
             label: const Text('删除当前条目'),
@@ -767,10 +831,18 @@ class _PresetPromptFormDialogState extends State<PresetPromptFormDialog>
         })
         .toList(growable: false);
 
-    await submitAndClose(() {
-      return widget.onSubmit(
-        PresetPromptFormData(name: name, messages: messages, syntax: _syntax),
-      );
-    });
+    try {
+      await submitAndClose(() async {
+        await widget.onSubmit(
+          PresetPromptFormData(name: name, messages: messages, syntax: _syntax),
+        );
+        if (mounted) {
+          setState(() => _leaveAllowed = true);
+          await WidgetsBinding.instance.endOfFrame;
+        }
+      });
+    } catch (error) {
+      if (mounted) setState(() => _saveError = '保存失败：$error');
+    }
   }
 }

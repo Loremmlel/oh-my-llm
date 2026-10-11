@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
+import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 import 'package:oh_my_llm/core/utils/date_formatting.dart';
 
 import '../../domain/models/favorite.dart';
@@ -19,6 +20,7 @@ class FavoriteListItem extends StatelessWidget {
     required this.onSelectToggle,
     required this.onMoveRequested,
     required this.onDeleteRequested,
+    this.onSourceRequested,
     super.key,
   });
 
@@ -41,6 +43,7 @@ class FavoriteListItem extends StatelessWidget {
 
   /// 发起删除该条收藏。
   final VoidCallback onDeleteRequested;
+  final VoidCallback? onSourceRequested;
 
   @override
   Widget build(BuildContext context) {
@@ -48,9 +51,13 @@ class FavoriteListItem extends StatelessWidget {
     final titleText = favorite.displayTitle;
     final previewText = favorite.assistantContent.trim();
 
-    return Card(
-      margin: EdgeInsets.zero,
-      clipBehavior: Clip.antiAlias,
+    return Material(
+      color: selected
+          ? theme.colorScheme.primaryContainer.withValues(alpha: 0.45)
+          : Colors.transparent,
+      shape: Border(
+        bottom: BorderSide(color: theme.colorScheme.outlineVariant),
+      ),
       child: InkWell(
         onTap: selectionMode ? onSelectToggle : onTap,
         onLongPress: selectionMode ? null : onSelectToggle,
@@ -59,7 +66,9 @@ class FavoriteListItem extends StatelessWidget {
           child: LayoutBuilder(
             builder: (context, constraints) {
               final isWide =
-                  constraints.maxWidth >= AppBreakpoints.contentMasterDetail;
+                  constraints.maxWidth /
+                      MediaQuery.textScalerOf(context).scale(1) >=
+                  AppBreakpoints.contentMasterDetail;
               final metaColor = theme.colorScheme.onSurfaceVariant;
 
               final modelMeta = _MetaLabel(
@@ -70,15 +79,49 @@ class FavoriteListItem extends StatelessWidget {
                 icon: Icons.schedule_rounded,
                 text: formatDateTime(favorite.createdAt),
               );
+              final sourceTitle =
+                  favorite.sourceConversationTitle?.trim() ?? '';
+              final sourceMeta = _MetaLabel(
+                icon: Icons.chat_bubble_outline,
+                text: sourceTitle.isEmpty ? '来源未命名' : sourceTitle,
+              );
+              final metadata = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if ((favorite.sourceConversationId ?? '').isNotEmpty)
+                    sourceMeta,
+                  modelMeta,
+                  timeMeta,
+                ],
+              );
+              final actions = Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  TextButton.icon(
+                    onPressed: onTap,
+                    icon: const Icon(Icons.article_outlined, size: 18),
+                    label: const Text('查看全文'),
+                  ),
+                  if (onSourceRequested != null)
+                    TextButton.icon(
+                      onPressed: onSourceRequested,
+                      icon: const Icon(Icons.chat_bubble_outline, size: 18),
+                      label: const Text('查看来源对话'),
+                    ),
+                  _RowOverflowMenu(
+                    onSelectRequested: onSelectToggle,
+                    onMoveRequested: onMoveRequested,
+                    onDeleteRequested: onDeleteRequested,
+                  ),
+                ],
+              );
 
               final summary = Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     titleText,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: theme.textTheme.titleMedium,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -86,8 +129,11 @@ class FavoriteListItem extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       previewText,
-                      style: theme.textTheme.bodySmall?.copyWith(
+                      style: theme.textTheme.bodyMedium?.copyWith(
                         color: metaColor,
+                        fontFamily: 'Noto Serif SC',
+                        fontFamilyFallback: const ['Noto Sans SC'],
+                        height: 1.7,
                       ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
@@ -99,42 +145,35 @@ class FavoriteListItem extends StatelessWidget {
                     Wrap(
                       spacing: 12,
                       runSpacing: 4,
-                      children: [modelMeta, timeMeta],
+                      children: [
+                        if ((favorite.sourceConversationId ?? '').isNotEmpty)
+                          sourceMeta,
+                        modelMeta,
+                        timeMeta,
+                      ],
                     ),
                   ],
+                  if (!isWide && !selectionMode) actions,
                 ],
               );
 
               return Row(
                 children: [
                   if (selectionMode)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 12),
-                      child: Icon(
-                        selected
-                            ? Icons.check_box_rounded
-                            : Icons.check_box_outline_blank_rounded,
-                        color: selected ? theme.colorScheme.primary : metaColor,
-                      ),
+                    Checkbox(
+                      value: selected,
+                      onChanged: (_) => onSelectToggle(),
+                      semanticLabel: '选择$titleText',
                     ),
                   Expanded(child: summary),
-                  if (isWide && !selectionMode) ...[
-                    const SizedBox(width: 16),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        modelMeta,
-                        const SizedBox(height: 4),
-                        timeMeta,
-                      ],
-                    ),
+                  if (isWide) ...[
+                    const SizedBox(width: AppSpacing.lg),
+                    SizedBox(width: 208, child: metadata),
                   ],
-                  if (!selectionMode)
-                    _RowOverflowMenu(
-                      onSelectRequested: onSelectToggle,
-                      onMoveRequested: onMoveRequested,
-                      onDeleteRequested: onDeleteRequested,
-                    ),
+                  if (isWide && !selectionMode) ...[
+                    const SizedBox(width: AppSpacing.sm),
+                    actions,
+                  ],
                 ],
               );
             },
@@ -166,7 +205,7 @@ class _MetaLabel extends StatelessWidget {
             message: text,
             child: Text(
               text,
-              style: theme.textTheme.labelSmall?.copyWith(
+              style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
               maxLines: 1,

@@ -41,8 +41,7 @@ class GroupedConversationList extends StatelessWidget {
   final ScrollPhysics? physics;
   final double? cacheExtent;
 
-  /// 列表滚动区内边距；默认零由使用方自备外层框架（如聊天侧栏的
-  /// Card + Padding），历史页等整页场景直接传入以获得边距。
+  /// 列表滚动区内边距；默认零由使用方提供边距，历史页等整页场景直接传入。
   final EdgeInsetsGeometry padding;
 
   @override

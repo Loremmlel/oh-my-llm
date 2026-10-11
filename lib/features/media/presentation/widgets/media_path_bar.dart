@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 
 /// 可点击的面包屑路径导航栏。
 ///
-/// 示例：`🏠 / sister / video / vlog`
-/// - 🏠 点击跳转根目录
+/// 示例：`根目录 / 相册 / 旅行`
+/// - 根目录入口始终可达
 /// - 每级路径均可点击跳转
 class MediaPathBar extends StatelessWidget {
   final String currentPath;
@@ -27,9 +28,8 @@ class MediaPathBar extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         child: Row(
           children: [
-            // 🏠 根目录按钮
             _PathChip(
-              label: '🏠',
+              label: '根目录',
               onTap: () => onPathSelected('/'),
               isActive: currentPath == '/' || currentPath.isEmpty,
               isRoot: true,
@@ -106,8 +106,16 @@ class _PathChip extends StatelessWidget {
           borderRadius: BorderRadius.circular(4),
           // 局部、主题派生的焦点反馈，不引入全局 theme token
           focusColor: theme.colorScheme.primary.withValues(alpha: 0.12),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+          child: Container(
+            constraints: const BoxConstraints(
+              minHeight: AppInteractionSizes.minimumHitTarget,
+              minWidth: AppInteractionSizes.minimumHitTarget,
+            ),
+            alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(
+              vertical: AppSpacing.xs,
+              horizontal: AppSpacing.xs,
+            ),
             // 视觉文本只负责外观，语义由父节点 label 提供
             child: ExcludeSemantics(
               child: Text(

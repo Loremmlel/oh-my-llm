@@ -1,25 +1,22 @@
 import 'package:flutter/material.dart';
 
-import '../../../../application/workspace/chat_workspace_view_state.dart';
+import '../../../../application/workspace/chat_workspace_composer_state.dart';
 import '../../workspace/chat_workspace_bindings.dart';
 
 import '../composer_helpers.dart';
 import '../controls/auto_retry_toggle.dart';
 import '../controls/composer_effort_pill.dart';
-import '../controls/composer_send_button.dart';
 import '../controls/thinking_toggle.dart';
 
 class ComposerDesktopSettingsRow extends StatelessWidget {
   const ComposerDesktopSettingsRow({
     required this.state,
     required this.bindings,
-    required this.onSendPressed,
     super.key,
   });
 
   final ChatWorkspaceComposerReadModel state;
   final ChatWorkspaceComposerBindings bindings;
-  final Future<void> Function()? onSendPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -84,20 +81,6 @@ class ComposerDesktopSettingsRow extends StatelessWidget {
                 ),
               ),
             ],
-          ),
-        ),
-        const SizedBox(width: 6),
-        Align(
-          alignment: Alignment.topRight,
-          child: ComposerSendButton(
-            theme: theme,
-            isBusy: state.isBusy,
-            isStreaming: state.isStreaming,
-            isAutoRetryWaiting: state.isAutoRetryWaiting,
-            hasModels: state.modelConfigs.isNotEmpty,
-            expandLabel: false,
-            onSendPressed: onSendPressed,
-            onStopStreaming: bindings.onStopStreaming,
           ),
         ),
       ],

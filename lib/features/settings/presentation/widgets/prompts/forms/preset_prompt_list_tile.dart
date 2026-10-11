@@ -26,10 +26,14 @@ class PresetPromptListTile extends StatelessWidget {
         return Material(
           color: isSelected
               ? colorScheme.secondaryContainer
-              : colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
-          borderRadius: BorderRadius.circular(16),
+              : Colors.transparent,
+          shape: Border(
+            left: BorderSide(
+              color: isSelected ? colorScheme.primary : Colors.transparent,
+              width: 3,
+            ),
+          ),
           child: InkWell(
-            borderRadius: BorderRadius.circular(16),
             onTap: onTap,
             child: Padding(
               padding: const EdgeInsets.all(14),

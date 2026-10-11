@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
+import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 import 'package:oh_my_llm/core/utils/date_formatting.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation_summary.dart';
 
@@ -88,75 +90,81 @@ class HistoryConversationTile extends StatelessWidget {
       label: conversation.resolvedTitle,
       child: Material(
         color: selected
-            ? theme.colorScheme.primaryContainer
-            : theme.colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(16),
+            ? theme.colorScheme.primaryContainer.withValues(alpha: 0.45)
+            : Colors.transparent,
+        shape: Border(
+          bottom: BorderSide(color: theme.colorScheme.outlineVariant),
+        ),
         child: InkWell(
-          borderRadius: BorderRadius.circular(16),
           onTap: onTap,
           onLongPress: onLongPress,
           onSecondaryTapUp: (details) =>
               _showContextMenu(context, details.globalPosition),
           child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (selectionMode) ...[
-                  Checkbox(
-                    value: selected,
-                    onChanged: (_) => onSelectRequested(),
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.sm,
+              vertical: AppSpacing.md,
+            ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final wide =
+                    constraints.maxWidth /
+                        MediaQuery.textScalerOf(context).scale(1) >=
+                    AppBreakpoints.contentMasterDetail;
+                final date = Text(
+                  formatDateTime(conversation.updatedAt.toLocal()),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
                   ),
-                  const SizedBox(width: 8),
-                ],
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        conversation.resolvedTitle,
-                        style: theme.textTheme.titleMedium,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                );
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (selectionMode) ...[
+                      Checkbox(
+                        value: selected,
+                        onChanged: (_) => onSelectRequested(),
                       ),
-                      const SizedBox(height: 6),
-                      Text(
-                        conversation.previewText,
-                        style: theme.textTheme.bodyMedium,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 6),
-                      Row(
+                      const SizedBox(width: 8),
+                    ],
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(
-                            Icons.schedule_rounded,
-                            size: 14,
-                            color: theme.colorScheme.onSurfaceVariant,
+                          Text(
+                            conversation.resolvedTitle,
+                            style: theme.textTheme.titleMedium,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          const SizedBox(width: 4),
-                          Flexible(
-                            child: Text(
-                              formatDateTime(conversation.updatedAt.toLocal()),
-                              style: theme.textTheme.bodySmall,
+                          if (!conversation.hasCustomTitle) ...[
+                            const SizedBox(height: AppSpacing.xxs),
+                            Text(
+                              conversation.previewText,
+                              style: theme.textTheme.bodyMedium,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
-                          ),
+                          ],
+                          if (!wide) ...[
+                            const SizedBox(height: AppSpacing.xxs),
+                            date,
+                          ],
                         ],
                       ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                PopupMenuButton<String>(
-                  tooltip: '更多操作',
-                  icon: const Icon(Icons.more_vert_rounded),
-                  onSelected: (action) =>
-                      _handleMenuAction(action, context: context),
-                  itemBuilder: (_) => _buildMenuItems(selectionMode),
-                ),
-              ],
+                    ),
+                    if (wide) ...[const SizedBox(width: AppSpacing.lg), date],
+                    const SizedBox(width: AppSpacing.sm),
+                    PopupMenuButton<String>(
+                      tooltip: '更多操作',
+                      icon: const Icon(Icons.more_vert_rounded),
+                      onSelected: (action) =>
+                          _handleMenuAction(action, context: context),
+                      itemBuilder: (_) => _buildMenuItems(selectionMode),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
         ),

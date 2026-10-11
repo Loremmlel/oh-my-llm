@@ -76,6 +76,7 @@ class _ModelProviderFormDialogState extends State<ModelProviderFormDialog>
       width: 520,
       child: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           AppFieldGroup(
             fieldWidth: 254,

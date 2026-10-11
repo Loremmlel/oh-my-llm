@@ -31,10 +31,8 @@ class CheckpointSelectionTile extends StatelessWidget {
     return Material(
       color: selected
           ? colorScheme.primaryContainer.withValues(alpha: 0.72)
-          : colorScheme.surface,
-      borderRadius: BorderRadius.circular(16),
+          : Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(16),
         onTap: onFocus,
         child: Padding(
           padding: const EdgeInsets.all(12),
@@ -78,11 +76,11 @@ class CheckpointSelectionTile extends StatelessWidget {
                             : theme.colorScheme.onSurfaceVariant,
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      compatible ? '点击卡片查看详情，点按钮启用。' : '可查看详情，但当前分支无法启用。',
-                      style: theme.textTheme.labelSmall,
-                    ),
+                    if (!compatible)
+                      Text(
+                        '可查看详情，但当前分支无法启用。',
+                        style: theme.textTheme.labelSmall,
+                      ),
                   ],
                 ),
               ),

@@ -13,6 +13,7 @@ import 'package:oh_my_llm/features/history/presentation/history_screen.dart';
 import 'package:oh_my_llm/features/media/presentation/pages/media_route_pages.dart';
 import 'package:oh_my_llm/features/media/presentation/pages/video_player_platform_bindings.dart';
 import 'package:oh_my_llm/features/settings/presentation/settings_screen.dart';
+import 'package:oh_my_llm/features/settings/presentation/preset_editor_screen.dart';
 
 import '../composition/sync_workspace_screen.dart';
 import '../composition/video_player_platform_bindings_factory.dart';
@@ -73,6 +74,17 @@ GoRouter createAppRouter({
         path: AppDestination.settings.path,
         name: AppDestination.settings.name,
         builder: (context, state) => const SettingsScreen(),
+        routes: [
+          GoRoute(
+            path: 'presets/new',
+            builder: (context, state) => const PresetEditorScreen(),
+          ),
+          GoRoute(
+            path: 'presets/:presetId',
+            builder: (context, state) =>
+                PresetEditorScreen(presetId: state.pathParameters['presetId']),
+          ),
+        ],
       ),
       GoRoute(
         path: AppDestination.agent.path,
@@ -114,19 +126,6 @@ GoRouter createAppRouter({
             builder: (context, state) => FavoriteDetailScreen(
               favoriteId: state.pathParameters[AppRouteParameter.favoriteId],
             ),
-          ),
-          // 旧版扁平详情 URL 的兼容入口：必须排在静态 collections/items
-          // 之后，且保留段直接回总览，避免被解析成畸形收藏 ID。
-          GoRoute(
-            path: ':${AppRouteParameter.favoriteId}',
-            redirect: (context, state) {
-              final favoriteId =
-                  state.pathParameters[AppRouteParameter.favoriteId] ?? '';
-              if (favoriteId == 'collections' || favoriteId == 'items') {
-                return AppDestination.favorites.path;
-              }
-              return '${AppDestination.favorites.path}/items/$favoriteId';
-            },
           ),
         ],
       ),

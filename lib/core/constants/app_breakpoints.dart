@@ -10,9 +10,13 @@ final class AppBreakpoints {
 
   /// 应用壳导航断点，接收窗口级宽度（顶层可用宽度）。
   ///
-  /// 控制 [NavigationBar] 与 [NavigationRail] 之间的切换；辅助内容统一用右侧抽屉。
+  /// 控制底部导航与侧向导航之间的切换；常驻辅助内容另受工作区尺寸约束。
   /// `width >= 720` 进入宽侧导航，等号属宽侧。
   static const double shellNavigation = 720.0;
+
+  /// 常驻工作区侧栏需要给正文与历史列表同时保留可用空间。
+  static const double workspaceSidebarWidth = 1100.0;
+  static const double workspaceSidebarHeight = 640.0;
 
   /// 通用内容区主从布局默认双栏阈值，接收父组件分配宽度。
   ///
@@ -34,9 +38,9 @@ final class AppBreakpoints {
   /// 接收表单父约束宽度。`width >= 900` 开始 master/detail，等号属宽侧。
   static const double formMasterDetail = 900.0;
 
-  /// 消息气泡近全宽/比例限宽阈值，接收气泡父约束宽度。
+  /// 消息阅读区窄边距/标准边距阈值，接收消息父约束宽度。
   ///
-  /// `width >= 600` 开始按角色比例限宽，等号属宽侧。
+  /// `width >= 600` 使用标准边距和阅读限宽，等号属宽侧。
   static const double messageBubble = 600.0;
 
   static bool useCompactShell(double availableWidth) =>

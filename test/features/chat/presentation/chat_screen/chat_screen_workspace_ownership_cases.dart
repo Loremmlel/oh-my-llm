@@ -14,8 +14,7 @@ import 'package:oh_my_llm/features/settings/domain/models/prompts/template_promp
 import '../../../../helpers/async/widget_test_animation.dart';
 import 'chat_screen_test_helpers.dart';
 
-/// composer 输入框：与 helpers 的 sendMessage 共用同一可见 label 定位，
-/// 不依赖内部 test-key。
+/// 与 helpers 的 sendMessage 共用正文组件定位。
 final _composerFinder = chatMessageComposerFinder;
 
 void _expectFieldText(Finder field, String text) {
@@ -44,12 +43,7 @@ Future<void> _tapEditMessage(WidgetTester tester, String messageContent) async {
 
 /// 通过模板下拉选择指定名称的模板（沿用既有 cases 的 dropdown finder 手法）。
 Future<void> _selectTemplate(WidgetTester tester, String title) async {
-  await tester.tap(
-    find.ancestor(
-      of: find.text('模板提示词'),
-      matching: find.byWidgetPredicate((w) => w is DropdownButtonFormField),
-    ),
-  );
+  await tester.tap(chatTemplateSelectorFinder);
   // 下拉菜单开合属 overlay 过渡。
   await settleOverlayTransition(tester);
   await tester.tap(find.text(title).last);

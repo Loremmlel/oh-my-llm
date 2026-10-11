@@ -1,9 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
-import 'package:oh_my_llm/core/widgets/adaptive_grid/app_adaptive_grid.dart';
 import 'package:oh_my_llm/core/widgets/dialogs/app_confirm_dialog.dart';
+import 'package:oh_my_llm/core/widgets/app_adaptive_actions.dart';
+import 'package:oh_my_llm/core/widgets/app_help_button.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -28,6 +30,7 @@ import '../domain/models/prompts/preset_prompt.dart';
 import '../domain/models/prompts/template_prompt.dart';
 import 'widgets/transfer/import_confirm_dialog.dart';
 import 'widgets/settings_widgets.dart';
+import 'widgets/shared/settings_workspace.dart';
 import 'widgets/tabs/network_settings_tab.dart';
 import 'widgets/tabs/other_settings_tab.dart';
 import 'widgets/tabs/output_processing_tab.dart';
@@ -67,6 +70,7 @@ class SettingsScreen extends ConsumerStatefulWidget {
 class _SettingsScreenState extends ConsumerState<SettingsScreen>
     with TickerProviderStateMixin {
   late final TabController _tabController;
+  int? _promptCategory;
 
   @override
   void initState() {
@@ -123,219 +127,240 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     return AppShellScaffold(
       currentDestination: AppDestination.settings,
       title: '设置',
-      actions: [
-        IconButton(
-          onPressed: () => _importToCurrentTab(),
-          icon: const Icon(Icons.download_rounded),
-          tooltip: '从剪贴板导入设置',
-        ),
-        IconButton(
-          onPressed: () => _exportCurrentTab(),
-          icon: const Icon(Icons.upload_rounded),
-          tooltip: '导出$_currentTabLabel',
-        ),
-      ],
-      body: Column(
-        children: [
-          TabBar(
-            controller: _tabController,
-            isScrollable: true,
-            tabAlignment: TabAlignment.start,
-            tabs: const [
-              Tab(text: '服务商'),
-              Tab(text: '预设'),
-              Tab(text: '提示词'),
-              Tab(text: '网络'),
-              Tab(text: '输出处理'),
-              Tab(text: '其它'),
-            ],
-          ),
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                // 服务商
-                ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    SettingsSectionCard(
-                      title: '服务商设置',
-                      description: '管理服务商与其下模型。聊天页会记住最近一次使用的模型。',
-                      action: FilledButton.icon(
-                        onPressed: () => _showModelProviderDialog(context, ref),
-                        icon: const Icon(Icons.add_rounded),
-                        label: const Text('新增服务商'),
-                      ),
-                      child: ModelConfigsList(
-                        providers: modelProviders,
-                        onEditProviderRequested: (provider) {
-                          _showModelProviderDialog(
-                            context,
-                            ref,
-                            initialValue: provider,
-                          );
-                        },
-                        onAddModelRequested: (provider) {
-                          _showModelConfigDialog(
-                            context,
-                            ref,
-                            provider: provider,
-                          );
-                        },
-                        onEditModelRequested: (provider, model) {
-                          _showModelConfigDialog(
-                            context,
-                            ref,
-                            provider: provider,
-                            initialValue: model,
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-                // 预设
-                ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    SettingsSectionCard(
-                      title: '预设 Prompt',
-                      description: '配置可在聊天页选择的预设 Prompt，支持 system、前置、最新输入前与后置上下文，并记住最近一次使用的选择。',
-                      action: Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          FilledButton.icon(
-                            onPressed: () =>
-                                _showPresetPromptDialog(context, ref),
-                            icon: const Icon(Icons.add_rounded),
-                            label: const Text('新增预设'),
-                          ),
-                          OutlinedButton.icon(
-                            onPressed: () => showDialog<void>(
-                              context: context,
-                              builder: (_) => const SillyTavernImportDialog(),
-                            ),
-                            icon: const Icon(Icons.file_download_outlined),
-                            label: const Text('导入 SillyTavern'),
-                          ),
-                        ],
-                      ),
-                      child: PresetPromptsList(
-                        templates: presetPrompts,
-                        onCopyToClipboardRequested: (template) {
-                          return _copyPresetPromptToClipboard(
-                            context,
-                            ref,
-                            template,
-                          );
-                        },
-                        onEditRequested: (template) {
-                          _showPresetPromptDialog(
-                            context,
-                            ref,
-                            initialValue: template,
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-                // 提示词
-                ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    Align(
-                      alignment: Alignment.topCenter,
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(
-                          maxWidth: AppContentWidths.wide,
-                        ),
-                        child: AppAdaptiveGrid.content(
-                          equalRowHeights: false,
-                          maxCrossAxisExtent: 400,
-                          crossAxisSpacing: AppSpacing.lg,
-                          mainAxisSpacing: AppSpacing.sm,
-                          children: [
-                            SettingsSectionCard(
-                              title: '记忆总结提示词',
-                              description:
-                                  '配置聊天页创建检查点时可选择的总结提示词，用于适配不同场景下的记忆沉淀方式。',
-                              action: FilledButton.icon(
-                                onPressed: () =>
-                                    _showMemoryPromptDialog(context, ref),
-                                icon: const Icon(Icons.add_rounded),
-                                label: const Text('新增记忆提示词'),
-                              ),
-                              child: MemoryPromptsList(
-                                memoryPrompts: memoryPrompts,
-                                onEditRequested: (memoryPrompt) {
-                                  _showMemoryPromptDialog(
-                                    context,
-                                    ref,
-                                    initialValue: memoryPrompt,
-                                  );
-                                },
-                              ),
-                            ),
-                            SettingsSectionCard(
-                              title: '模板提示词',
-                              description: '配置可在聊天页临时应用的变量模板。使用 {{变量名}} 声明注入位，{{正文}} 对应主输入框。',
-                              action: FilledButton.icon(
-                                onPressed: () =>
-                                    _showTemplatePromptDialog(context, ref),
-                                icon: const Icon(Icons.add_rounded),
-                                label: const Text('新增模板提示词'),
-                              ),
-                              child: TemplatePromptsList(
-                                templatePrompts: templatePrompts,
-                                onEditRequested: (templatePrompt) {
-                                  _showTemplatePromptDialog(
-                                    context,
-                                    ref,
-                                    initialValue: templatePrompt,
-                                  );
-                                },
-                              ),
-                            ),
-                            SettingsSectionCard(
-                              title: '固定顺序提示词',
-                              description:
-                                  '配置可逐步发送的用户提示词序列，适合做模型对比测试，不会自动整组连发。',
-                              action: FilledButton.icon(
-                                onPressed: () => _showFixedPromptSequenceDialog(
-                                  context,
-                                  ref,
-                                ),
-                                icon: const Icon(Icons.add_rounded),
-                                label: const Text('新增序列'),
-                              ),
-                              child: FixedPromptSequencesList(
-                                sequences: fixedPromptSequences,
-                                onEditRequested: (sequence) {
-                                  _showFixedPromptSequenceDialog(
-                                    context,
-                                    ref,
-                                    initialValue: sequence,
-                                  );
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                // 网络
-                const NetworkSettingsTab(),
-                // 输出处理
-                const OutputProcessingTab(),
-                // 其它
-                const OtherSettingsTab(),
-              ],
+      adaptiveActions: AppAdaptiveActions(
+        wideActions: [
+          Tooltip(
+            message: '从剪贴板导入设置',
+            child: TextButton.icon(
+              onPressed: _importToCurrentTab,
+              icon: const Icon(Icons.file_upload_outlined),
+              label: const Text('导入'),
             ),
           ),
+          Tooltip(
+            message: '导出$_currentTabLabel',
+            child: TextButton.icon(
+              onPressed: _exportCurrentTab,
+              icon: const Icon(Icons.file_download_outlined),
+              label: const Text('导出'),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.md),
+        ],
+        compactActions: [
+          IconButton(
+            onPressed: () => _importToCurrentTab(),
+            icon: const Icon(Icons.file_upload_outlined),
+            tooltip: '从剪贴板导入设置',
+          ),
+          IconButton(
+            onPressed: () => _exportCurrentTab(),
+            icon: const Icon(Icons.file_download_outlined),
+            tooltip: '导出$_currentTabLabel',
+          ),
+        ],
+      ),
+      body: SettingsWorkspace(
+        controller: _tabController,
+        onPromptCategorySelected: (index) =>
+            setState(() => _promptCategory = index),
+        onPromptOverview: () => setState(() => _promptCategory = null),
+        providerAction: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const AppHelpButton(
+              title: '服务商设置',
+              message: '管理服务商与其下模型。聊天页会记住最近一次使用的模型。',
+            ),
+            FilledButton.icon(
+              onPressed: () => _showModelProviderDialog(context, ref),
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('新增服务商'),
+            ),
+          ],
+        ),
+        children: [
+          // 服务商
+          ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              Align(
+                alignment: Alignment.topCenter,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    maxWidth: AppContentWidths.wide,
+                  ),
+                  child: ModelConfigsList(
+                    providers: modelProviders,
+                    onBatchAddModelsRequested: (provider) =>
+                        _showModelConfigDialog(
+                          context,
+                          ref,
+                          provider: provider,
+                          initialBatchMode: true,
+                        ),
+                    onEditProviderRequested: (provider) {
+                      _showModelProviderDialog(
+                        context,
+                        ref,
+                        initialValue: provider,
+                      );
+                    },
+                    onAddModelRequested: (provider) {
+                      _showModelConfigDialog(context, ref, provider: provider);
+                    },
+                    onEditModelRequested: (provider, model) {
+                      _showModelConfigDialog(
+                        context,
+                        ref,
+                        provider: provider,
+                        initialValue: model,
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ),
+          // 预设
+          ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              SettingsSectionCard(
+                title: '预设 Prompt',
+                titleStyle: Theme.of(context).textTheme.titleLarge,
+                description: '配置可在聊天页选择的预设 Prompt，支持 system、前置、最新输入前与后置上下文，并记住最近一次使用的选择。',
+                action: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    FilledButton.icon(
+                      onPressed: () => _showPresetPromptDialog(context, ref),
+                      icon: const Icon(Icons.add_rounded),
+                      label: const Text('新增预设'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () => showDialog<void>(
+                        context: context,
+                        builder: (_) => const SillyTavernImportDialog(),
+                      ),
+                      icon: const Icon(Icons.file_download_outlined),
+                      label: const Text('导入 SillyTavern'),
+                    ),
+                  ],
+                ),
+                child: PresetPromptsList(
+                  templates: presetPrompts,
+                  onCopyToClipboardRequested: (template) {
+                    return _copyPresetPromptToClipboard(context, ref, template);
+                  },
+                  onEditRequested: (template) {
+                    _showPresetPromptDialog(
+                      context,
+                      ref,
+                      initialValue: template,
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+          // 提示词
+          ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              Align(
+                alignment: Alignment.topCenter,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    maxWidth: AppContentWidths.wide,
+                  ),
+                  child: Column(
+                    children: [
+                      if (_promptCategory == null || _promptCategory == 0)
+                        SettingsSectionCard(
+                          title: '记忆总结提示词',
+                          description: '配置聊天页创建检查点时可选择的总结提示词，用于适配不同场景下的记忆沉淀方式。',
+                          action: FilledButton.icon(
+                            onPressed: () =>
+                                _showMemoryPromptDialog(context, ref),
+                            icon: const Icon(Icons.add_rounded),
+                            label: const Text('新增记忆提示词'),
+                          ),
+                          child: MemoryPromptsList(
+                            onDelete: ref
+                                .read(memoryPromptsProvider.notifier)
+                                .deleteById,
+                            memoryPrompts: memoryPrompts,
+                            onEditRequested: (memoryPrompt) {
+                              _showMemoryPromptDialog(
+                                context,
+                                ref,
+                                initialValue: memoryPrompt,
+                              );
+                            },
+                          ),
+                        ),
+                      if (_promptCategory == null || _promptCategory == 1)
+                        SettingsSectionCard(
+                          title: '模板提示词',
+                          description: '配置可在聊天页临时应用的变量模板。使用 {{变量名}} 声明注入位，{{正文}} 对应主输入框。',
+                          action: FilledButton.icon(
+                            onPressed: () =>
+                                _showTemplatePromptDialog(context, ref),
+                            icon: const Icon(Icons.add_rounded),
+                            label: const Text('新增模板提示词'),
+                          ),
+                          child: TemplatePromptsList(
+                            onDelete: ref
+                                .read(templatePromptsProvider.notifier)
+                                .deleteById,
+                            templatePrompts: templatePrompts,
+                            onEditRequested: (templatePrompt) {
+                              _showTemplatePromptDialog(
+                                context,
+                                ref,
+                                initialValue: templatePrompt,
+                              );
+                            },
+                          ),
+                        ),
+                      if (_promptCategory == null || _promptCategory == 2)
+                        SettingsSectionCard(
+                          title: '固定顺序提示词',
+                          description: '配置可逐步发送的用户提示词序列，适合做模型对比测试，不会自动整组连发。',
+                          action: FilledButton.icon(
+                            onPressed: () =>
+                                _showFixedPromptSequenceDialog(context, ref),
+                            icon: const Icon(Icons.add_rounded),
+                            label: const Text('新增序列'),
+                          ),
+                          child: FixedPromptSequencesList(
+                            onDelete: ref
+                                .read(fixedPromptSequencesProvider.notifier)
+                                .deleteById,
+                            sequences: fixedPromptSequences,
+                            onEditRequested: (sequence) {
+                              _showFixedPromptSequenceDialog(
+                                context,
+                                ref,
+                                initialValue: sequence,
+                              );
+                            },
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          // 网络
+          const NetworkSettingsTab(),
+          // 输出处理
+          const OutputProcessingTab(),
+          // 其它
+          const OtherSettingsTab(),
         ],
       ),
     );
@@ -507,12 +532,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     WidgetRef ref, {
     required LlmProviderConfig provider,
     LlmProviderModelConfig? initialValue,
+    bool initialBatchMode = false,
   }) {
     return showDialog<void>(
       context: context,
       builder: (dialogContext) {
         return ModelConfigFormDialog(
           provider: provider,
+          initialBatchMode: initialBatchMode,
           initialValue: initialValue,
           fetchModels: ref.read(modelCatalogWorkflowProvider).fetch,
           onSubmit: (formData) async {
@@ -567,35 +594,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     WidgetRef ref, {
     PresetPrompt? initialValue,
   }) {
-    return showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return PresetPromptFormDialog(
-          initialValue: initialValue,
-          onSubmit: (formData) async {
-            await _saveSettingsItem(
-              context,
-              isEditing: initialValue != null,
-              createdMessage: '预设 Prompt 已保存',
-              updatedMessage: '预设 Prompt 已更新',
-              onSave: () {
-                final template = PresetPrompt(
-                  id: initialValue?.id ?? generateEntityId(),
-                  name: formData.name,
-                  messages: formData.messages,
-                  syntax: formData.syntax,
-                  singleSystemPrompt: initialValue?.singleSystemPrompt ?? false,
-                  updatedAt: DateTime.now(),
-                );
-
-                return ref
-                    .read(presetPromptsProvider.notifier)
-                    .upsert(template);
-              },
-            );
-          },
-        );
-      },
+    return context.push<void>(
+      '/settings/presets/${initialValue == null ? 'new' : Uri.encodeComponent(initialValue.id)}',
     );
   }
 

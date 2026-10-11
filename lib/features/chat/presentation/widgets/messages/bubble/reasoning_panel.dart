@@ -43,79 +43,66 @@ class _ReasoningPanelState extends State<ReasoningPanel> {
     final theme = Theme.of(context);
     final textColor = theme.colorScheme.onSurfaceVariant;
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface.withValues(alpha: 0.82),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.8),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Semantics(
-            label: '深度思考',
-            button: true,
-            expanded: _expanded,
-            hint: _expanded ? '激活以收起' : '激活以展开',
-            child: InkWell(
-              borderRadius: BorderRadius.circular(14),
-              focusColor: theme.colorScheme.primary.withValues(alpha: 0.12),
-              onTap: _toggleExpanded,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
-                ),
-                child: Row(
-                  children: [
-                    // 图标与「深度思考/展开/收起」只负责视觉；状态由
-                    // expanded flag 与动态 hint 表达，避免重复播报。
-                    ExcludeSemantics(
-                      child: Icon(
-                        _expanded
-                            ? Icons.keyboard_arrow_down_rounded
-                            : Icons.keyboard_arrow_right_rounded,
-                        size: 18,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Semantics(
+          label: '深度思考',
+          button: true,
+          expanded: _expanded,
+          hint: _expanded ? '激活以收起' : '激活以展开',
+          child: InkWell(
+            focusColor: theme.colorScheme.primary.withValues(alpha: 0.12),
+            onTap: _toggleExpanded,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              child: Row(
+                children: [
+                  // 图标与「深度思考/展开/收起」只负责视觉；状态由
+                  // expanded flag 与动态 hint 表达，避免重复播报。
+                  ExcludeSemantics(
+                    child: Icon(
+                      _expanded
+                          ? Icons.keyboard_arrow_down_rounded
+                          : Icons.keyboard_arrow_right_rounded,
+                      size: 18,
+                      color: textColor,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  ExcludeSemantics(
+                    child: Text(
+                      '深度思考',
+                      style: theme.textTheme.labelMedium?.copyWith(
                         color: textColor,
                       ),
                     ),
-                    const SizedBox(width: 6),
-                    ExcludeSemantics(
-                      child: Text(
-                        '深度思考',
-                        style: theme.textTheme.labelMedium?.copyWith(
-                          color: textColor,
-                        ),
+                  ),
+                  const SizedBox(width: 8),
+                  ExcludeSemantics(
+                    child: Text(
+                      _expanded ? '收起' : '展开',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: textColor,
                       ),
                     ),
-                    const Spacer(),
-                    ExcludeSemantics(
-                      child: Text(
-                        _expanded ? '收起' : '展开',
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: textColor,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
-          AnimatedSize(
-            duration: AppAnimations.quickTransition,
-            alignment: Alignment.topCenter,
-            child: _expanded
-                ? Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                    child: _buildReasoningMarkdown(),
-                  )
-                : const SizedBox.shrink(),
-          ),
-        ],
-      ),
+        ),
+        AnimatedSize(
+          duration: AppAnimations.quickTransition,
+          alignment: Alignment.topCenter,
+          child: _expanded
+              ? Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                  child: _buildReasoningMarkdown(),
+                )
+              : const SizedBox.shrink(),
+        ),
+      ],
     );
   }
 }

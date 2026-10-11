@@ -9,13 +9,13 @@ import '../models/media_grid_layout_spec.dart';
 import '../models/media_grid_tile_metrics.dart';
 import 'media_image_resource_view.dart';
 
-/// 单个文件/文件夹卡片。
+/// 无外框的文件/文件夹网格条目。
 ///
 /// 图片/视频文件：经 [mediaResourceProvider] 懒解析缩略图（本地或远端
 /// 资源统一呈现）。文件夹：显示文件夹图标。
 /// 其他文件：显示通用文件图标。
 /// 缩略图加载失败/缺失时回退到图标显示。
-/// 卡片尺寸由上游 [metrics] 固定，不再依赖 Column 弹性伸展：缩略图、
+/// 条目尺寸由上游 [metrics] 固定，不再依赖 Column 弹性伸展：缩略图、
 /// 标题与大小三段的固定高度累加后恰好填满统一行高，保证同一行对齐。
 class MediaFileTile extends ConsumerWidget {
   final FileItem item;
@@ -35,14 +35,15 @@ class MediaFileTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
 
-    return Card(
-      margin: EdgeInsets.zero,
+    return Material(
+      color: Colors.transparent,
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
         child: Padding(
           padding: EdgeInsets.all(layoutSpec.tilePadding),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // 缩略图 / 图标区域
               SizedBox(
@@ -60,7 +61,7 @@ class MediaFileTile extends ConsumerWidget {
                     item.name,
                     maxLines: layoutSpec.maxTitleLines,
                     overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
+                    textAlign: TextAlign.start,
                     style: theme.textTheme.bodySmall,
                   ),
                 ),

@@ -71,17 +71,28 @@ class _AgentDocumentsPanelState extends ConsumerState<AgentDocumentsPanel> {
                   itemCount: documents.length,
                   itemBuilder: (context, index) {
                     final document = documents[index];
-                    return ListTile(
-                      title: Text(document.name),
-                      subtitle: Text(
-                        '${agentDocumentKindLabel(document.kind)} · ${document.content.length} 字符${document.description.isEmpty ? '' : '\n${document.description}'}',
-                        maxLines: 3,
-                        overflow: TextOverflow.ellipsis,
+                    return DecoratedBox(
+                      decoration: BoxDecoration(
+                        border: Border(
+                          bottom: BorderSide(
+                            color: Theme.of(context).colorScheme.outlineVariant,
+                          ),
+                        ),
                       ),
-                      trailing: const Icon(Icons.edit_outlined),
-                      enabled: !state.busy,
-                      onTap: () =>
-                          showAgentDocumentEditor(context, document: document),
+                      child: ListTile(
+                        title: Text(document.name),
+                        subtitle: Text(
+                          '${agentDocumentKindLabel(document.kind)} · ${document.content.length} 字符${document.description.isEmpty ? '' : '\n${document.description}'}',
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        trailing: const Icon(Icons.edit_outlined),
+                        enabled: !state.busy,
+                        onTap: () => showAgentDocumentEditor(
+                          context,
+                          document: document,
+                        ),
+                      ),
                     );
                   },
                 ),

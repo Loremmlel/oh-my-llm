@@ -24,31 +24,42 @@ final class AppTheme {
     double bodyFontSize = 14,
   }) {
     final baseColor = brightness == Brightness.light
-        ? const Color(0xFF4F46E5)
-        : const Color(0xFF818CF8);
+        ? const Color(0xFF2F5D46)
+        : const Color(0xFFAACBB4);
     final isLight = brightness == Brightness.light;
-    final surface = isLight ? const Color(0xFFFFFFFF) : const Color(0xFF1B1D22);
-    final canvas = isLight ? const Color(0xFFF5F6F8) : const Color(0xFF121418);
+    final surface = isLight ? const Color(0xFFFEFDF9) : const Color(0xFF242923);
+    final canvas = isLight ? const Color(0xFFF8F7F2) : const Color(0xFF191D19);
     final colorScheme =
         ColorScheme.fromSeed(
           seedColor: baseColor,
           brightness: brightness,
         ).copyWith(
+          primary: baseColor,
+          onPrimary: isLight ? Colors.white : const Color(0xFF183523),
+          primaryContainer: isLight
+              ? const Color(0xFFE8EEE3)
+              : const Color(0xFF344737),
+          secondaryContainer: isLight
+              ? const Color(0xFFE8EEE3)
+              : const Color(0xFF344737),
+          onSurface: isLight
+              ? const Color(0xFF272D28)
+              : const Color(0xFFE8E9DF),
           surface: surface,
           surfaceContainerLowest: surface,
           surfaceContainerLow: canvas,
           surfaceContainer: isLight
-              ? const Color(0xFFF0F1F4)
-              : const Color(0xFF22252B),
+              ? const Color(0xFFEEF0E8)
+              : const Color(0xFF2B322B),
           surfaceContainerHigh: isLight
-              ? const Color(0xFFE9EBEF)
-              : const Color(0xFF2A2D34),
+              ? const Color(0xFFE7EADF)
+              : const Color(0xFF343C33),
           surfaceContainerHighest: isLight
-              ? const Color(0xFFE1E4EA)
-              : const Color(0xFF333740),
+              ? const Color(0xFFDFE4D8)
+              : const Color(0xFF40493D),
           outlineVariant: isLight
-              ? const Color(0xFFD8DCE4)
-              : const Color(0xFF424752),
+              ? const Color(0xFFD8DDD1)
+              : const Color(0xFF4B5548),
         );
     final controlShape = RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(AppRadii.sm),
@@ -63,6 +74,15 @@ final class AppTheme {
       colorScheme: colorScheme,
       fontFamily: 'Noto Sans SC',
       textTheme: defaultTextTheme.copyWith(
+        headlineSmall: defaultTextTheme.headlineSmall?.copyWith(
+          fontFamily: 'Noto Serif SC',
+          fontFamilyFallback: const ['Noto Sans SC'],
+        ),
+        titleLarge: defaultTextTheme.titleLarge?.copyWith(
+          fontFamily: 'Noto Serif SC',
+          fontFamilyFallback: const ['Noto Sans SC'],
+          fontWeight: FontWeight.w600,
+        ),
         bodyMedium: defaultTextTheme.bodyMedium?.copyWith(
           fontSize: bodyFontSize,
         ),
@@ -129,6 +149,7 @@ final class AppTheme {
       dialogTheme: DialogThemeData(
         backgroundColor: surface,
         surfaceTintColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadii.dialog),
         ),

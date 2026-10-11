@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
@@ -15,11 +16,12 @@ import 'package:oh_my_llm/features/settings/domain/models/prompts/memory_prompt.
 import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/template_prompt.dart';
 import 'package:oh_my_llm/features/settings/presentation/settings_screen.dart';
+import 'package:oh_my_llm/features/settings/presentation/preset_editor_screen.dart';
 import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/fixed_prompt_sequence_form_dialog.dart';
 import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/memory_prompt_form_dialog.dart';
 import 'package:oh_my_llm/features/settings/presentation/widgets/providers/forms/model_config_form_dialog.dart';
 import 'package:oh_my_llm/features/settings/presentation/widgets/providers/forms/model_provider_form_dialog.dart';
-import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/preset_prompt_form_dialog.dart';
+import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/preset_prompt_editor.dart';
 import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/template_prompt_form_dialog.dart';
 
 import '../../../../helpers/fixtures.dart';
@@ -71,9 +73,30 @@ Future<AppDatabase> pumpSettingsScreen(
     },
   );
 
+  final router = GoRouter(
+    initialLocation: '/settings',
+    routes: [
+      GoRoute(
+        path: '/settings',
+        builder: (_, _) => const SettingsScreen(),
+        routes: [
+          GoRoute(
+            path: 'presets/new',
+            builder: (_, _) => const PresetEditorScreen(),
+          ),
+          GoRoute(
+            path: 'presets/:presetId',
+            builder: (_, state) =>
+                PresetEditorScreen(presetId: state.pathParameters['presetId']),
+          ),
+        ],
+      ),
+    ],
+  );
+  addTearDown(router.dispose);
   return pumpTestApp(
     tester,
-    child: const SettingsScreen(),
+    router: router,
     preferences: preferences,
     database: database,
     viewportSize: size,
@@ -210,12 +233,12 @@ Finder modelSupportsReasoningField() => find.descendant(
 );
 
 Finder presetPromptNameField() =>
-    fieldInDialog<PresetPromptFormDialog>('预设 Prompt 名称');
+    fieldInDialog<PresetPromptEditor>('预设 Prompt 名称');
 
-Finder presetPromptTitleField() => fieldInDialog<PresetPromptFormDialog>('标题');
+Finder presetPromptTitleField() => fieldInDialog<PresetPromptEditor>('标题');
 
 Finder presetPromptContentField() =>
-    fieldInDialog<PresetPromptFormDialog>('Prompt 内容', wrapsText: true);
+    fieldInDialog<PresetPromptEditor>('Prompt 内容', wrapsText: true);
 
 Finder fixedPromptSequenceNameField() =>
     fieldInDialog<FixedPromptSequenceFormDialog>('序列名称');

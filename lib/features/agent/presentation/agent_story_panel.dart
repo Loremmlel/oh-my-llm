@@ -6,6 +6,7 @@ import 'package:flutter_smooth_markdown/flutter_smooth_markdown.dart'
     as smooth_md;
 import 'package:go_router/go_router.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
+import 'package:oh_my_llm/core/widgets/reading_markdown_style.dart';
 import 'package:oh_my_llm/core/widgets/dialogs/app_confirm_dialog.dart';
 
 import '../application/agent_workspace_controller.dart';
@@ -129,8 +130,9 @@ class AgentStoryPanel extends ConsumerWidget {
               child: smooth_md.SmoothMarkdown(
                 data: round.document.content,
                 selectable: true,
-                styleSheet: smooth_md.MarkdownStyleSheet.fromTheme(
+                styleSheet: readingMarkdownStyle(
                   Theme.of(context),
+                  fontSize: 18,
                 ),
               ),
             ),

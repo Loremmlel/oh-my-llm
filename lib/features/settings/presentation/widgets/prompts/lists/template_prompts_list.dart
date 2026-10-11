@@ -1,28 +1,27 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:oh_my_llm/core/utils/text_formatting.dart';
 
-import '../../../../application/prompts/template_prompts_controller.dart';
 import '../../../../domain/models/prompts/template_prompt.dart';
-import '../../shared/settings_card_grid.dart';
 import '../../shared/settings_empty_state.dart';
-import '../../shared/settings_entity_card.dart';
+import '../../shared/settings_entity_row.dart';
 import '../../shared/settings_helpers.dart';
 
 /// 模板提示词列表，负责展示、编辑和删除模板。
-class TemplatePromptsList extends ConsumerWidget {
+class TemplatePromptsList extends StatelessWidget {
   const TemplatePromptsList({
     required this.templatePrompts,
     required this.onEditRequested,
+    required this.onDelete,
     super.key,
   });
 
   final List<TemplatePrompt> templatePrompts;
   final ValueChanged<TemplatePrompt> onEditRequested;
+  final Future<void> Function(String id) onDelete;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     if (templatePrompts.isEmpty) {
       return const SettingsEmptyState(
         icon: Icons.dynamic_form_outlined,
@@ -31,31 +30,34 @@ class TemplatePromptsList extends ConsumerWidget {
       );
     }
 
-    return SettingsCardGrid(
+    return Column(
       children: [
         for (final templatePrompt in templatePrompts)
           _TemplatePromptTile(
             templatePrompt: templatePrompt,
             onEditRequested: onEditRequested,
+            onDelete: onDelete,
           ),
       ],
     );
   }
 }
 
-/// 单个模板提示词卡片。
-class _TemplatePromptTile extends ConsumerWidget {
+/// 单个模板提示词记录。
+class _TemplatePromptTile extends StatelessWidget {
   const _TemplatePromptTile({
     required this.templatePrompt,
     required this.onEditRequested,
+    required this.onDelete,
   });
 
   final TemplatePrompt templatePrompt;
   final ValueChanged<TemplatePrompt> onEditRequested;
+  final Future<void> Function(String id) onDelete;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return SettingsEntityCard(
+  Widget build(BuildContext context) {
+    return SettingsEntityRow(
       title: templatePrompt.title,
       body: [
         const SizedBox(height: 8),
@@ -78,14 +80,11 @@ class _TemplatePromptTile extends ConsumerWidget {
       actions: editDeleteActions(
         onEdit: () => onEditRequested(templatePrompt),
         onDelete: () {
-          ref
-              .read(templatePromptsProvider.notifier)
-              .deleteById(templatePrompt.id)
-              .then((_) {
-                if (context.mounted) {
-                  showSettingsSnackbar(context, '模板提示词已删除');
-                }
-              });
+          onDelete(templatePrompt.id).then((_) {
+            if (context.mounted) {
+              showSettingsSnackbar(context, '模板提示词已删除');
+            }
+          });
         },
       ),
     );
