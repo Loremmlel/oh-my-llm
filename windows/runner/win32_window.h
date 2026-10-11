@@ -90,6 +90,8 @@ class Win32Window {
   // Update the window frame's theme to match the system theme.
   static void UpdateTheme(HWND const window);
 
+  void UpdateIcons(UINT dpi);
+
   bool quit_on_close_ = false;
 
   // window handle for top level window.
@@ -97,6 +99,9 @@ class Win32Window {
 
   // window handle for hosted content.
   HWND child_content_ = nullptr;
+
+  HICON small_icon_ = nullptr;
+  HICON large_icon_ = nullptr;
 };
 
 #endif  // RUNNER_WIN32_WINDOW_H_

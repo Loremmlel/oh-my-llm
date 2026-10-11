@@ -144,6 +144,7 @@ bool Win32Window::Create(const std::wstring& title,
     return false;
   }
 
+  UpdateIcons(dpi);
   UpdateTheme(window);
 
   return OnCreate();
@@ -188,6 +189,7 @@ Win32Window::MessageHandler(HWND hwnd,
       return 0;
 
     case WM_DPICHANGED: {
+      UpdateIcons(LOWORD(wparam));
       auto newRectSize = reinterpret_cast<RECT*>(lparam);
       LONG newWidth = newRectSize->right - newRectSize->left;
       LONG newHeight = newRectSize->bottom - newRectSize->top;
@@ -228,6 +230,14 @@ void Win32Window::Destroy() {
     DestroyWindow(window_handle_);
     window_handle_ = nullptr;
   }
+  if (small_icon_) {
+    DestroyIcon(small_icon_);
+    small_icon_ = nullptr;
+  }
+  if (large_icon_) {
+    DestroyIcon(large_icon_);
+    large_icon_ = nullptr;
+  }
   if (g_active_window_count == 0) {
     WindowClassRegistrar::GetInstance()->UnregisterWindowClass();
   }
@@ -266,6 +276,26 @@ void Win32Window::SetQuitOnClose(bool quit_on_close) {
 bool Win32Window::OnCreate() {
   // No-op; provided for subclasses.
   return true;
+}
+
+void Win32Window::UpdateIcons(UINT dpi) {
+  const auto update = [this, dpi](HICON& current, WPARAM type,
+                                 int width_metric, int height_metric) {
+    auto icon = static_cast<HICON>(LoadImage(
+        GetModuleHandle(nullptr), MAKEINTRESOURCE(IDI_APP_ICON), IMAGE_ICON,
+        GetSystemMetricsForDpi(width_metric, dpi),
+        GetSystemMetricsForDpi(height_metric, dpi), LR_DEFAULTCOLOR));
+    if (icon) {
+      SendMessage(window_handle_, WM_SETICON, type,
+                  reinterpret_cast<LPARAM>(icon));
+      if (current) {
+        DestroyIcon(current);
+      }
+      current = icon;
+    }
+  };
+  update(small_icon_, ICON_SMALL, SM_CXSMICON, SM_CYSMICON);
+  update(large_icon_, ICON_BIG, SM_CXICON, SM_CYICON);
 }
 
 void Win32Window::OnDestroy() {
