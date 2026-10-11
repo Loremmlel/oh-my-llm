@@ -95,7 +95,8 @@ BEGIN
             VALUE "InternalName", "oh_my_llm" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 yuzu.shiki. All rights reserved." "\0"
             VALUE "OriginalFilename", "oh_my_llm.exe" "\0"
-            VALUE "ProductName", "四月" "\0"
+            // path_provider 用 CompanyName/ProductName 定位数据目录，必须保留已发布标识。
+            VALUE "ProductName", "oh_my_llm" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

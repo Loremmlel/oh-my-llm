@@ -74,6 +74,8 @@ Agent 若重定向脚本输出，Windows/Android 分别使用 `logs/build-window
 
 对外名称为 **四月 / Siyue**，Dart 统一使用 `AppIdentity`。仓库地址、`oh_my_llm` 包名与产物前缀、应用 ID、存储路径、通知身份及同步／交换格式标识保留原值，避免改名影响升级、旧数据和已配对设备。不要全局替换技术标识。
 
+Windows `Runner.rc` 的 `CompanyName=yuzu.shiki` 与 `ProductName=oh_my_llm` 共同决定 `path_provider` / `shared_preferences` 的数据目录，属于持久化身份，禁止随品牌改名；窗口标题与 `FileDescription` 使用对外名称。
+
 ---
 
 ## 2. Git 工作流
