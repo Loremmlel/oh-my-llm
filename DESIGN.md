@@ -51,6 +51,8 @@ Material 提供交互、焦点与可访问性基础。视觉采用暖白阅读�
 
 本文件维护视觉与交互约定；详细业务语义由 [AGENTS.md](AGENTS.md) 与领域规格维护，不在此复制实现细节。运行时 token 为唯一数值来源（Model B），不从本文生成 Dart 代码。
 
+修改页面或组件前，同时遵守 [lib/AGENTS.md](lib/AGENTS.md) 的导航与架构边界。连续网格使用 `AppAdaptiveGrid` 和 feature 自己的项目最大宽度约束；固定列数仅在列数本身是稳定业务契约时保留并解释。密度偏好由各 feature 独立拥有，平台只在 app composition 提供未设置时的默认值，不建立全局密度开关。
+
 ## 主题与 token
 
 | 范畴 | 唯一来源 | 使用规则 |
@@ -106,6 +108,8 @@ Material 提供交互、焦点与可访问性基础。视觉采用暖白阅读�
 Agent 配置在分隔线两侧、追加预设与说明、共享正文与职责 chips 之间保留段落间距，chips 换行也留间隔。滚动区域内的 ListTile 背景与墨水由局部 Material 绘制，跟随内容裁剪，不借用弹窗的祖先 Material。
 
 按钮使用 Filled 表示主要动作，Text／Outlined 表示次级动作，IconButton 必须有 tooltip。沿用 Material 的键盘、hover、focus、disabled 语义；自绘选中视图补充 selected 语义，不重复包无意义 Semantics。操作不能只能靠 hover 发现，停止入口持续可达。表单保留真实 label、错误文字及失败输入，运行中不能重复提交。
+
+关键自绘交互同时提供非重复的 Semantics、键盘等价操作、可见焦点，以及 disabled / selected / live 状态。共享间距、圆角、限宽和命中区域使用 `AppSpacing` / `AppRadii` / `AppContentWidths` / `AppInteractionSizes`；局部业务几何与约束可以保留，不为消除所有数字机械迁移，也不复制同义断点。
 
 ## 对话工作区
 
