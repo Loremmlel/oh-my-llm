@@ -70,48 +70,65 @@ void main() {
     await settleOverlayTransition(tester);
   });
 
-  testWidgets('选择预设文件后明确显示导入内容并保存有限宏语法', (tester) async {
-    SharedPreferences.setMockInitialValues({});
-    final prefs = await SharedPreferences.getInstance();
-    await pumpTestApp(
+  for (final invalid in [false, true]) {
+    testWidgets(invalid ? '导入预览直接显示阻断错误并禁用导入' : '选择预设文件后明确显示导入内容并保存有限宏语法', (
       tester,
-      preferences: prefs,
-      child: Scaffold(
-        body: Builder(
-          builder: (context) => TextButton(
-            onPressed: () => showDialog<void>(
-              context: context,
-              builder: (_) => ProviderScope(
-                overrides: [
-                  presetImportSourceProvider.overrideWithValue(
-                    () async => (
-                      name: '写作.json',
-                      text: '{"prompts":[{"identifier":"one","name":"选一","content":"{{user}}"},{"identifier":"chatHistory","marker":true,"content":""}],"prompt_order":[{"character_id":100001,"order":[{"identifier":"one","enabled":true},{"identifier":"chatHistory","enabled":true}]}]}',
+    ) async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      await pumpTestApp(
+        tester,
+        preferences: prefs,
+        child: Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => showDialog<void>(
+                context: context,
+                builder: (_) => ProviderScope(
+                  overrides: [
+                    presetImportSourceProvider.overrideWithValue(
+                      () async => (
+                        name: '写作.json',
+                        text:
+                            '{"prompts":[{"identifier":"one","name":"选一","content":"${invalid ? '{{setvar::缺少值}}' : '{{user}}'}"},{"identifier":"chatHistory","marker":true,"content":""}],"prompt_order":[{"character_id":100001,"order":[{"identifier":"one","enabled":true},{"identifier":"chatHistory","enabled":true}]}]}',
+                      ),
                     ),
-                  ),
-                ],
-                child: const SillyTavernImportDialog(),
+                  ],
+                  child: const SillyTavernImportDialog(),
+                ),
               ),
+              child: const Text('打开导入'),
             ),
-            child: const Text('打开导入'),
           ),
         ),
-      ),
-    );
-    await tester.tap(find.text('打开导入'));
-    await settleOverlayTransition(tester);
-    await tester.tap(find.text('选择 JSON 文件'));
-    await tester.pump();
-    await tester.pump();
-    expect(find.text('导入 1 条，其中 0 条为默认关闭的备用条目。'), findsOneWidget);
-    final container = ProviderScope.containerOf(
-      tester.element(find.text('打开导入')),
-    );
-    await tester.tap(find.text('导入'));
-    await settleOverlayTransition(tester);
-    final imported = container.read(presetPromptsProvider).single;
-    expect(imported.syntax, PresetPromptSyntax.sillyTavernSubsetV1);
-    expect(imported.messages.single.content, '{{user}}');
-    expect(imported.messages.single.title, '选一');
-  });
+      );
+      await tester.tap(find.text('打开导入'));
+      await settleOverlayTransition(tester);
+      await tester.tap(find.text('选择 JSON 文件'));
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('导入 1 条，其中 0 条为默认关闭的备用条目。'), findsOneWidget);
+      final container = ProviderScope.containerOf(
+        tester.element(find.text('打开导入')),
+      );
+      if (invalid) {
+        expect(find.textContaining('无法导入'), findsOneWidget);
+        expect(find.textContaining('缺少值参数'), findsWidgets);
+        expect(
+          tester
+              .widget<FilledButton>(find.widgetWithText(FilledButton, '导入'))
+              .onPressed,
+          isNull,
+        );
+        expect(container.read(presetPromptsProvider), isEmpty);
+      } else {
+        await tester.tap(find.text('导入'));
+        await settleOverlayTransition(tester);
+        final imported = container.read(presetPromptsProvider).single;
+        expect(imported.syntax, PresetPromptSyntax.sillyTavernSubsetV1);
+        expect(imported.messages.single.content, '{{user}}');
+        expect(imported.messages.single.title, '选一');
+      }
+    });
+  }
 }

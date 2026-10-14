@@ -181,7 +181,8 @@ class _PresetRenderer {
     final valueSeparator = _argumentSeparator(arguments);
     final writes = name != 'getvar';
     if (writes && valueSeparator < 0) throw FormatException('$name 缺少值参数');
-    if (!writes && valueSeparator >= 0) throw FormatException('$name 只接受变量名');
+    // ST 旧式 getvar 把 :: 后的完整参数作为变量名；保留额外冒号，
+    // 不擅自把 {{getvar::x::}} 改写成对 x 的读取。
     final keySource = writes
         ? arguments.substring(0, valueSeparator)
         : arguments;
