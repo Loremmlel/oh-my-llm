@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import '../models/prompts/preset_prompt.dart';
+import 'preset_macro_renderer.dart';
 
 typedef PresetOrderEntry = ({String identifier, bool enabled});
 typedef PresetSourceOrder = ({String name, List<PresetOrderEntry> entries});
@@ -19,11 +20,22 @@ class PresetImportIssue {
 }
 
 class PresetImportPlan {
-  const PresetImportPlan(this.messages, this.issues, this.spareCount);
+  PresetImportPlan(this.messages, this.issues, this.spareCount);
   final List<PromptMessage> messages;
   final List<PresetImportIssue> issues;
   final int spareCount;
-  bool get canImport => !issues.any((issue) => issue.needsPlacement);
+  late final List<PresetMacroDiagnostic> macroDiagnostics = renderPresetPrompt(
+    PresetPrompt(
+      id: 'import-preview',
+      name: '',
+      messages: messages,
+      syntax: PresetPromptSyntax.sillyTavernSubsetV1,
+      updatedAt: DateTime.fromMillisecondsSinceEpoch(0),
+    ),
+  ).diagnostics;
+  bool get canImport =>
+      !issues.any((issue) => issue.needsPlacement) &&
+      !macroDiagnostics.any((diagnostic) => diagnostic.isError);
 }
 
 /// 只读取提示词与一个顺序表；其它宿主配置没有执行入口。
@@ -338,7 +350,17 @@ class SillyTavernPresetFile {
     required String name,
     required String Function() newId,
   }) {
-    if (!plan.canImport) throw const FormatException('请先指定未映射条目的位置');
+    if (plan.issues.any((issue) => issue.needsPlacement)) {
+      throw const FormatException('请先指定未映射条目的位置');
+    }
+    final errors = plan.macroDiagnostics.where(
+      (diagnostic) => diagnostic.isError,
+    );
+    if (errors.isNotEmpty) {
+      throw FormatException(
+        '请先修正预设宏错误：${errors.map((error) => '${error.title}：${error.message}').join('\n')}',
+      );
+    }
     return PresetPrompt(
       id: newId(),
       name: name,

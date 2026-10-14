@@ -42,7 +42,13 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
 
   /// 将消息正文复制到剪贴板。
   Future<void> _copyMessage(BuildContext context) async {
-    await Clipboard.setData(ClipboardData(text: widget.message.content));
+    await Clipboard.setData(
+      ClipboardData(
+        text: widget.message.content.isEmpty
+            ? widget.state.inlineErrorMessage ?? ''
+            : widget.message.content,
+      ),
+    );
     if (!context.mounted) return;
     context.showBubble('已复制消息内容');
   }

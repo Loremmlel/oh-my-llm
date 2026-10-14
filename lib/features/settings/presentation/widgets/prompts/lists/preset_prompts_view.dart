@@ -131,6 +131,8 @@ class _PresetPromptRowState extends State<PresetPromptRow> {
     final system = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (widget.compact)
+          Flexible(child: Text('单条 System', style: theme.textTheme.bodySmall)),
         Semantics(
           label: '单 System Prompt',
           child: Switch.adaptive(
@@ -140,30 +142,36 @@ class _PresetPromptRowState extends State<PresetPromptRow> {
                 : (v) => _run(() => widget.onSingleSystemChanged(v)),
           ),
         ),
-        Flexible(
-          child: Text(
-            widget.compact
-                ? '单条 System'
-                : template.singleSystemPrompt
-                ? '开启'
-                : '关闭',
-          ),
-        ),
+        if (!widget.compact)
+          Flexible(child: Text(template.singleSystemPrompt ? '开启' : '关闭')),
       ],
     );
     final actions = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        TextButton.icon(
-          onPressed: _pending ? null : widget.onEdit,
-          icon: const Icon(Icons.edit_outlined, size: 18),
-          label: const Text('编辑'),
-        ),
-        TextButton.icon(
-          onPressed: _pending ? null : () => _run(widget.onCopy),
-          icon: const Icon(Icons.content_copy_outlined, size: 18),
-          label: const Text('复制'),
-        ),
+        if (widget.compact) ...[
+          IconButton(
+            tooltip: '编辑预设',
+            onPressed: _pending ? null : widget.onEdit,
+            icon: const Icon(Icons.edit_outlined, size: 20),
+          ),
+          IconButton(
+            tooltip: '复制预设',
+            onPressed: _pending ? null : () => _run(widget.onCopy),
+            icon: const Icon(Icons.content_copy_outlined, size: 20),
+          ),
+        ] else ...[
+          TextButton.icon(
+            onPressed: _pending ? null : widget.onEdit,
+            icon: const Icon(Icons.edit_outlined, size: 18),
+            label: const Text('编辑'),
+          ),
+          TextButton.icon(
+            onPressed: _pending ? null : () => _run(widget.onCopy),
+            icon: const Icon(Icons.content_copy_outlined, size: 18),
+            label: const Text('复制'),
+          ),
+        ],
         PopupMenuButton<String>(
           tooltip: '预设操作',
           enabled: !_pending,
@@ -184,20 +192,25 @@ class _PresetPromptRowState extends State<PresetPromptRow> {
         ? Padding(
             padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                title,
-                const SizedBox(height: AppSpacing.xs),
-                Text(
-                  '$syntax · ${template.messages.length} 条',
-                  style: theme.textTheme.bodySmall,
-                ),
-                Wrap(
-                  spacing: AppSpacing.sm,
-                  crossAxisAlignment: WrapCrossAlignment.center,
+                Row(
                   children: [
-                    SizedBox(width: 170, child: system),
+                    Expanded(child: title),
+                    const SizedBox(width: AppSpacing.sm),
                     actions,
+                  ],
+                ),
+                OverflowBar(
+                  alignment: MainAxisAlignment.spaceBetween,
+                  overflowAlignment: OverflowBarAlignment.end,
+                  spacing: AppSpacing.sm,
+                  children: [
+                    Text(
+                      '$syntax · ${template.messages.length} 条',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                    system,
                   ],
                 ),
                 const Divider(height: 1),

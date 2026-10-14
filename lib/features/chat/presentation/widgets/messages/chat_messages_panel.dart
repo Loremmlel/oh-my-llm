@@ -76,7 +76,7 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
       clipBehavior: Clip.hardEdge,
       child: Stack(
         children: [
-          if (widget.state.messages.isEmpty)
+          if (displayMessages.isEmpty)
             EmptyConversationView(hasModels: widget.state.hasModels)
           else
             ScrollablePositionedList.separated(
@@ -179,7 +179,7 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
       ChatMessage(
         id: ChatMessagesPanel.transientErrorMessageId,
         role: ChatMessageRole.assistant,
-        content: normalizedError,
+        content: '',
         createdAt: DateTime.fromMillisecondsSinceEpoch(0),
         parentId:
             widget.state.messages.lastOrNull?.id ?? rootConversationParentId,
@@ -256,7 +256,8 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
     final inlineErrorMessage =
         normalizedError != null &&
             normalizedError.isNotEmpty &&
-            widget.state.errorMessageAssistantId == message.id
+            (isTransientError ||
+                widget.state.errorMessageAssistantId == message.id)
         ? normalizedError
         : null;
 
@@ -271,7 +272,9 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
               widget.state.emptyReplyAssistantId == message.id,
           canEdit: !widget.state.isBusy && isUser,
           canRetry:
-              !widget.state.isBusy && latestAssistantMessage?.id == message.id,
+              !isTransientError &&
+              !widget.state.isBusy &&
+              latestAssistantMessage?.id == message.id,
           isExcludedFromRequest:
               !isTransientError &&
               widget.state.conversation.isMessageExcluded(message.id),
@@ -289,7 +292,8 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
           onEditPressed: isUser
               ? () => widget.messageBindings.onEditMessage(message)
               : null,
-          onRetryPressed: latestAssistantMessage?.id == message.id
+          onRetryPressed:
+              !isTransientError && latestAssistantMessage?.id == message.id
               ? () => widget.messageBindings.onRetryLatestAssistant()
               : null,
           onDeletePressed: !widget.state.isBusy && !isTransientError

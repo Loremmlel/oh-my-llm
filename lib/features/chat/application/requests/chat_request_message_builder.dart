@@ -15,13 +15,17 @@ class ChatPreparedContext {
   final List<ChatRequestMessage> messages;
   final PresetRenderResult preset;
   bool get hasErrors => preset.hasErrors;
-  String get errorText => preset.diagnostics
-      .where((item) => item.isError)
-      .map(
-        (item) =>
-            '${item.title.isEmpty ? '无标题条目' : item.title}：${item.message}',
-      )
-      .join('\n');
+  String get errorText {
+    if (!hasErrors) return '';
+    final details = preset.diagnostics
+        .where((item) => item.isError)
+        .map(
+          (item) =>
+              '${item.title.isEmpty ? '无标题条目' : item.title}：${item.message}',
+        )
+        .join('\n');
+    return '预设解析失败，未发送消息。请在设置中修正以下条目，或切换预设后重试。\n$details';
+  }
 
   List<ChatRequestMessage> requireMessages() {
     if (hasErrors) throw ChatGenerationException(errorText);

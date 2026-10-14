@@ -41,6 +41,32 @@ Map<String, Object?> entry(String id, [bool enabled = true]) => {
 };
 
 void main() {
+  test('启用条目的宏解析失败时阻止导入，关闭后保留原文可导入', () {
+    final source = SillyTavernPresetFile.parse(
+      file(
+        [
+          prompt('bad', title: '输出要求', content: '{{setvar::缺少值}}'),
+          prompt('chatHistory', marker: true, content: ''),
+        ],
+        [entry('bad'), entry('chatHistory')],
+      ),
+    );
+    final plan = source.plan(0);
+    expect(plan.canImport, isFalse);
+    expect(
+      () => source.createPreset(plan, name: '错误预设', newId: () => 'id'),
+      throwsFormatException,
+    );
+    final disabled = SillyTavernPresetFile.parse(
+      file(source.prompts.values.toList(), [
+        entry('bad', false),
+        entry('chatHistory'),
+      ]),
+    ).plan(0);
+    expect(disabled.canImport, isTrue);
+    expect(disabled.messages.single.content, '{{setvar::缺少值}}');
+  });
+
   test('相同标题不产生选择规则，顺序表控制开关，备用条目关闭且保留原文', () {
     final source = SillyTavernPresetFile.parse(
       file(

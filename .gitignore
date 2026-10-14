@@ -60,3 +60,5 @@ app.*.map.json
 
 # 本地临时产物
 /tmp/
+# Widget Preview related
+.widget_preview/

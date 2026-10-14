@@ -88,7 +88,10 @@ class _MemoryPromptFormDialogState extends State<MemoryPromptFormDialog>
                 validator: validateRequired,
               ),
               const SizedBox(height: 12),
-              if (expand) Expanded(child: editor) else editor,
+              Flexible(
+                fit: expand ? FlexFit.tight : FlexFit.loose,
+                child: editor,
+              ),
             ],
           );
         },

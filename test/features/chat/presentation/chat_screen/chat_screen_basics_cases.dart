@@ -10,7 +10,10 @@ import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
+import 'package:oh_my_llm/features/chat/presentation/widgets/messages/bubble/chat_inline_error_card.dart';
 import 'package:oh_my_llm/features/settings/application/prompts/memory_prompts_controller.dart';
+import 'package:oh_my_llm/features/settings/application/prompts/preset_prompts_controller.dart';
+import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.dart';
 import 'package:oh_my_llm/features/settings/application/prompts/template_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/memory_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/template_prompt.dart';
@@ -63,6 +66,88 @@ Map<String, dynamic> _conversationWithTurns(int turnCount) {
 }
 
 void registerChatScreenBasicsTests() {
+  testWidgets('空会话发送预设解析失败时显示原因并保留草稿，修正后可发送', (tester) async {
+    final client = FakeChatGenerationClient()..enqueueChunks(['已收到']);
+    await pumpChatScreen(tester, fakeClient: client);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ChatScreen)),
+    );
+    await container
+        .read(presetPromptsProvider.notifier)
+        .upsert(
+          PresetPrompt(
+            id: 'bad-preset',
+            name: '语法错误',
+            updatedAt: DateTime(2026),
+            syntax: PresetPromptSyntax.sillyTavernSubsetV1,
+            messages: const [
+              PromptMessage(
+                id: 'bad',
+                title: '输出要求',
+                role: PromptMessageRole.system,
+                content: '{{setvar::缺少值}}',
+              ),
+            ],
+          ),
+        );
+    container
+        .read(chatSessionsProvider.notifier)
+        .updateActiveConversationPreferences(
+          selectedPresetPromptId: 'bad-preset',
+        );
+    await tester.pump();
+    await sendMessage(tester, '保留正文');
+    expect(find.textContaining('缺少值参数'), findsWidgets);
+    expect(
+      find.descendant(
+        of: find.byType(ChatInlineErrorCard),
+        matching: find.textContaining('缺少值参数'),
+      ),
+      findsOneWidget,
+    );
+    expect(find.byTooltip('重试回复'), findsNothing);
+    String? copiedText;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copiedText = (call.arguments as Map)['text'] as String;
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+    await tester.tap(find.byTooltip('复制消息'));
+    await tester.pump();
+    expect(copiedText, contains('缺少值参数'));
+    expect(find.widgetWithText(TextField, '保留正文'), findsOneWidget);
+    expect(client.requestHistory, isEmpty);
+    expect(
+      container.read(activeChatConversationProvider).messageNodes,
+      isEmpty,
+    );
+    container
+        .read(chatSessionsProvider.notifier)
+        .updateActiveConversationPreferences(
+          selectedPresetPromptId: noPresetPromptSelectedId,
+        );
+    await tester.pump();
+    await sendMessage(tester, '保留正文');
+    await waitForChatGeneration(
+      tester,
+      container,
+      (s) => s.generation?.phase == ChatGenerationPhase.succeeded,
+      description: '修正预设后发送完成',
+    );
+    expect(client.requestHistory, hasLength(1));
+    expect(find.textContaining('缺少值参数'), findsNothing);
+  });
+
   testWidgets('通过更多菜单修改对话标题并保存', (tester) async {
     final fakeClient = FakeChatGenerationClient();
 

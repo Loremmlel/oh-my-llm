@@ -60,6 +60,9 @@ void main() {
     ('{{setvar::Name::保留}}{{getvar::name}}', ''),
     ('{{setvar::n::1}}{{addvar::n::2}}{{getvar::n}}', '{{addvar::n::2}}1'),
     ('{{setvar::x::}}{{addvar::x::正文}}{{getvar::x}}', '正文'),
+    // ST 旧式 getvar 将整个参数视作变量名，额外的 :: 不是致命语法错误。
+    ('{{setvar::人物锁定::原值}}前{{getvar::人物锁定::}}后', '前后'),
+    ('{{setvar::x::原值}}前{{getvar::x::其他}}后', '前后'),
   ];
   for (var i = 0; i < cases.length; i++) {
     test('有限宏语义保留嵌套、原文和空白边界 ${i + 1}', () {

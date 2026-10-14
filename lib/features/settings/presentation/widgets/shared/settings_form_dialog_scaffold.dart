@@ -71,14 +71,7 @@ class SettingsFormDialogScaffold extends StatelessWidget {
                 body: SafeArea(
                   child: Padding(
                     padding: const EdgeInsets.all(16),
-                    child: LayoutBuilder(
-                      builder: (context, constraints) => Form(
-                        key: formKey,
-                        child: shouldScrollContent(constraints)
-                            ? SingleChildScrollView(child: child)
-                            : child,
-                      ),
-                    ),
+                    child: LayoutBuilder(builder: _buildForm),
                   ),
                 ),
               )
@@ -94,21 +87,7 @@ class SettingsFormDialogScaffold extends StatelessWidget {
           : AppHelpTitle(title: title, message: helpText!),
       content: SizedBox(
         width: width,
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            if (!shouldScrollContent(constraints)) {
-              return Form(key: formKey, child: child);
-            }
-
-            return Form(
-              key: formKey,
-              child: SingleChildScrollView(
-                key: const ValueKey('settings-form-dialog-outer-scroll-view'),
-                child: child,
-              ),
-            );
-          },
-        ),
+        child: LayoutBuilder(builder: _buildForm),
       ),
       actions: [
         TextButton(
@@ -120,6 +99,24 @@ class SettingsFormDialogScaffold extends StatelessWidget {
           child: Text(isSaving ? savingLabel : submitLabel),
         ),
       ],
+    );
+  }
+
+  Widget _buildForm(BuildContext context, BoxConstraints constraints) {
+    // 键盘改变可用高度时只切换约束，避免增删滚动容器卸载输入框、关闭输入法。
+    return Form(
+      key: formKey,
+      child: SingleChildScrollView(
+        key: const ValueKey('settings-form-dialog-outer-scroll-view'),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: shouldScrollContent(constraints)
+                ? double.infinity
+                : constraints.maxHeight,
+          ),
+          child: child,
+        ),
+      ),
     );
   }
 }
