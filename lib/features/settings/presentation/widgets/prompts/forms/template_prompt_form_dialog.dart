@@ -141,7 +141,10 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog>
                 validator: validateRequired,
               ),
               const SizedBox(height: 12),
-              if (expand) Expanded(child: editor) else editor,
+              Flexible(
+                fit: expand ? FlexFit.tight : FlexFit.loose,
+                child: editor,
+              ),
               if (_compilation.diagnostics.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 Text(
@@ -236,11 +239,12 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog>
                         ],
                     ],
                   );
-                  if (!expand) return variables;
                   // 默认值过多时单独滚动，正文始终保留主要编辑空间。
                   return ConstrainedBox(
                     constraints: BoxConstraints(
-                      maxHeight: constraints.maxHeight * 0.35,
+                      maxHeight: expand
+                          ? constraints.maxHeight * 0.35
+                          : double.infinity,
                     ),
                     child: SingleChildScrollView(child: variables),
                   );

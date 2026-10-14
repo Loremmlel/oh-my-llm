@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/template_prompt.dart'
     show TemplatePromptVariableType;
 import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/template_prompt_form_dialog.dart';
+import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/memory_prompt_form_dialog.dart';
 
 import '../../../../../../helpers/test_harness.dart';
 import '../../../../../../helpers/async/widget_test_animation.dart';
@@ -69,6 +70,59 @@ void main() {
   }
 
   group('模板提示词表单', () {
+    for (final isTemplate in [true, false]) {
+      testWidgets('${isTemplate ? '模板' : '记忆'}提示词在键盘展开和收起后保持焦点与组合输入', (
+        tester,
+      ) async {
+        final prefs = await SharedPreferences.getInstance();
+        await pumpTestApp(
+          tester,
+          preferences: prefs,
+          viewportSize: const Size(390, 844),
+          child: Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                onPressed: () => showDialog<void>(
+                  context: context,
+                  builder: (_) => isTemplate
+                      ? TemplatePromptFormDialog(onSubmit: (_) async {})
+                      : MemoryPromptFormDialog(onSubmit: (_) async {}),
+                ),
+                child: const Text('编辑'),
+              ),
+            ),
+          ),
+        );
+        await tester.tap(find.text('编辑'));
+        await settleOverlayTransition(tester);
+        final field = find.widgetWithText(
+          TextFormField,
+          isTemplate ? '模板提示词' : '记忆总结提示词',
+        );
+        await tester.showKeyboard(field);
+        const value = TextEditingValue(
+          text: '正在编辑',
+          selection: TextSelection.collapsed(offset: 4),
+          composing: TextRange(start: 2, end: 4),
+        );
+        tester.testTextInput.updateEditingValue(value);
+        await tester.pump();
+        addTearDown(tester.view.resetViewInsets);
+        for (final bottom in [420.0, 0.0]) {
+          tester.view.viewInsets = FakeViewPadding(bottom: bottom);
+          await settleAnimatedWidgetTransition(tester);
+          final editable = tester.widget<EditableText>(
+            find.descendant(of: field, matching: find.byType(EditableText)),
+          );
+          expect(editable.focusNode.hasFocus, isTrue);
+          expect(tester.testTextInput.isVisible, isTrue);
+          expect(editable.controller.value, value);
+          expect(find.text('保存').hitTestable(), findsOneWidget);
+          expect(tester.takeException(), isNull);
+        }
+      });
+    }
+
     testWidgets('语法说明按需弹出且可关闭返回表单', (tester) async {
       await pumpDialog(tester, onSubmit: (_) async {});
 
