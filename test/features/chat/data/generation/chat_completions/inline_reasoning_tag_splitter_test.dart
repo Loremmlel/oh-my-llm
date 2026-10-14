@@ -3,6 +3,37 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/features/chat/data/generation/chat_completions/inline_reasoning_tag_splitter.dart';
 
 void main() {
+  test('自定义标签只由同名结束标签关闭，不被内置标签提前结束', () {
+    final split = InlineReasoningTagSplitter(customTag: 'thinking_diy')
+        .splitContent('<thinking_diy>甲</think>乙</THINKING_DIY>正文');
+    expect(split.reasoning, '甲</think>乙');
+    expect(split.content, '正文');
+  });
+  test('自定义标签逐字符跨片段解析，名称按字面匹配且保留其它标签', () {
+    const input =
+        '开场<thinking.diy>推理</thinking.diy>正文<thinkingXdiy>保留</thinkingXdiy>';
+    final splitter = InlineReasoningTagSplitter(customTag: 'thinking.diy');
+    final content = StringBuffer();
+    final reasoning = StringBuffer();
+    for (final character in input.split('')) {
+      final split = splitter.splitContent(character);
+      content.write(split.content);
+      reasoning.write(split.reasoning);
+    }
+    expect(content.toString(), '开场正文<thinkingXdiy>保留</thinkingXdiy>');
+    expect(reasoning.toString(), '推理');
+    expect(splitter.flushRemainder(), isNull);
+  });
+
+  test('自定义标签留空时未知标签不拆分，未闭合自定义内容保留在推理中', () {
+    final unchanged = InlineReasoningTagSplitter().splitContent(
+      '<thinking_diy>内容</thinking_diy>',
+    );
+    expect(unchanged.content, '<thinking_diy>内容</thinking_diy>');
+    final custom = InlineReasoningTagSplitter(customTag: 'thinking_diy');
+    expect(custom.splitContent('<thinking_diy>内容</thinking_').reasoning, '内容');
+    expect(custom.flushRemainder()!.reasoningDelta, '</thinking_');
+  });
   // ── InlineReasoningTagSplitter ─────────────────────────────────
 
   group('InlineReasoningTagSplitter', () {

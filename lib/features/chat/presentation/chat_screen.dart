@@ -614,6 +614,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           throw StateError('输入模板或变量尚未填写完整');
         }
         final preview = previewChatContext(
+          worldBook: controller.resolveConversationWorldBook(conversation),
           conversation: conversation,
           presetPrompt: preset,
           body: built.message.content,

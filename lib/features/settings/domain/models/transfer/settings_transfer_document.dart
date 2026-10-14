@@ -8,9 +8,9 @@ final class SettingsTransferDocument extends Equatable {
     : sections = _freezeJsonObject(sections);
 
   static const identifier = 'shikiyuzu-oh-my-llm';
-  static const formatVersion = 10;
-  // v9 仅在导入边界接受，缺失语法的预设按 plain 读取；导出始终写 v10。
-  // 下次明确提升交换格式最低版本时连同 v9 兼容测试一起退役。
+  static const formatVersion = 11;
+  // v9 / v10 仅在导入边界接受：缺失语法按 plain，自定义 CoT 标签留空。
+  // 导出始终写当前格式；下次明确提升最低版本时连同旧格式测试一起退役。
   static const minimumFormatVersion = 9;
 
   final Map<String, Object?> sections;

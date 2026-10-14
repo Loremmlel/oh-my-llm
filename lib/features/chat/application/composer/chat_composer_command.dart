@@ -154,6 +154,9 @@ class ChatComposerCommand {
         final editingMessageId = intent.editingMessageId;
         final wasEdit = editingMessageId != null;
         final preview = previewChatContext(
+          worldBook: _ref
+              .read(chatSessionsProvider.notifier)
+              .resolveConversationWorldBook(conversation),
           conversation: conversation,
           presetPrompt: intent.selectedPresetPrompt,
           body: message.content,
@@ -249,6 +252,15 @@ class ChatComposerCommand {
         .read(chatSessionsProvider.notifier)
         .updateActiveConversationPreferences(
           selectedPresetPromptId: presetPromptId ?? noPresetPromptSelectedId,
+        );
+  }
+
+  void selectWorldBook(String? worldBookId) {
+    _ref
+        .read(chatSessionsProvider.notifier)
+        .updateActiveConversationPreferences(
+          selectedWorldBookId: worldBookId,
+          clearSelectedWorldBookId: worldBookId == null,
         );
   }
 

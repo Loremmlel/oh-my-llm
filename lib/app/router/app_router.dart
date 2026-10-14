@@ -14,6 +14,7 @@ import 'package:oh_my_llm/features/media/presentation/pages/media_route_pages.da
 import 'package:oh_my_llm/features/media/presentation/pages/video_player_platform_bindings.dart';
 import 'package:oh_my_llm/features/settings/presentation/settings_screen.dart';
 import 'package:oh_my_llm/features/settings/presentation/preset_editor_screen.dart';
+import 'package:oh_my_llm/features/settings/presentation/world_book_editor_screen.dart';
 
 import '../composition/sync_workspace_screen.dart';
 import '../composition/video_player_platform_bindings_factory.dart';
@@ -83,6 +84,16 @@ GoRouter createAppRouter({
             path: 'presets/:presetId',
             builder: (context, state) =>
                 PresetEditorScreen(presetId: state.pathParameters['presetId']),
+          ),
+          GoRoute(
+            path: 'worldbooks/new',
+            builder: (_, _) => const WorldBookEditorScreen(),
+          ),
+          GoRoute(
+            path: 'worldbooks/:worldBookId',
+            builder: (_, state) => WorldBookEditorScreen(
+              worldBookId: state.pathParameters['worldBookId'],
+            ),
           ),
         ],
       ),

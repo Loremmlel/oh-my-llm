@@ -14,6 +14,7 @@ class AppDropdownField<T> extends StatefulWidget {
     this.borderRadius,
     this.isExpanded = true,
     this.isDense = true,
+    this.fillWidth = false,
     super.key,
   });
 
@@ -25,6 +26,9 @@ class AppDropdownField<T> extends StatefulWidget {
   final BorderRadius? borderRadius;
   final bool isExpanded;
   final bool isDense;
+
+  /// 侧栏等纵向字段组使用同一列宽；普通短字段仍按内容限宽。
+  final bool fillWidth;
 
   @override
   State<AppDropdownField<T>> createState() => _AppDropdownFieldState<T>();
@@ -93,13 +97,15 @@ class _AppDropdownFieldState<T> extends State<AppDropdownField<T>> {
         alignment: AlignmentDirectional.centerStart,
         widthFactor: 1,
         child: SizedBox(
-          width: math.min(
-            constraints.maxWidth,
-            math.min(
-              AppContentWidths.shortField,
-              preferredWidth.ceilToDouble(),
-            ),
-          ),
+          width: widget.fillWidth && constraints.hasBoundedWidth
+              ? constraints.maxWidth
+              : math.min(
+                  constraints.maxWidth,
+                  math.min(
+                    AppContentWidths.shortField,
+                    preferredWidth.ceilToDouble(),
+                  ),
+                ),
           child: DropdownButtonFormField<T>(
             key: _fieldKey,
             initialValue: widget.initialValue,

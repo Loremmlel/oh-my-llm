@@ -8,6 +8,7 @@ import 'package:oh_my_llm/features/chat/application/sessions/chat_sessions_contr
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
 import 'package:oh_my_llm/features/chat/application/composer/composer_draft_controller.dart';
 import 'package:oh_my_llm/features/settings/application/prompts/preset_prompts_controller.dart';
+import 'package:oh_my_llm/features/settings/application/worldbooks/world_books_controller.dart';
 
 import '../../../helpers/async/widget_test_animation.dart';
 import '../../../helpers/fixtures.dart';
@@ -154,7 +155,9 @@ void main() {
     await tester.tap(find.text('预设'));
     await tester.pump();
     await tester.tap(
-      find.byType(DropdownButtonFormField<String>).hitTestable(),
+      find
+          .widgetWithText(DropdownButtonFormField<String>, '预设 Prompt')
+          .hitTestable(),
     );
     await settleOverlayTransition(tester);
     await tester.tap(find.text('写作规则').last);
@@ -165,6 +168,28 @@ void main() {
     expect(
       container.read(activeChatConversationProvider).selectedPresetPromptId,
       'writing',
+    );
+    final book = TestFixtures.worldBook(name: '群岛世界书');
+    await container.read(worldBooksProvider.notifier).upsert(book);
+    await tester.pump();
+    await tester.tap(find.byTooltip('世界书说明'));
+    await settleOverlayTransition(tester);
+    expect(find.textContaining('当前选择仅用于本对话'), findsOneWidget);
+    expect(
+      container.read(activeChatConversationProvider).selectedWorldBookId,
+      isNull,
+    );
+    await tester.tap(find.text('关闭'));
+    await settleOverlayTransition(tester);
+    await tester.tap(
+      find.widgetWithText(DropdownButtonFormField<String>, '世界书').hitTestable(),
+    );
+    await settleOverlayTransition(tester);
+    await tester.tap(find.text('群岛世界书').last);
+    await settleOverlayTransition(tester);
+    expect(
+      container.read(activeChatConversationProvider).selectedWorldBookId,
+      book.id,
     );
     await tester.tap(find.byType(Switch).at(1));
     await tester.pump();

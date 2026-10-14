@@ -148,7 +148,13 @@ class ChatTextGenerationAdapter extends ChatGenerationClient {
         },
       ),
     );
-    final splitter = InlineReasoningTagSplitter();
+    final splitInlineReasoning =
+        protocol == LlmApiProtocol.chatCompletions ||
+        request.customReasoningTag.isNotEmpty;
+    final splitter = InlineReasoningTagSplitter(
+      customTag: request.customReasoningTag,
+      includeDefaultTags: protocol == LlmApiProtocol.chatCompletions,
+    );
     var hadContent = false;
     String? diagnosticBody;
     try {
@@ -160,7 +166,7 @@ class ChatTextGenerationAdapter extends ChatGenerationClient {
           diagnosticBody = event.result.diagnosticBody;
           continue;
         }
-        final split = protocol == LlmApiProtocol.chatCompletions
+        final split = splitInlineReasoning
             ? splitter.splitContent(event.contentDelta)
             : InlineReasoningSplitResult(content: event.contentDelta);
         final chunk = ChatGenerationChunk(
@@ -172,7 +178,7 @@ class ChatTextGenerationAdapter extends ChatGenerationClient {
         hadContent |= !chunk.isEmpty;
         yield chunk;
       }
-      if (protocol == LlmApiProtocol.chatCompletions) {
+      if (splitInlineReasoning) {
         final trailing = splitter.flushRemainder();
         if (trailing != null && !trailing.isEmpty) {
           hadContent = true;

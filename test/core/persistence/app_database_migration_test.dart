@@ -33,6 +33,7 @@ void main() {
           'messages',
           'conversation_branch_selections',
           'preset_prompts',
+          'world_books',
           'fixed_prompt_sequences',
           'collections',
           'favorites',
@@ -52,11 +53,13 @@ void main() {
           .map((row) => row['name'] as String)
           .toList();
       expect(conversationColumns, contains('selected_preset_prompt_id'));
+      expect(conversationColumns, contains('selected_world_book_id'));
       final presetColumns = database.connection
           .select('PRAGMA table_info(preset_prompts);')
           .map((row) => row['name'] as String)
           .toList();
       expect(presetColumns, isNot(contains('system_prompt')));
+      expect(presetColumns, contains('custom_reasoning_tag'));
     });
 
     test('全新数据库创建后立即播种系统未分类收藏夹', () {
@@ -390,6 +393,7 @@ void main() {
       );
       legacy.execute('PRAGMA user_version = 14;');
       _createLegacyPresets(legacy);
+      _createLegacyConversations(legacy);
       legacy.close();
 
       final database = AppDatabase.forPath(path);
@@ -463,6 +467,7 @@ void main() {
       db.execute("INSERT INTO messages (id) VALUES ('legacy-message');");
       db.execute('PRAGMA user_version = 13;');
       _createLegacyPresets(db);
+      _createLegacyConversations(db);
       db.close();
       return path;
     }
@@ -878,6 +883,25 @@ void _createLegacyPresets(sqlite.Database database) {
       name TEXT NOT NULL,
       messages_json TEXT NOT NULL,
       updated_at TEXT NOT NULL
+    );
+  ''');
+}
+
+// 收藏与用量测试原先只建立所测表；完整迁移链也需要旧版会话表。
+void _createLegacyConversations(sqlite.Database database) {
+  database.execute('''
+    CREATE TABLE conversations (
+      id TEXT PRIMARY KEY,
+      title TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      selected_model_id TEXT,
+      selected_preset_prompt_id TEXT,
+      reasoning_enabled INTEGER NOT NULL DEFAULT 0,
+      reasoning_effort TEXT NOT NULL,
+      selected_checkpoint_id TEXT,
+      excluded_message_ids_json TEXT NOT NULL DEFAULT '[]',
+      auto_retry_enabled INTEGER NOT NULL DEFAULT 0
     );
   ''');
 }

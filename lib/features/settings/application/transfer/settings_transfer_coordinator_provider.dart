@@ -9,6 +9,7 @@ import '../../domain/models/preferences/output_processing_settings.dart';
 import '../../domain/models/prompts/fixed_prompt_sequence.dart';
 import '../../domain/models/prompts/memory_prompt.dart';
 import '../../domain/models/prompts/preset_prompt.dart';
+import '../../domain/models/worldbooks/world_book.dart';
 import '../../domain/models/prompts/template_prompt.dart';
 import '../../domain/models/providers/llm_provider_config.dart';
 import '../../domain/template_prompt_language/template_prompt_compiler.dart';
@@ -19,6 +20,7 @@ import '../preferences/output_processing_settings_controller.dart';
 import '../prompts/fixed_prompt_sequences_controller.dart';
 import '../prompts/memory_prompts_controller.dart';
 import '../prompts/preset_prompts_controller.dart';
+import '../worldbooks/world_books_controller.dart';
 import '../prompts/template_prompts_controller.dart';
 import '../providers/llm_model_configs_controller.dart';
 import '../providers/llm_provider_import_merger.dart';
@@ -87,6 +89,25 @@ List<SettingsTransferSection> _fixedSections(Ref ref) => [
     encodeItem: (value) => value.toJson(),
     decodeItem: PresetPrompt.fromJson,
     isEquivalent: _samePresetPrompt,
+    validateItem: (preset) {
+      if (!PresetPrompt.isValidReasoningTag(preset.customReasoningTag)) {
+        throw FormatException('预设「${preset.name}」的自定义 CoT 标签无效');
+      }
+    },
+  ),
+  SettingsTransferSection.merging<WorldBook>(
+    key: 'worldBooks',
+    group: SettingsTransferGroup.worldBooks,
+    label: '世界书',
+    order: 0,
+    sensitivity: SettingsTransferSensitivity.standard,
+    readLocal: () => ref.read(worldBooksProvider),
+    write: (value) => ref.read(worldBooksProvider.notifier).upsertAll(value),
+    encodeItem: (value) => value.toJson(),
+    decodeItem: WorldBook.fromJson,
+    isEquivalent: (existing, incoming) =>
+        jsonEncode(existing.entries.map((entry) => entry.toJson()).toList()) ==
+        jsonEncode(incoming.entries.map((entry) => entry.toJson()).toList()),
   ),
   SettingsTransferSection.merging<MemoryPrompt>(
     key: 'memoryPrompts',
@@ -204,6 +225,7 @@ bool _sameProviders(
 bool _samePresetPrompt(PresetPrompt existing, PresetPrompt incoming) {
   if (existing.syntax != incoming.syntax) return false;
   if (existing.singleSystemPrompt != incoming.singleSystemPrompt) return false;
+  if (existing.customReasoningTag != incoming.customReasoningTag) return false;
   if (existing.messages.length != incoming.messages.length) return false;
   for (var index = 0; index < existing.messages.length; index += 1) {
     final left = existing.messages[index];

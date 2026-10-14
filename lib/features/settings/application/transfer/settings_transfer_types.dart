@@ -7,7 +7,8 @@ enum SettingsTransferGroup {
   prompts('prompts', '提示词', 2),
   network('network', '网络', 3),
   outputProcessing('outputProcessing', '输出处理', 4),
-  other('other', '其它', 5);
+  other('other', '其它', 5),
+  worldBooks('worldBooks', '世界书', 6);
 
   const SettingsTransferGroup(this.wireKey, this.label, this.order);
 

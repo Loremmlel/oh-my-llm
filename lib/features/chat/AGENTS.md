@@ -25,10 +25,13 @@
 
 1. 检查点记忆（system）
 2. 模板 placement == before
-3. 经 request_message_filter 过滤的有效历史，不含本次最新输入
-4. 模板 placement == beforeLatestInput
-5. 显式指定的本次最新用户输入
-6. 模板 placement == after
+3. 对话选定世界书的启用且正文非空条目，按保存顺序全量注入（system，XML 分隔）
+4. 经 request_message_filter 过滤的有效历史，不含本次最新输入
+5. 模板 placement == beforeLatestInput
+6. 显式指定的本次最新用户输入
+7. 模板 placement == after
+
+世界书默认不选，不按关键词匹配，不执行宏；发送、重试、总结与预览共享组装入口。一次生成及其自动重试持有同一世界书与预设快照。预设自定义 CoT 标签仅在 Chat 输出适配器中分流到推理通道，不改写请求 Prompt 或共享协议层。
 
 宏预设先按原条目列表求值，再按注入位置组装；普通预设不执行宏。上下文查看复用相同准备函数，生成中读取当前请求快照。
 

@@ -51,9 +51,17 @@ void main() {
     });
 
     test('启动后立即保存，首次和后续 ACK 完成时数据均已提交', () async {
-      final first = _conversation('first', '首次写入');
+      final first = _conversation(
+        'first',
+        '首次写入',
+      ).copyWith(selectedWorldBookId: 'world-1');
       await background.saveConversation(first);
       expect(inner.loadAll(), [first]);
+      await background.saveConversation(
+        first.copyWith(clearSelectedWorldBookId: true),
+      );
+      expect(inner.loadConversation(first.id)!.selectedWorldBookId, isNull);
+      await background.saveConversation(first);
 
       final second = _conversation('second', '下一批写入');
       await background.saveConversation(second);

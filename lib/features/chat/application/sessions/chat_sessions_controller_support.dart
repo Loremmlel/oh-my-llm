@@ -3,6 +3,8 @@ import 'package:oh_my_llm/core/llm/llm_reasoning_effort.dart';
 import 'package:oh_my_llm/core/utils/id_generator.dart';
 import 'package:oh_my_llm/features/settings/application/preferences/chat_defaults_controller.dart';
 import 'package:oh_my_llm/features/settings/application/prompts/preset_prompts_controller.dart';
+import 'package:oh_my_llm/features/settings/application/worldbooks/world_books_controller.dart';
+import 'package:oh_my_llm/features/settings/domain/models/worldbooks/world_book.dart';
 import 'package:oh_my_llm/features/settings/application/providers/llm_model_configs_controller.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/providers/llm_model_config.dart';
@@ -206,6 +208,13 @@ mixin ChatSessionsControllerSupport on Notifier<ChatSessionsState> {
     return presetPrompts.where((template) {
       return template.id == defaultPresetPromptId;
     }).firstOrNull;
+  }
+
+  WorldBook? resolveConversationWorldBook(ChatConversation conversation) {
+    final id = conversation.selectedWorldBookId;
+    return id == null
+        ? null
+        : resolveWorldBook(ref.read(worldBooksProvider), id);
   }
 
   void setErrorMessage(String message) {

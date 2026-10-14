@@ -27,7 +27,7 @@ class AppDatabase {
   /// 当前滚动迁移基线：全新数据库直接创建到该版本。
   ///
   /// 历史 V9→V13 逐级迁移已退役；v13 起的已发布迁移按顺序保留。
-  static const int currentSchemaVersion = 25;
+  static const int currentSchemaVersion = 26;
 
   final sqlite.Database _connection;
   final String path;
@@ -80,7 +80,7 @@ class AppDatabase {
   /// - `user_version == 0`：全新数据库，创建完整当前 schema 后标记为
   ///   [currentSchemaVersion]；
   /// - `user_version == [currentSchemaVersion]`：当前版本数据库，不做任何改动；
-  /// - `user_version` 为 13–24：按顺序执行到当前版本的迁移；
+  /// - 支持的历史 `user_version`：按顺序执行到当前版本的迁移；
   /// - 其余版本（更旧的遗留库或更新版本应用创建的库）显式拒绝，
   ///   避免仓库层在不兼容的 schema 上误读误写。
   void _initializeSchema() {
@@ -92,7 +92,7 @@ class AppDatabase {
       _connection.execute('PRAGMA user_version = $currentSchemaVersion;');
     } else if (currentVersion == currentSchemaVersion) {
       // 当前版本数据库，直接可用。
-    } else if (currentVersion >= 13 && currentVersion <= 24) {
+    } else if (currentVersion >= 13 && currentVersion < currentSchemaVersion) {
       if (currentVersion <= 13) _migrateFavoritesFromV13ToV14();
       if (currentVersion <= 14) _migrateMessagesFromV14ToV15();
       if (currentVersion <= 15) _migrateAgentFromV15ToV16();
@@ -106,7 +106,8 @@ class AppDatabase {
       if (currentVersion <= 23) {
         _migratePresetSingleSystemFromV23ToV24(sourceVersion: currentVersion);
       }
-      _migratePresetSyntaxFromV24ToV25();
+      if (currentVersion <= 24) _migratePresetSyntaxFromV24ToV25();
+      _migrateWorldBooksFromV25ToV26();
     } else {
       throw AppDatabaseSchemaVersionException(currentVersion);
     }
@@ -119,6 +120,34 @@ class AppDatabase {
         "ALTER TABLE messages ADD COLUMN images_json TEXT NOT NULL DEFAULT '[]';",
       );
       _connection.execute('PRAGMA user_version = 23; COMMIT;');
+    } catch (_) {
+      _connection.execute('ROLLBACK;');
+      rethrow;
+    }
+  }
+
+  void _createWorldBooksTable() {
+    _connection.execute('''
+      CREATE TABLE world_books (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        entries_json TEXT NOT NULL DEFAULT '[]',
+        updated_at TEXT NOT NULL
+      );
+    ''');
+  }
+
+  void _migrateWorldBooksFromV25ToV26() {
+    _connection.execute('BEGIN IMMEDIATE;');
+    try {
+      _createWorldBooksTable();
+      _connection.execute(
+        'ALTER TABLE conversations ADD COLUMN selected_world_book_id TEXT;',
+      );
+      _connection.execute(
+        "ALTER TABLE preset_prompts ADD COLUMN custom_reasoning_tag TEXT NOT NULL DEFAULT '';",
+      );
+      _connection.execute('PRAGMA user_version = 26; COMMIT;');
     } catch (_) {
       _connection.execute('ROLLBACK;');
       rethrow;
@@ -653,6 +682,7 @@ class AppDatabase {
 
   /// 创建全部业务表和索引（全新安装时使用）。
   void _createSchema() {
+    _createWorldBooksTable();
     _createAgentSchema();
     _createNovelSchema();
     _createStorySchema();
@@ -668,6 +698,7 @@ class AppDatabase {
         updated_at TEXT NOT NULL,
         selected_model_id TEXT,
         selected_preset_prompt_id TEXT,
+        selected_world_book_id TEXT,
         reasoning_enabled INTEGER NOT NULL DEFAULT 0,
         reasoning_effort TEXT NOT NULL,
         selected_checkpoint_id TEXT,
@@ -724,6 +755,7 @@ class AppDatabase {
         messages_json TEXT NOT NULL DEFAULT '[]',
         single_system_prompt INTEGER NOT NULL DEFAULT 0,
         syntax TEXT NOT NULL DEFAULT 'plain',
+        custom_reasoning_tag TEXT NOT NULL DEFAULT '',
         updated_at TEXT NOT NULL
       );
     ''');

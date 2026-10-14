@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 import 'package:oh_my_llm/core/widgets/app_dropdown_field.dart';
 import 'package:oh_my_llm/core/widgets/app_help_button.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +9,7 @@ import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.
 
 import '../../../domain/models/chat_conversation.dart';
 import 'preset_prompt_message_card.dart';
+import 'world_book_selector.dart';
 
 /// 聊天抽屉内的预设 Prompt 配置。
 ///
@@ -39,21 +41,20 @@ class PresetPromptPanel extends ConsumerWidget {
         : null;
 
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        const WorldBookSelector(),
         // ── 预设选择器 ──────────────────────
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.xs,
+          ),
           child: AppDropdownField<String>(
             key: ValueKey(resolvedValue),
             initialValue: resolvedValue,
-            decoration: const InputDecoration(
-              labelText: '预设 Prompt',
-              border: OutlineInputBorder(),
-              contentPadding: EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 10,
-              ),
-            ),
+            fillWidth: true,
+            decoration: const InputDecoration(labelText: '预设 Prompt'),
             isDense: true,
             isExpanded: true,
             items: [
