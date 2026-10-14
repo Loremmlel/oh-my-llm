@@ -28,10 +28,12 @@ void main() {
         ),
       ),
     );
-    final copy = find.widgetWithText(TextButton, '复制');
+    final copy = find.byWidgetPredicate(
+      (widget) => widget is IconButton && widget.tooltip == '复制预设',
+    );
     await tester.tap(copy);
     await tester.pump();
-    expect(tester.widget<TextButton>(copy).onPressed, isNull);
+    expect(tester.widget<IconButton>(copy).onPressed, isNull);
     expect(tester.widget<Switch>(find.byType(Switch)).onChanged, isNull);
     pending.completeError(StateError('模拟写入失败'));
     await tester.pump();
@@ -75,8 +77,8 @@ void main() {
       ),
     );
     expect(tester.takeException(), isNull);
-    expect(find.widgetWithText(TextButton, '编辑'), findsOneWidget);
-    expect(find.widgetWithText(TextButton, '复制'), findsOneWidget);
+    expect(find.byTooltip('编辑预设'), findsOneWidget);
+    expect(find.byTooltip('复制预设'), findsOneWidget);
     expect(find.byTooltip('预设操作'), findsOneWidget);
   });
 }
