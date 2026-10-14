@@ -1,11 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 
-/// 宽屏分类常驻左侧，窄屏标签横向滚动；各分类保留自己的滚动与状态。
+import '../../../domain/models/preferences/settings_tab.dart';
+import 'draggable_settings_tab_bar.dart';
+
+/// 宽屏分类常驻左侧（支持拖拽排序），窄屏标签横向滚动可拖拽；各分类保留自己的滚动与状态。
 class SettingsWorkspace extends StatelessWidget {
   const SettingsWorkspace({
     required this.controller,
+    required this.tabs,
+    required this.onReorder,
     required this.children,
     required this.providerAction,
     this.onPromptCategorySelected,
@@ -14,17 +20,26 @@ class SettingsWorkspace extends StatelessWidget {
   });
 
   final TabController controller;
+  final List<SettingsTab> tabs;
+  final void Function(int oldIndex, int newIndex) onReorder;
   final List<Widget> children;
   final Widget providerAction;
   final ValueChanged<int>? onPromptCategorySelected;
   final VoidCallback? onPromptOverview;
 
-  static const _labels = ['服务商', '预设', '提示词', '网络', '输出处理', '其它', '世界书'];
   static const _promptLabels = ['记忆总结提示词', '模板提示词', '固定顺序提示词'];
 
-  void _select(int index) {
+  void _select(int index, SettingsTab tab) {
+    if (controller.index == index) {
+      if (tab == SettingsTab.prompts) {
+        onPromptOverview?.call();
+      }
+      return;
+    }
     controller.animateTo(index);
-    if (index == 2) onPromptOverview?.call();
+    if (tab == SettingsTab.prompts) {
+      onPromptOverview?.call();
+    }
   }
 
   @override
@@ -36,57 +51,109 @@ class SettingsWorkspace extends StatelessWidget {
             constraints.maxWidth / MediaQuery.textScalerOf(context).scale(1) >=
             AppBreakpoints.formMasterDetail;
         final content = TabBarView(controller: controller, children: children);
+
+        final isProvidersActive =
+            controller.index >= 0 &&
+            controller.index < tabs.length &&
+            tabs[controller.index] == SettingsTab.providers;
+
+        final isPromptsActive =
+            controller.index >= 0 &&
+            controller.index < tabs.length &&
+            tabs[controller.index] == SettingsTab.prompts;
+
         if (wide) {
           return Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               SizedBox(
                 width: 176,
-                child: ListView(
+                child: ReorderableListView.builder(
+                  buildDefaultDragHandles: false,
                   padding: const EdgeInsets.all(AppSpacing.xs),
-                  children: [
-                    for (var index = 0; index < _labels.length; index++) ...[
-                      ListTile(
-                        dense: true,
-                        selected: controller.index == index,
-                        title: Text(
-                          _labels[index],
-                          style: TextStyle(
-                            fontWeight: controller.index == index
-                                ? FontWeight.w600
-                                : FontWeight.w400,
+                  itemCount: tabs.length,
+                  onReorderStart: (_) {
+                    HapticFeedback.selectionClick();
+                  },
+                  onReorderItem: onReorder,
+                  proxyDecorator: (child, index, animation) {
+                    return AnimatedBuilder(
+                      animation: animation,
+                      builder: (context, child) {
+                        final elevation = Tween<double>(
+                          begin: 0,
+                          end: 4,
+                        ).animate(animation).value;
+                        return Material(
+                          elevation: elevation,
+                          shadowColor: Colors.black38,
+                          color: Theme.of(context)
+                              .colorScheme
+                              .surfaceContainerHigh,
+                          borderRadius: BorderRadius.circular(AppRadii.sm),
+                          child: child,
+                        );
+                      },
+                      child: child,
+                    );
+                  },
+                  itemBuilder: (context, index) {
+                    final tab = tabs[index];
+                    final isSelected = controller.index == index;
+                    final isPrompts = tab == SettingsTab.prompts;
+
+                    return KeyedSubtree(
+                      key: ValueKey(tab.key),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          AdaptiveReorderableDragListener(
+                            index: index,
+                            child: ListTile(
+                              dense: true,
+                              selected: isSelected,
+                              title: Text(
+                                tab.label,
+                                style: TextStyle(
+                                  fontWeight: isSelected
+                                      ? FontWeight.w600
+                                      : FontWeight.w400,
+                                ),
+                              ),
+                              onTap: () => _select(index, tab),
+                            ),
                           ),
-                        ),
-                        onTap: () => _select(index),
+                          if (isPrompts && isSelected)
+                            for (
+                              var category = 0;
+                              category < _promptLabels.length;
+                              category++
+                            )
+                              ListTile(
+                                dense: true,
+                                contentPadding: const EdgeInsets.only(
+                                  left: AppSpacing.lg,
+                                  right: AppSpacing.xs,
+                                ),
+                                title: Text(
+                                  _promptLabels[category],
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                                onTap: () =>
+                                    onPromptCategorySelected?.call(category),
+                              ),
+                        ],
                       ),
-                      if (index == 2 && controller.index == 2)
-                        for (
-                          var category = 0;
-                          category < _promptLabels.length;
-                          category++
-                        )
-                          ListTile(
-                            dense: true,
-                            contentPadding: const EdgeInsets.only(
-                              left: AppSpacing.lg,
-                              right: AppSpacing.xs,
-                            ),
-                            title: Text(
-                              _promptLabels[category],
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                            onTap: () =>
-                                onPromptCategorySelected?.call(category),
-                          ),
-                    ],
-                  ],
+                    );
+                  },
                 ),
               ),
               const VerticalDivider(width: 1),
               Expanded(
                 child: Column(
                   children: [
-                    if (controller.index == 0)
+                    if (isProvidersActive)
                       Align(
                         alignment: AlignmentDirectional.centerEnd,
                         child: Padding(
@@ -103,16 +170,17 @@ class SettingsWorkspace extends StatelessWidget {
             ],
           );
         }
+
         return Column(
           children: [
-            TabBar(
+            DraggableSettingsTabBar(
               controller: controller,
-              isScrollable: true,
-              tabAlignment: TabAlignment.start,
-              onTap: _select,
-              tabs: [for (final label in _labels) Tab(text: label)],
+              tabs: tabs,
+              onReorder: onReorder,
+              onPromptCategorySelected: onPromptCategorySelected,
+              onPromptOverview: onPromptOverview,
             ),
-            if (controller.index == 2)
+            if (isPromptsActive)
               Align(
                 alignment: AlignmentDirectional.centerStart,
                 child: Padding(
@@ -142,10 +210,13 @@ class SettingsWorkspace extends StatelessWidget {
                   ),
                 ),
               ),
-            if (controller.index == 0)
+            if (isProvidersActive)
               Align(
                 alignment: AlignmentDirectional.centerEnd,
-                child: providerAction,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: AppSpacing.xs),
+                  child: providerAction,
+                ),
               ),
             Expanded(child: content),
           ],
