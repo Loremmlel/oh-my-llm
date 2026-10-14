@@ -34,6 +34,7 @@ class PresetPrompt extends Equatable with HasIdAndUpdatedAt {
     required this.updatedAt,
     this.syntax = PresetPromptSyntax.plain,
     this.singleSystemPrompt = false,
+    this.customReasoningTag = '',
   });
 
   @override
@@ -42,6 +43,10 @@ class PresetPrompt extends Equatable with HasIdAndUpdatedAt {
   final List<PromptMessage> messages;
   final PresetPromptSyntax syntax;
   final bool singleSystemPrompt;
+  final String customReasoningTag;
+
+  static bool isValidReasoningTag(String value) =>
+      value.isEmpty || RegExp(r'''^[^\s<>/="']+$''').hasMatch(value);
   @override
   final DateTime updatedAt;
 
@@ -57,6 +62,7 @@ class PresetPrompt extends Equatable with HasIdAndUpdatedAt {
     String? name,
     List<PromptMessage>? messages,
     bool? singleSystemPrompt,
+    String? customReasoningTag,
     DateTime? updatedAt,
     PresetPromptSyntax? syntax,
   }) {
@@ -65,6 +71,7 @@ class PresetPrompt extends Equatable with HasIdAndUpdatedAt {
       name: name ?? this.name,
       messages: messages ?? this.messages,
       singleSystemPrompt: singleSystemPrompt ?? this.singleSystemPrompt,
+      customReasoningTag: customReasoningTag ?? this.customReasoningTag,
       updatedAt: updatedAt ?? this.updatedAt,
       syntax: syntax ?? this.syntax,
     );
@@ -78,6 +85,7 @@ class PresetPrompt extends Equatable with HasIdAndUpdatedAt {
       'syntax': syntax.name,
       'messages': messages.map((message) => message.toJson()).toList(),
       'singleSystemPrompt': singleSystemPrompt,
+      'customReasoningTag': customReasoningTag,
       'updatedAt': updatedAt.toIso8601String(),
     };
   }
@@ -93,6 +101,7 @@ class PresetPrompt extends Equatable with HasIdAndUpdatedAt {
       syntax: PresetPromptSyntax.fromJson(json['syntax']),
       messages: messages,
       singleSystemPrompt: json['singleSystemPrompt'] as bool? ?? false,
+      customReasoningTag: (json['customReasoningTag'] as String? ?? '').trim(),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
     );
   }
@@ -115,6 +124,7 @@ class PresetPrompt extends Equatable with HasIdAndUpdatedAt {
     name,
     messages,
     singleSystemPrompt,
+    customReasoningTag,
     updatedAt,
     syntax,
   ];

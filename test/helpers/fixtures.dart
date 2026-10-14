@@ -18,6 +18,7 @@ import 'package:oh_my_llm/features/settings/domain/models/providers/llm_model_co
 import 'package:oh_my_llm/features/settings/domain/models/providers/llm_provider_config.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/memory_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.dart';
+import 'package:oh_my_llm/features/settings/domain/models/worldbooks/world_book.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/template_prompt.dart';
 
 /// 类型安全的测试数据工厂。
@@ -26,6 +27,26 @@ import 'package:oh_my_llm/features/settings/domain/models/prompts/template_promp
 /// 需要 JSON 格式时通过模型自带的 [toJson] 方法转换。
 class TestFixtures {
   TestFixtures._();
+
+  static WorldBook worldBook({
+    String id = 'world-1',
+    String name = '测试世界书',
+    List<WorldBookEntry>? entries,
+    DateTime? updatedAt,
+  }) => WorldBook(
+    id: id,
+    name: name,
+    updatedAt: updatedAt ?? DateTime(2026),
+    entries:
+        entries ??
+        const [
+          WorldBookEntry(
+            id: 'entry-1',
+            title: '世界设定',
+            content: '群岛上的城市使用帆船往来。',
+          ),
+        ],
+  );
 
   // ── 模型配置 ──────────────────────────────────────────────
 

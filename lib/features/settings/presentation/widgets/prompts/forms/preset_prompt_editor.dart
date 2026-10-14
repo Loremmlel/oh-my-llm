@@ -10,6 +10,7 @@ import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
 import 'package:oh_my_llm/core/utils/id_generator.dart';
 
 import '../../../../domain/models/prompts/preset_prompt.dart';
+import '../../shared/settings_editor_list.dart';
 import '../../shared/settings_form_dialog_scaffold.dart';
 import '../../shared/settings_form_dialog_state_mixin.dart';
 import 'editable_preset_prompt_item.dart';
@@ -22,11 +23,13 @@ class PresetPromptFormData {
     required this.name,
     required this.messages,
     this.syntax = PresetPromptSyntax.plain,
+    this.customReasoningTag = '',
   });
 
   final String name;
   final List<PromptMessage> messages;
   final PresetPromptSyntax syntax;
+  final String customReasoningTag;
 }
 
 /// 新增或编辑预设 Prompt 的页面工作区。
@@ -48,6 +51,7 @@ class PresetPromptEditor extends StatefulWidget {
 class _PresetPromptEditorState extends State<PresetPromptEditor>
     with SettingsFormDialogStateMixin {
   late final TextEditingController _nameController;
+  late final TextEditingController _reasoningTagController;
   late final List<EditablePresetPromptItem> _items;
   String? _selectedItemId;
   late PresetPromptSyntax _syntax;
@@ -57,6 +61,7 @@ class _PresetPromptEditorState extends State<PresetPromptEditor>
   String? _saveError;
   String get _snapshot => jsonEncode([
     _nameController.text,
+    _reasoningTagController.text,
     _syntax.name,
     (_clearInsertionOrder.map((placement) => placement.name).toList()..sort()),
     for (final item in _items)
@@ -99,6 +104,9 @@ class _PresetPromptEditorState extends State<PresetPromptEditor>
     super.initState();
     _nameController = initController(widget.initialValue?.name ?? '');
     _syntax = widget.initialValue?.syntax ?? PresetPromptSyntax.plain;
+    _reasoningTagController = TextEditingController(
+      text: widget.initialValue?.customReasoningTag ?? '',
+    );
     _items = _buildInitialItems(widget.initialValue);
     _selectedItemId = _items.isEmpty ? null : _items.first.id;
     _initialSnapshot = _snapshot;
@@ -106,6 +114,7 @@ class _PresetPromptEditorState extends State<PresetPromptEditor>
 
   @override
   void dispose() {
+    _reasoningTagController.dispose();
     for (final item in _items) {
       item.titleController.dispose();
       item.contentController.dispose();
@@ -130,7 +139,8 @@ class _PresetPromptEditorState extends State<PresetPromptEditor>
         helpText:
             '条目标题仅用于识别。System / User / Assistant 条目均可增删。\n\n'
             '前置消息位于历史之前；最新输入前消息位于历史之后、新输入之前；后置消息位于最后。System 条目以 system 角色发送。\n\n'
-            'SillyTavern 有限宏按列表顺序求值启用条目，再按位置注入。支持 setvar / getvar / 文本 addvar、user、lastUserMessage、注释和 trim。导入注入顺序可在上下文中查看；移动条目会恢复该位置的列表顺序。普通文本模式不执行宏。',
+            'SillyTavern 有限宏按列表顺序求值启用条目，再按位置注入。支持 setvar / getvar / 文本 addvar、user、lastUserMessage、注释和 trim。导入注入顺序可在上下文中查看；移动条目会恢复该位置的列表顺序。普通文本模式不执行宏。\n\n'
+            '自定义 CoT 标签可选填。例如输出使用 <thinking_diy>...</thinking_diy>，只填写 thinking_diy。标签中的内容显示为推理，正文和协议原生推理继续保留。此选项不会自动修改预设内容。',
         formKey: formKey,
         isSaving: isSaving,
         onSubmit: _handleSubmit,
@@ -158,6 +168,18 @@ class _PresetPromptEditorState extends State<PresetPromptEditor>
                     Expanded(flex: 2, child: _buildSyntaxField()),
                   ],
                 ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _reasoningTagController,
+                  decoration: const InputDecoration(
+                    labelText: '自定义 CoT 标签（可选）',
+                    hintText: 'thinking_diy',
+                  ),
+                  validator: (value) =>
+                      PresetPrompt.isValidReasoningTag(value?.trim() ?? '')
+                      ? null
+                      : '只填写标签名，不包含空格、尖括号、斜杠、引号或等号',
+                ),
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 12),
                   child: Divider(height: 1),
@@ -178,7 +200,18 @@ class _PresetPromptEditorState extends State<PresetPromptEditor>
                 children: [
                   SizedBox(
                     width: 280,
-                    child: _buildWideMasterPane(context: context),
+                    child: SettingsEditorList(
+                      itemCount: _items.length,
+                      itemBuilder: (_, index) =>
+                          _buildMasterListTile(index, _selectedIndex),
+                      onAdd: isSaving ? null : _addMessageItem,
+                      onMoveUp: !isSaving && _canMoveSelectedUp()
+                          ? () => _moveSelected(-1)
+                          : null,
+                      onMoveDown: !isSaving && _canMoveSelectedDown()
+                          ? () => _moveSelected(1)
+                          : null,
+                    ),
                   ),
                   const VerticalDivider(width: 33),
                   Expanded(
@@ -233,54 +266,6 @@ class _PresetPromptEditorState extends State<PresetPromptEditor>
     );
   }
 
-  Widget _buildWideMasterPane({required BuildContext context}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildMasterHeader(context),
-        const SizedBox(height: 16),
-        Expanded(child: _buildMasterListView()),
-      ],
-    );
-  }
-
-  Widget _buildMasterHeader(BuildContext context) {
-    final canMoveUp = _canMoveSelectedUp();
-    final canMoveDown = _canMoveSelectedDown();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '条目 ${_items.length}',
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
-        const SizedBox(height: 12),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            OutlinedButton.icon(
-              onPressed: _addMessageItem,
-              icon: const Icon(Icons.add_comment_outlined),
-              label: const Text('新增条目'),
-            ),
-            IconButton.outlined(
-              onPressed: canMoveUp ? () => _moveSelected(-1) : null,
-              icon: const Icon(Icons.arrow_upward_rounded),
-              tooltip: '上移',
-            ),
-            IconButton.outlined(
-              onPressed: canMoveDown ? () => _moveSelected(1) : null,
-              icon: const Icon(Icons.arrow_downward_rounded),
-              tooltip: '下移',
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
   Widget _buildSyntaxField() => AppDropdownField<PresetPromptSyntax>(
     initialValue: _syntax,
     isExpanded: true,
@@ -309,17 +294,6 @@ class _PresetPromptEditorState extends State<PresetPromptEditor>
       }
     },
   );
-
-  Widget _buildMasterListView() {
-    return ListView.separated(
-      padding: const EdgeInsets.only(bottom: 16),
-      itemCount: _items.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 8),
-      itemBuilder: (context, index) {
-        return _buildMasterListTile(index, _selectedIndex);
-      },
-    );
-  }
 
   /// 紧凑模式下用下拉菜单替代条目列表，节省垂直空间，
   /// 避免用户编辑正文前需要滚动经过所有条目标题。
@@ -359,11 +333,13 @@ class _PresetPromptEditorState extends State<PresetPromptEditor>
     return PresetPromptListTile(
       item: _items[index],
       isSelected: index == selectedIndex,
-      onTap: () {
-        setState(() {
-          _selectedItemId = _items[index].id;
-        });
-      },
+      onTap: isSaving
+          ? null
+          : () {
+              setState(() {
+                _selectedItemId = _items[index].id;
+              });
+            },
     );
   }
 
@@ -783,6 +759,7 @@ class _PresetPromptEditorState extends State<PresetPromptEditor>
   }
 
   Future<void> _handleSubmit() async {
+    if (!(formKey.currentState?.validate() ?? false)) return;
     final name = _nameController.text.trim();
     if (name.isEmpty) {
       showFormSnackBar('请填写预设 Prompt 名称');
@@ -834,7 +811,12 @@ class _PresetPromptEditorState extends State<PresetPromptEditor>
     try {
       await submitAndClose(() async {
         await widget.onSubmit(
-          PresetPromptFormData(name: name, messages: messages, syntax: _syntax),
+          PresetPromptFormData(
+            name: name,
+            messages: messages,
+            syntax: _syntax,
+            customReasoningTag: _reasoningTagController.text.trim(),
+          ),
         );
         if (mounted) {
           setState(() => _leaveAllowed = true);

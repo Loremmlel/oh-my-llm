@@ -25,6 +25,31 @@ const _request = ChatGenerationRequest(
 
 void main() {
   for (final protocol in LlmApiProtocol.values) {
+    test('${protocol.name} 自定义 CoT 标签与原生推理共同显示，终态不重复追加', () async {
+      final core = _Client(
+        (_, _) => Stream.fromIterable([
+          const LlmEvent(reasoningDelta: '原生推理。'),
+          const LlmEvent(contentDelta: '<thinking_'),
+          const LlmEvent(contentDelta: 'diy>自定义推理。</thinking_di'),
+          const LlmEvent(contentDelta: 'y>正文<'),
+          LlmCompleted(const LlmResult(content: '完整结果不能重复追加')),
+        ]),
+      );
+      final result = await ChatTextGenerationAdapter(core).complete(
+        ChatGenerationRequest(
+          target: ChatGenerationRequestTarget(
+            protocol: protocol,
+            endpoint: 'https://example.com',
+            apiKey: 'test',
+            model: 'test',
+          ),
+          messages: const [],
+          customReasoningTag: 'thinking_diy',
+        ),
+      );
+      expect(result.content, '正文<');
+      expect(result.reasoningContent, '原生推理。自定义推理。');
+    });
     test('${protocol.name} 未声明图像能力时在读取文件与调用模型之前拒绝图片', () async {
       final core = _Client((_, _) => throw StateError('不得调用模型'));
       final request = ChatGenerationRequest(

@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:oh_my_llm/features/settings/domain/models/worldbooks/world_book.dart';
 
 import '../../domain/models/chat_checkpoint.dart';
 import '../../domain/models/chat_message.dart';
@@ -107,12 +108,14 @@ List<ChatCheckpoint> resolveCheckpointChain({
 
 /// 构建创建新检查点时的总结请求。
 List<ChatRequestMessage> buildCheckpointSummaryMessages({
+  WorldBook? worldBook,
   required MemoryPrompt memoryPrompt,
   required List<ChatMessage> conversationMessages,
   List<ChatCheckpoint> checkpointChain = const [],
   PresetPrompt? presetPrompt,
   RequestMessageFilter filter = RequestMessageFilter.passthrough,
 }) => prepareCheckpointSummaryContext(
+  worldBook: worldBook,
   memoryPrompt: memoryPrompt,
   conversationMessages: conversationMessages,
   checkpointChain: checkpointChain,
@@ -121,6 +124,7 @@ List<ChatRequestMessage> buildCheckpointSummaryMessages({
 ).requireMessages();
 
 ChatPreparedContext prepareCheckpointSummaryContext({
+  WorldBook? worldBook,
   required MemoryPrompt memoryPrompt,
   required List<ChatMessage> conversationMessages,
   List<ChatCheckpoint> checkpointChain = const [],
@@ -135,6 +139,7 @@ ChatPreparedContext prepareCheckpointSummaryContext({
     createdAt: DateTime.fromMillisecondsSinceEpoch(0),
   );
   return prepareChatContext(
+    worldBook: worldBook,
     presetPrompt: presetPrompt,
     conversationMessages: [...filter.apply(conversationMessages), summaryInput],
     latestInputMessageId: summaryInput.id,

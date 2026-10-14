@@ -31,6 +31,7 @@ import '../domain/models/prompts/template_prompt.dart';
 import 'widgets/transfer/import_confirm_dialog.dart';
 import 'widgets/settings_widgets.dart';
 import 'widgets/shared/settings_workspace.dart';
+import 'widgets/worldbooks/world_books_tab.dart';
 import 'widgets/tabs/network_settings_tab.dart';
 import 'widgets/tabs/other_settings_tab.dart';
 import 'widgets/tabs/output_processing_tab.dart';
@@ -57,6 +58,7 @@ const _transferGroupsByTab = <SettingsTransferGroup>[
   SettingsTransferGroup.network,
   SettingsTransferGroup.outputProcessing,
   SettingsTransferGroup.other,
+  SettingsTransferGroup.worldBooks,
 ];
 
 /// 设置页入口，使用标签页组织服务商、预设、提示词和其它设置。
@@ -78,8 +80,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     _tabController = TabController(
       initialIndex: ref
           .read(settingsTabPreferencesProvider)
-          .initialIndex(tabCount: 6),
-      length: 6,
+          .initialIndex(tabCount: 7),
+      length: 7,
       vsync: this,
     );
     _tabController.addListener(_onTabChanged);
@@ -361,6 +363,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
           const OutputProcessingTab(),
           // 其它
           const OtherSettingsTab(),
+          const WorldBooksTab(),
         ],
       ),
     );
@@ -380,6 +383,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
         return _tabLabelNetwork;
       case _tabOutputProcessing:
         return _tabLabelOutputProcessing;
+      case 6:
+        return '世界书';
       default:
         return '';
     }

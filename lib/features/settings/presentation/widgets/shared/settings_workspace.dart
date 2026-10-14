@@ -84,6 +84,7 @@ class SettingsWorkspace extends StatelessWidget {
                               const Tab(text: '网络'),
                               const Tab(text: '输出处理'),
                               const Tab(text: '其它'),
+                              const Tab(text: '世界书'),
                             ],
                           ),
                         ),

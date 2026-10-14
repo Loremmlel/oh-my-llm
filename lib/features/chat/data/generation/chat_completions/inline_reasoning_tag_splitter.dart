@@ -23,16 +23,26 @@ class InlineReasoningSplitResult {
 /// 每个请求创建一个新实例，以保持跨 chunk 的标签解析状态，
 /// 不跨请求共享状态。
 class InlineReasoningTagSplitter {
-  static final RegExp _openingTag = RegExp(
-    r'^<\s*(thought|thinking|think)\b[^>]*>$',
-    caseSensitive: false,
-  );
-  static final RegExp _closingTag = RegExp(
-    r'^<\s*/\s*(thought|thinking|think)\s*>$',
-    caseSensitive: false,
-  );
+  InlineReasoningTagSplitter({
+    String customTag = '',
+    bool includeDefaultTags = true,
+  }) {
+    final names = [
+      if (includeDefaultTags) ...['thought', 'thinking', 'think'],
+      if (customTag.trim().isNotEmpty) RegExp.escape(customTag.trim()),
+    ].join('|');
+    _openingTag = RegExp(
+      '^<\\s*($names)(?:\\s[^>]*)?>\$',
+      caseSensitive: false,
+    );
+    _closingTag = RegExp('^<\\s*/\\s*($names)\\s*>\$', caseSensitive: false);
+  }
 
-  bool _insideReasoningTag = false;
+  late final RegExp _openingTag;
+  late final RegExp _closingTag;
+
+  String? _activeTag;
+  bool get _insideReasoningTag => _activeTag != null;
   String _tail = '';
 
   InlineReasoningSplitResult splitContent(String delta) {
@@ -73,14 +83,17 @@ class InlineReasoningTagSplitter {
       }
 
       final candidateTag = input.substring(tagStart, tagEnd + 1);
-      if (!_insideReasoningTag && _openingTag.hasMatch(candidateTag)) {
-        _insideReasoningTag = true;
+      final opening = _openingTag.firstMatch(candidateTag);
+      if (!_insideReasoningTag && opening != null) {
+        _activeTag = opening.group(1)!.toLowerCase();
         cursor = tagEnd + 1;
         continue;
       }
 
-      if (_insideReasoningTag && _closingTag.hasMatch(candidateTag)) {
-        _insideReasoningTag = false;
+      if (_insideReasoningTag &&
+          _closingTag.firstMatch(candidateTag)?.group(1)?.toLowerCase() ==
+              _activeTag) {
+        _activeTag = null;
         cursor = tagEnd + 1;
         continue;
       }

@@ -8,6 +8,7 @@ import '../../../helpers/async/widget_test_animation.dart';
 
 void main() {
   testWidgets('预设页面保存失败保留输入，返回确认取消后继续编辑', (tester) async {
+    PresetPromptFormData? submitted;
     tester.view.physicalSize = const Size(1280, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -32,7 +33,10 @@ void main() {
               messages: const [],
               updatedAt: DateTime(2026),
             ),
-            onSubmit: (_) async => throw StateError('测试保存失败'),
+            onSubmit: (data) async {
+              submitted = data;
+              throw StateError('测试保存失败');
+            },
           ),
         ),
       ],
@@ -49,6 +53,22 @@ void main() {
     await tester.pump();
     expect(find.textContaining('测试保存失败'), findsOneWidget);
     expect(find.text('修改名称'), findsOneWidget);
+    await tester.enterText(
+      find.widgetWithText(TextFormField, '自定义 CoT 标签（可选）'),
+      'thinking_diy',
+    );
+    await tester.tap(find.text('保存'));
+    await tester.pump();
+    expect(submitted!.customReasoningTag, 'thinking_diy');
+    submitted = null;
+    await tester.enterText(
+      find.widgetWithText(TextFormField, '自定义 CoT 标签（可选）'),
+      '<thinking_diy>',
+    );
+    await tester.tap(find.text('保存'));
+    await tester.pump();
+    expect(find.textContaining('只填写标签名'), findsOneWidget);
+    expect(submitted, isNull);
     await tester.tap(find.text('取消'));
     await settleOverlayTransition(tester);
     expect(find.text('放弃未保存的修改？'), findsOneWidget);

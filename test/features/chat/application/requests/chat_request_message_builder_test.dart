@@ -4,8 +4,75 @@ import 'package:oh_my_llm/features/chat/application/requests/chat_request_messag
 import 'package:oh_my_llm/features/chat/domain/models/chat_checkpoint.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.dart';
+import 'package:oh_my_llm/features/settings/domain/models/worldbooks/world_book.dart';
+
+import '../../../../helpers/fixtures.dart';
 
 void main() {
+  test('世界书只注入启用非空条目且顺序稳定，固定在预设前置和历史之间', () {
+    final book = TestFixtures.worldBook(
+      name: '城市 & 群岛',
+      entries: const [
+        WorldBookEntry(id: 'b', title: '人物 "乙"', content: '角色乙\n{{char}}'),
+        WorldBookEntry(
+          id: 'disabled',
+          title: '停用',
+          content: '不应注入',
+          enabled: false,
+        ),
+        WorldBookEntry(id: 'empty', title: '空条目', content: '  '),
+        WorldBookEntry(id: 'a', title: '世界', content: '世界规则'),
+      ],
+    );
+    final preset = TestFixtures.presetPrompt(
+      id: 'preset',
+      messages: [
+        TestFixtures.promptMessage(id: 'before', content: '前置'),
+        TestFixtures.promptMessage(
+          id: 'tail',
+          content: '后置',
+          placement: PromptMessagePlacement.after,
+        ),
+      ],
+    );
+    final history = [TestFixtures.userMessage(id: 'input', content: '无关关键词')];
+    final prepared = buildRequestMessages(
+      presetPrompt: preset,
+      worldBook: book,
+      conversationMessages: history,
+    );
+    expect(prepared.map((m) => m.content), [
+      '前置',
+      '<world_book name="城市 &amp; 群岛">\n<entry title="人物 &quot;乙&quot;">\n角色乙\n{{char}}\n</entry>\n<entry title="世界">\n世界规则\n</entry>\n</world_book>',
+      '无关关键词',
+      '后置',
+    ]);
+    expect(prepared[1].role, ChatMessageRole.system);
+    expect(prepared[1].sourceLabel, '世界书 · 城市 & 群岛');
+    expect(
+      buildRequestMessages(
+        presetPrompt: null,
+        worldBook: book,
+        conversationMessages: [],
+      ).single.content,
+      prepared[1].content,
+    );
+    expect(
+      buildRequestMessages(
+        presetPrompt: null,
+        worldBook: book.copyWith(entries: []),
+        conversationMessages: [],
+      ),
+      isEmpty,
+    );
+    final single = buildRequestMessages(
+      presetPrompt: preset.copyWith(singleSystemPrompt: true),
+      worldBook: book,
+      conversationMessages: history,
+    );
+    expect(single.map((m) => m.content), prepared.map((m) => m.content));
+    expect(single[1].role, ChatMessageRole.user);
+  });
   ChatMessage message(String id, ChatMessageRole role, String content) =>
       ChatMessage(
         id: id,

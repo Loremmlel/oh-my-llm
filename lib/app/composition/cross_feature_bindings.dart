@@ -45,6 +45,8 @@ import 'package:oh_my_llm/features/media/data/scanning/media_directory_scanner.d
 import 'package:oh_my_llm/features/media/data/scanning/media_thumbnail_cache.dart';
 import 'package:oh_my_llm/features/media/data/scanning/media_thumbnail_generator.dart';
 import 'package:oh_my_llm/features/settings/application/transfer/settings_sync_facade.dart';
+import 'package:oh_my_llm/features/settings/application/worldbooks/world_books_controller.dart';
+import 'package:oh_my_llm/features/settings/data/worldbooks/sqlite_world_book_repository.dart';
 import 'package:oh_my_llm/features/settings/application/ports/preset_import_source.dart';
 import 'package:oh_my_llm/features/settings/data/prompts/file_preset_import_source.dart';
 import 'package:oh_my_llm/features/settings/application/transfer/settings_transfer_coordinator_provider.dart';
@@ -88,6 +90,7 @@ List<dynamic> appCompositionOverrides({
   // TargetPlatform.windows，宿主 CI 绝不打开真实 Android MethodChannel。
   final effectivePlatform = hostPlatform ?? defaultTargetPlatform;
   return [
+    worldBookRepositoryProvider.overrideWithValue(worldBookRepository),
     if (bindChatImages) ...[
       chatImageStoreProvider.overrideWith((ref) {
         final database = ref.watch(appDatabaseProvider);

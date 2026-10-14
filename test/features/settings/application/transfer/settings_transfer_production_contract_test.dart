@@ -13,6 +13,8 @@ import 'package:oh_my_llm/features/settings/application/preferences/output_proce
 import 'package:oh_my_llm/features/settings/application/prompts/fixed_prompt_sequences_controller.dart';
 import 'package:oh_my_llm/features/settings/application/prompts/memory_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/application/prompts/preset_prompts_controller.dart';
+import 'package:oh_my_llm/features/settings/application/worldbooks/world_books_controller.dart';
+import 'package:oh_my_llm/features/settings/data/worldbooks/sqlite_world_book_repository.dart';
 import 'package:oh_my_llm/features/settings/application/prompts/template_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/application/providers/llm_model_configs_controller.dart';
 import 'package:oh_my_llm/features/settings/application/transfer/settings_transfer_coordinator.dart';
@@ -29,7 +31,9 @@ import 'package:oh_my_llm/features/settings/domain/models/prompts/template_promp
 import 'package:oh_my_llm/features/settings/domain/models/providers/llm_provider_config.dart';
 import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_transfer_document.dart';
 
-const expectedFormatVersion = 10;
+import '../../../../helpers/fixtures.dart';
+
+const expectedFormatVersion = 11;
 
 const expectedSectionKeys = <String>[
   'modelProviders',
@@ -78,6 +82,7 @@ const expectedCanonicalSections = <String, Object?>{
         },
       ],
       'singleSystemPrompt': false,
+      'customReasoningTag': '',
       'updatedAt': '2026-08-19T00:00:00.000Z',
     },
   ],
@@ -148,6 +153,7 @@ _newContainer() async {
   final container = ProviderContainer(
     overrides: [
       appDatabaseProvider.overrideWithValue(database),
+      worldBookRepositoryProvider.overrideWithValue(worldBookRepository),
       sharedPreferencesProvider.overrideWithValue(preferences),
     ],
   );
@@ -160,6 +166,31 @@ _newContainer() async {
 }
 
 void main() {
+  test('世界书独立分组交换保留标题正文顺序与启停', () async {
+    final source = await _newContainer();
+    final base = TestFixtures.worldBook();
+    final book = base.copyWith(
+      entries: [base.entries.single.copyWith(enabled: false)],
+    );
+    await source.container.read(worldBooksProvider.notifier).upsert(book);
+    final exported = source.coordinator.exportGroups({
+      SettingsTransferGroup.worldBooks,
+    }) as SettingsExportBatch;
+    expect(exported.document.sections.keys, ['worldBooks']);
+    final destination = await _newContainer();
+    final ready = destination.coordinator.prepareDocument(
+      exported.document,
+    ) as SettingsImportReady;
+    expect(
+      await ready.batch.execute(confirmedSensitive: false),
+      isA<SettingsImportSuccess>(),
+    );
+    expect(destination.container.read(worldBooksProvider).single, book);
+    expect(
+      destination.coordinator.prepareDocument(exported.document),
+      isA<SettingsImportNoChanges>(),
+    );
+  });
   test('九项 typed fixture 可从全量导出导入到新容器', () async {
     final source = await _newContainer();
     await _seedFixtures(source.container);
@@ -197,7 +228,7 @@ void main() {
     );
     expect(
       coordinator.groups.map((descriptor) => descriptor.containsSensitive),
-      [true, false, false, true, false, false],
+      [true, false, false, true, false, false, false],
     );
     expect(batch.containsSensitive, isTrue);
     final actualSections = batch.document.sections;
@@ -272,6 +303,7 @@ void main() {
     final incoming = plain.copyWith(
       id: 'incoming',
       syntax: PresetPromptSyntax.sillyTavernSubsetV1,
+      customReasoningTag: 'thinking_diy',
       messages: [
         plain.messages.single.copyWith(
           sourceIdentifier: 'source',
@@ -292,6 +324,7 @@ void main() {
         .read(presetPromptsProvider)
         .singleWhere((p) => p.syntax == incoming.syntax);
     expect(saved.messages, incoming.messages);
+    expect(saved.customReasoningTag, 'thinking_diy');
     expect(
       coordinator.prepareDocument(
         SettingsTransferDocument(

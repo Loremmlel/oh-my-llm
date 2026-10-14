@@ -103,6 +103,7 @@ class ChatGenerationRequest extends Equatable {
     this.streamIdleTimeout,
     this.contextDiagnostics = const [],
     this.presetName = '',
+    this.customReasoningTag = '',
   });
 
   final ChatGenerationRequestTarget target;
@@ -110,6 +111,7 @@ class ChatGenerationRequest extends Equatable {
   final List<ChatRequestMessage> messages;
   final List<PresetMacroDiagnostic> contextDiagnostics;
   final String presetName;
+  final String customReasoningTag;
 
   final ReasoningEffort? reasoningEffort;
 
@@ -124,6 +126,7 @@ class ChatGenerationRequest extends Equatable {
     streamIdleTimeout,
     contextDiagnostics,
     presetName,
+    customReasoningTag,
   ];
 }
 

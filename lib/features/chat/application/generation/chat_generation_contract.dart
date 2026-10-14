@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:oh_my_llm/features/settings/domain/models/worldbooks/world_book.dart';
 import 'package:oh_my_llm/core/llm/llm_reasoning_effort.dart';
 import 'package:oh_my_llm/core/llm/llm_usage.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.dart';
@@ -28,6 +29,7 @@ class ChatGenerationCommand extends Equatable {
     required this.reasoningEffort,
     required this.retryPolicy,
     this.retryDelay,
+    this.worldBook,
   });
 
   /// 发起 generation 时的活动会话快照（含已追加的用户/编辑消息）。
@@ -35,6 +37,7 @@ class ChatGenerationCommand extends Equatable {
 
   final LlmModelConfig modelConfig;
   final PresetPrompt? presetPrompt;
+  final WorldBook? worldBook;
 
   /// 检查点链与尾部消息共享同一次解析结果，标题由该上下文派生。
   final CheckpointRequestContext requestContext;
@@ -56,6 +59,7 @@ class ChatGenerationCommand extends Equatable {
     conversation,
     modelConfig,
     presetPrompt,
+    worldBook,
     requestContext,
     parentMessageId,
     reasoningEnabled,

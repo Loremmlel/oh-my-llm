@@ -1,4 +1,5 @@
 import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.dart';
+import 'package:oh_my_llm/features/settings/domain/models/worldbooks/world_book.dart';
 import 'package:oh_my_llm/features/settings/domain/preset_macros/preset_macro_renderer.dart';
 
 import '../../domain/models/chat_checkpoint.dart';
@@ -34,12 +35,14 @@ class ChatPreparedContext {
 }
 
 List<ChatRequestMessage> buildRequestMessages({
+  WorldBook? worldBook,
   required PresetPrompt? presetPrompt,
   required List<ChatMessage> conversationMessages,
   String? latestInputMessageId,
   List<ChatCheckpoint> checkpointChain = const [],
   RequestMessageFilter filter = RequestMessageFilter.passthrough,
 }) => prepareChatContext(
+  worldBook: worldBook,
   presetPrompt: presetPrompt,
   conversationMessages: conversationMessages,
   latestInputMessageId: latestInputMessageId,
@@ -49,6 +52,7 @@ List<ChatRequestMessage> buildRequestMessages({
 
 /// 发送与预览共享同一求值边界；只有真实会话消息可以提供 lastUserMessage。
 ChatPreparedContext prepareChatContext({
+  WorldBook? worldBook,
   required PresetPrompt? presetPrompt,
   required List<ChatMessage> conversationMessages,
   String? latestInputMessageId,
@@ -120,6 +124,17 @@ ChatPreparedContext prepareChatContext({
 
   final historyEnd = latestIndex < 0 ? filtered.length : latestIndex;
   appendPreset(PromptMessagePlacement.before);
+  final worldContent = worldBook?.promptContent ?? '';
+  if (worldContent.isNotEmpty) {
+    messages.add(
+      ChatRequestMessage(
+        role: ChatMessageRole.system,
+        content: worldContent,
+        sourceLabel: '世界书 · ${worldBook!.name}',
+        sourceId: worldBook.id,
+      ),
+    );
+  }
   appendHistory(filtered.take(historyEnd));
   appendPreset(PromptMessagePlacement.beforeLatestInput);
   appendHistory(filtered.skip(historyEnd));
