@@ -387,7 +387,7 @@ final class AppTheme {
         elevation: 0,
         backgroundColor: surface,
         surfaceTintColor: Colors.transparent,
-        shape: Border(left: BorderSide(color: colorScheme.outlineVariant)),
+        shape: Border(right: BorderSide(color: colorScheme.outlineVariant)),
         endShape: Border(left: BorderSide(color: colorScheme.outlineVariant)),
       ),
       menuTheme: MenuThemeData(

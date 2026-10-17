@@ -210,15 +210,10 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Tooltip(
-                                  message: isUser
-                                      ? '你'
-                                      : message
-                                            .resolvedAssistantModelDisplayName,
+                                  message:
+                                      message.resolvedAssistantModelDisplayName,
                                   child: Text(
-                                    isUser
-                                        ? '你'
-                                        : message
-                                              .resolvedAssistantModelDisplayName,
+                                    message.resolvedAssistantModelDisplayName,
                                     style: theme.textTheme.labelLarge,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
@@ -275,6 +270,27 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                         content: isUser ? userContent : message.content,
                         segments: isUser ? displaySegments : const [],
                       ),
+                    if (isUser && needsCollapse) ...[
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton.icon(
+                          onPressed: () {
+                            setState(() {
+                              _isUserMessageCollapsed =
+                                  !_isUserMessageCollapsed;
+                            });
+                          },
+                          icon: Icon(
+                            isUserCollapsed
+                                ? Icons.unfold_more_rounded
+                                : Icons.unfold_less_rounded,
+                            size: 18,
+                          ),
+                          label: Text(isUserCollapsed ? '展开全文' : '收起内容'),
+                        ),
+                      ),
+                    ],
                     if (isUser && viewState.isExcludedFromRequest)
                       _buildRequestExclusionChip(theme, message.id),
                     if (!isUser) ...[
@@ -357,27 +373,6 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                             ),
                           ),
                         ],
-                      ),
-                    ],
-                    if (isUser && needsCollapse) ...[
-                      const SizedBox(height: 8),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: TextButton.icon(
-                          onPressed: () {
-                            setState(() {
-                              _isUserMessageCollapsed =
-                                  !_isUserMessageCollapsed;
-                            });
-                          },
-                          icon: Icon(
-                            isUserCollapsed
-                                ? Icons.unfold_more_rounded
-                                : Icons.unfold_less_rounded,
-                            size: 18,
-                          ),
-                          label: Text(isUserCollapsed ? '展开全文' : '收起内容'),
-                        ),
                       ),
                     ],
                     if (versionInfo != null) ...[

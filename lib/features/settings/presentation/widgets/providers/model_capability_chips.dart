@@ -20,32 +20,29 @@ class ModelCapabilityChips extends StatelessWidget {
   Widget build(BuildContext context) => Wrap(
     spacing: AppSpacing.sm,
     children: [
-      Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Checkbox(
-            value: supportsReasoning,
-            semanticLabel: '深度思考',
-            onChanged: onReasoningChanged == null
-                ? null
-                : (value) => onReasoningChanged!(value!),
-          ),
-          const ExcludeSemantics(child: Text('深度思考')),
-        ],
-      ),
-      Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Checkbox(
-            value: supportsImageInput,
-            semanticLabel: '图像',
-            onChanged: onImageInputChanged == null
-                ? null
-                : (value) => onImageInputChanged!(value!),
-          ),
-          const ExcludeSemantics(child: Text('图像')),
-        ],
-      ),
+      _option('深度思考', supportsReasoning, onReasoningChanged),
+      _option('图像', supportsImageInput, onImageInputChanged),
     ],
   );
+
+  Widget _option(String label, bool value, ValueChanged<bool>? onChanged) =>
+      InkWell(
+        onTap: onChanged == null ? null : () => onChanged(!value),
+        // 原生复选框独占键盘与语义，外层只扩大指针命中区。
+        canRequestFocus: false,
+        excludeFromSemantics: true,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Checkbox(
+              value: value,
+              semanticLabel: label,
+              onChanged: onChanged == null
+                  ? null
+                  : (value) => onChanged(value!),
+            ),
+            ExcludeSemantics(child: Text(label)),
+          ],
+        ),
+      );
 }

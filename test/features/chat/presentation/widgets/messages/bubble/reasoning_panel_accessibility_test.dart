@@ -32,10 +32,15 @@ void main() {
       await tester.pumpWidget(_wrap('第一段第二段', isStreaming: true));
       await pumpStreamMarkdownRefresh(tester);
       expect(find.text('第一段第二段'), findsOneWidget);
+      expect(find.text('· 6 字'), findsOneWidget);
+
+      await tester.pumpWidget(_wrap('hello world', isStreaming: true));
+      await pumpStreamMarkdownRefresh(tester);
+      expect(find.text('· 2 字'), findsOneWidget);
 
       await tester.tap(find.text('深度思考'));
       await tester.pump();
-      expect(find.text('第一段第二段'), findsNothing);
+      expect(find.text('hello world'), findsNothing);
     });
 
     testWidgets('激活后 expanded=true，Markdown 内容在语义树可读，再激活收回', (tester) async {

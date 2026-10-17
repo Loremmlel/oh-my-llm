@@ -82,6 +82,10 @@ class _ConfigurationDialogState extends ConsumerState<_ConfigurationDialog> {
   );
   bool get _dirty => _value != _saved;
 
+  void _togglePresetRole(AgentRole role) => setState(() {
+    if (!_presetRoles.remove(role)) _presetRoles.add(role);
+  });
+
   Future<bool> _discard() async =>
       !_dirty ||
       await showDialog<bool>(
@@ -401,24 +405,25 @@ class _ConfigurationDialogState extends ConsumerState<_ConfigurationDialog> {
                   runSpacing: AppSpacing.xs,
                   children: [
                     for (final role in AgentRole.values)
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Checkbox(
-                            semanticLabel: agentRoleLabel(role),
-                            value: _presetRoles.contains(role),
-                            onChanged: state.busy
-                                ? null
-                                : (selected) => setState(() {
-                                    if (selected!) {
-                                      _presetRoles.add(role);
-                                    } else {
-                                      _presetRoles.remove(role);
-                                    }
-                                  }),
-                          ),
-                          Text(agentRoleLabel(role)),
-                        ],
+                      InkWell(
+                        onTap: state.busy
+                            ? null
+                            : () => _togglePresetRole(role),
+                        canRequestFocus: false,
+                        excludeFromSemantics: true,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Checkbox(
+                              semanticLabel: agentRoleLabel(role),
+                              value: _presetRoles.contains(role),
+                              onChanged: state.busy
+                                  ? null
+                                  : (_) => _togglePresetRole(role),
+                            ),
+                            ExcludeSemantics(child: Text(agentRoleLabel(role))),
+                          ],
+                        ),
                       ),
                   ],
                 ),

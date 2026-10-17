@@ -184,6 +184,21 @@ void main() {
       find.widgetWithText(AppTextField, '角色提示词'),
       '只报告有原文依据的矛盾。',
     );
+    final coordinatorCheckbox = find.byWidgetPredicate(
+      (widget) => widget is Checkbox && widget.semanticLabel == '主 Agent',
+    );
+    final coordinatorOption = find
+        .ancestor(of: coordinatorCheckbox, matching: find.byType(Row))
+        .first;
+    final coordinatorLabel = find.descendant(
+      of: coordinatorOption,
+      matching: find.text('主 Agent'),
+    );
+    await tester.ensureVisible(coordinatorLabel);
+    await tester.tap(coordinatorLabel);
+    await tester.pump();
+    expect(tester.widget<Checkbox>(coordinatorCheckbox).value, isFalse);
+    expect(find.semantics.byLabel('主 Agent'), findsOneWidget);
     await tester.tap(find.text('保存方案'));
     await tester.pump();
     expect(store.listConfigurations('novel').single.name, '独立审稿方案');
@@ -192,6 +207,10 @@ void main() {
     final saved = store.loadWorkspace('novel')!;
     expect(saved.configuration.name, '独立审稿方案');
     expect(saved.configuration.modelFor(AgentRole.reviewer), 'model-2');
+    expect(
+      saved.configuration.presetRoles,
+      isNot(contains(AgentRole.coordinator)),
+    );
     await tester.tap(find.byTooltip('返回执行流'));
     await tester.pump();
     await tester.tap(find.byTooltip('工作区操作'));

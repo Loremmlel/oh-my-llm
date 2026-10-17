@@ -20,8 +20,8 @@
 | G Agent | 步骤、任务块、文档标签与职责勾选 | 已完成 | 共用用户输入底、阅读字号和返回最新；文档下划线标签；职责复选框 |
 | H 同步等 | 同步状态、接口、过滤与检查点、通知 | 已完成 | 去除硬编码状态色；过滤复选框；次级动作描边；通知主题语义色与细边框 |
 | 规范 | 同步更新 `DESIGN.md` | 已完成 | 消息操作移至正文下方；设置宽屏纵向导航；字段与语义颜色归属 |
-| 验证 | 格式、分析、导入门禁、相关测试、构建与视觉检查 | 已完成 | 本轮最终 1936 项测试通过；分析、格式、导入门禁、Web/Windows Release 构建通过；共 33 张截图已核对 |
-| 交付 | 受影响页面统计与前后截图索引 | 已完成 | 14 类路由页面；33 张截图，9 组基线对比及 2 组本轮复核对比 |
+| 验证 | 格式、分析、导入门禁、相关测试、构建与视觉检查 | 已完成 | 审查修复后最终 1941 项测试通过；分析、格式、导入门禁、Web/Windows Release 构建通过；共 34 张截图已核对 |
+| 交付 | 受影响页面统计与前后截图索引 | 已完成 | 14 类路由页面；34 张截图，9 组基线对比及 2 组复核对比，另含审查修复的交互截图 |
 
 ## 视觉检查约定
 
@@ -44,7 +44,7 @@
 
 ### 截图与复现
 
-[完整截图画廊](E:/Code/oh-my-llm/logs/ui-audit/screenshots.md) 收录 33 张截图：基线 9 张、首轮结果 19 张、本轮复核结果 5 张。首轮 9 组基线对比，加上本轮 2 组复核前后对比，均按相同示例数据与视口并排展示；最新效果位于画廊首节。
+[完整截图画廊](E:/Code/oh-my-llm/logs/ui-audit/screenshots.md) 收录 34 张截图：基线 9 张、首轮结果 19 张、本轮复核结果 5 张、PR 审查修复 1 张。首轮 9 组基线对比，加上本轮 2 组复核前后对比，均按相同示例数据与视口并排展示；最新效果位于画廊首节。
 
 | 内容 | 基线与结果 | 尺寸 |
 | --- | --- | --- |
@@ -123,4 +123,23 @@ flutter build web --release --no-wasm-dry-run --target lib/audit_preview.dart --
 | DESIGN 官方 lint | 0 错误、13 个已有 orphan-token 警告 | `logs/ui-audit/review-design-lint.log` |
 | Premium strict / diff 空白检查 | 静态审计 0 项；`git diff --check` 通过 | `logs/ui-audit/review-premium-audit.json` |
 
-交付分支为 `fix/ui-audit-refinement`，通过 PR 合入 `master`。截图及夹具保存在 ignored 的 `logs/`，不包含在 Git 提交中；审计报告快照、进度文档和 `DESIGN.md` 随源码保留。PR 正文记录页面统计和最终本地验证结果，远端 CI 状态以 PR 检查为准。截图完成后已关闭临时预览服务。
+## PR #83 审查修复
+
+初次提交 `a7646222` 的远端 [CI gate](https://github.com/Loremmlel/oh-my-llm/actions/runs/39035439986/job/117404189510) 已通过。审查中的 6 条未解决意见逐条核验后均成立，修复如下：
+
+| 审查项 | 修复与验证 |
+| --- | --- |
+| [推理文本替换后的字数](https://github.com/Loremmlel/oh-my-llm/pull/83#discussion_r4302792462) | 在共享 StreamingChatWordCounter 中区分前缀追加与完整替换；等长、更长替换都会重新计数，后续追加仍增量累计。纯规则测试覆盖替换边界，既有推理面板用例验证复用状态时标题字数刷新。 |
+| [常规抽屉边线方向](https://github.com/Loremmlel/oh-my-llm/pull/83#discussion_r4302792465) | 左侧抽屉右缘画分隔线；右侧抽屉仍为左缘。 |
+| [助手标题冗余分支](https://github.com/Loremmlel/oh-my-llm/pull/83#discussion_r4302792467) | 在助手专属区域直接使用 resolvedAssistantModelDisplayName。 |
+| [Agent 职责文字联动与重复语义](https://github.com/Loremmlel/oh-my-llm/pull/83#discussion_r4302792469) | 整行可点，运行中禁用；原生 Checkbox 独占键盘和读屏语义，文字不重复播报。既有配置用例通过文字切换职责并验证应用后持久化。 |
+| [长消息展开入口顺序](https://github.com/Loremmlel/oh-my-llm/pull/83#discussion_r4302792471) | 展开／收起紧随用户正文，先于复制／编辑等整条消息操作。测试验证读屏遍历顺序与展开后的全文可读。 |
+| [模型能力文字联动](https://github.com/Loremmlel/oh-my-llm/pull/83#discussion_r4302792474) | 文字与方框均可单次切换；验证空格键、唯一语义标签与禁用状态。 |
+
+45 项相关回归测试通过。修复前证据：`logs/ui-pr83-review-red.log`、`logs/ui-pr83-order-red.log`；修复后：`logs/ui-pr83-review-green.log`。纯边框与冗余分支修整不增加镜像样式测试。
+
+最终全量测试 1941 项通过，分析 0 问题、导入边界 466 文件/0 违规，Web 与 Windows Release 均构建成功。日志：`logs/ui-pr83-full.log`、`ui-pr83-analyze.log`、`ui-pr83-import-boundaries.log`、`ui-pr83-web-build.log`、`ui-pr83-windows-build.log`。Windows 首次构建与测试并行时遇到 sqlite3.dll 文件锁，测试退出后单独重跑成功；失败记录保留在 `logs/ui-pr83-windows-build-locked.log`。
+
+390×844 独立浏览器预览中，点击“写作模型”的“深度思考”文字后，选中状态由 1 变为 0，语义只保留一个复选框名称。局部截图为 `logs/ui-audit/pr83-capability-label.jpg`；使用内存夹具，未读写个人配置。
+
+交付分支为 `fix/ui-audit-refinement`，通过 [PR #83](https://github.com/Loremmlel/oh-my-llm/pull/83) 合入 `master`。截图及夹具保存在 ignored 的 `logs/`，不包含在 Git 提交中；审计报告快照、进度文档和 `DESIGN.md` 随源码保留。PR 正文记录页面统计和最终本地验证结果，远端 CI 与审查解决状态以 PR 为准。截图完成后已关闭临时预览服务。
