@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_dropdown_field.dart';
+import 'package:oh_my_llm/core/widgets/app_text_field.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -31,18 +33,18 @@ void main() {
 
   Finder titleField() => find.descendant(
     of: find.byType(TemplatePromptFormDialog),
-    matching: find.widgetWithText(TextFormField, '标题'),
+    matching: find.widgetWithText(AppTextField, '标题'),
   );
 
   Finder contentField() => find.descendant(
     of: find.byType(TemplatePromptFormDialog),
-    matching: find.widgetWithText(TextFormField, '模板提示词'),
+    matching: find.widgetWithText(AppTextField, '模板提示词'),
   );
 
   /// 文本变量默认值输入框（label 即变量名）。
   Finder textVariableField(String name) => find.descendant(
     of: find.byType(TemplatePromptFormDialog),
-    matching: find.widgetWithText(TextFormField, name),
+    matching: find.widgetWithText(AppTextField, name),
   );
 
   /// 单选变量默认值下拉框（DropdownButtonFormField 非 TextFormField，
@@ -51,7 +53,7 @@ void main() {
     of: find.byType(TemplatePromptFormDialog),
     matching: find.byWidgetPredicate(
       (widget) =>
-          widget is DropdownButtonFormField<String> &&
+          widget is AppDropdownField<String> &&
           widget.decoration.labelText == '$name（单选）',
     ),
   );
@@ -96,7 +98,7 @@ void main() {
         await tester.tap(find.text('编辑'));
         await settleOverlayTransition(tester);
         final field = find.widgetWithText(
-          TextFormField,
+          AppTextField,
           isTemplate ? '模板提示词' : '记忆总结提示词',
         );
         await tester.showKeyboard(field);

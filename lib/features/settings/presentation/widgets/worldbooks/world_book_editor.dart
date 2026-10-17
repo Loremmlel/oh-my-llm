@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_text_field.dart';
 import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 import 'package:oh_my_llm/core/utils/id_generator.dart';
@@ -194,7 +195,7 @@ class _WorldBookEditorState extends State<WorldBookEditor>
                     ),
                   ),
                 ),
-              TextFormField(
+              AppTextField.form(
                 controller: _name,
                 readOnly: isSaving,
                 validator: validateRequired,
@@ -314,7 +315,7 @@ class _WorldBookEditorState extends State<WorldBookEditor>
   Widget _detail({required bool wide}) {
     final index = _selected;
     if (index == null) return const Center(child: Text('还没有条目，点击“新增条目”开始编辑。'));
-    final content = TextField(
+    final content = AppTextField(
       controller: _content,
       readOnly: isSaving,
       minLines: wide ? null : 10,
@@ -329,7 +330,7 @@ class _WorldBookEditorState extends State<WorldBookEditor>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        TextFormField(
+        AppTextField.form(
           controller: _title,
           readOnly: isSaving,
           validator: validateRequired,

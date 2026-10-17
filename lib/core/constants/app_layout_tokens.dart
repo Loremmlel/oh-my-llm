@@ -10,6 +10,7 @@ final class AppSpacing {
 
 final class AppRadii {
   const AppRadii._();
+  static const double tag = 6;
   static const double sm = 8;
   static const double md = 12;
   static const double dialog = 16;

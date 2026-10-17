@@ -73,7 +73,11 @@ void registerChatScreenBranchingTests() {
     expect(find.textContaining(ChatErrorMessages.emptyReply), findsNothing);
     expect(find.text('2/2'), findsNothing);
 
-    await tester.tap(find.byTooltip('重试回复').last);
+    final retry = find.byTooltip('重试回复').last;
+    await tester.ensureVisible(retry);
+    await tester.pump();
+    expect(retry.hitTestable(), findsOneWidget);
+    await tester.tap(retry);
     await waitForChatGeneration(
       tester,
       container,
@@ -169,10 +173,10 @@ void registerChatScreenBranchingTests() {
     await settleOverlayTransition(tester);
 
     expect(find.text('删除哪个范围？'), findsOneWidget);
-    expect(find.widgetWithText(FilledButton, '删除当前分支'), findsOneWidget);
-    expect(find.widgetWithText(FilledButton, '删除全部版本'), findsOneWidget);
+    expect(find.widgetWithText(TextButton, '删除当前分支'), findsOneWidget);
+    expect(find.widgetWithText(TextButton, '删除全部版本'), findsOneWidget);
 
-    await tester.tap(find.widgetWithText(FilledButton, '删除当前分支'));
+    await tester.tap(find.widgetWithText(TextButton, '删除当前分支'));
     await settleOverlayTransition(tester);
 
     expect(find.textContaining('首次回复'), findsWidgets);
@@ -190,7 +194,7 @@ void registerChatScreenBranchingTests() {
     await settleOverlayTransition(tester);
     await tester.tap(find.text('删除消息'));
     await settleOverlayTransition(tester);
-    await tester.tap(find.widgetWithText(FilledButton, '删除全部版本'));
+    await tester.tap(find.widgetWithText(TextButton, '删除全部版本'));
     await settleOverlayTransition(tester);
 
     expect(find.textContaining('首次回复'), findsNothing);

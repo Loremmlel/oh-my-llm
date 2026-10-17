@@ -80,13 +80,13 @@ void registerFavoriteDetailScreenTests() {
     );
 
     // 主操作按钮可见，来源标题作为元信息一并展示。
-    expect(find.widgetWithText(FilledButton, '查看来源对话'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, '查看来源对话'), findsOneWidget);
     expect(find.text('原始对话'), findsOneWidget);
 
     final router = GoRouter.of(
-      tester.element(find.widgetWithText(FilledButton, '查看来源对话')),
+      tester.element(find.widgetWithText(OutlinedButton, '查看来源对话')),
     );
-    await tester.tap(find.widgetWithText(FilledButton, '查看来源对话'));
+    await tester.tap(find.widgetWithText(OutlinedButton, '查看来源对话'));
     await settleRouteTransition(tester);
 
     // 生产路由下聊天页是真实 ChatScreen，用路由位置断言跳转成功。
@@ -110,7 +110,7 @@ void registerFavoriteDetailScreenTests() {
       },
     );
 
-    final buttonFinder = find.widgetWithText(FilledButton, '查看来源对话');
+    final buttonFinder = find.widgetWithText(OutlinedButton, '查看来源对话');
     expect(buttonFinder, findsOneWidget);
     // 来源缺失：按钮禁用且给出明确恢复文案，而不是隐藏入口。
     final router = GoRouter.of(tester.element(buttonFinder));
@@ -216,7 +216,7 @@ void registerFavoriteDetailScreenTests() {
     expect(tester.takeException(), isNull);
     expect(find.text('回复内容'), findsOneWidget);
     expect(
-      find.widgetWithText(FilledButton, '查看来源对话').hitTestable(),
+      find.widgetWithText(OutlinedButton, '查看来源对话').hitTestable(),
       findsOneWidget,
     );
   });
@@ -238,7 +238,7 @@ void registerFavoriteDetailScreenTests() {
 
     expect(find.text('深度思考'), findsOneWidget);
 
-    await tester.tap(find.text('展开'));
+    await tester.tap(find.text('深度思考'));
     // 推理内容展开是 AnimatedSize 动画
     await settleAnimatedWidgetTransition(tester);
 

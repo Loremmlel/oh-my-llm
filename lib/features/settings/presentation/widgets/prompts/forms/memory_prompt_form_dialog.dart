@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_text_field.dart';
 import 'package:oh_my_llm/core/widgets/long_text_editing_controller.dart';
 
 import '../../../../domain/models/prompts/memory_prompt.dart';
@@ -61,7 +62,7 @@ class _MemoryPromptFormDialogState extends State<MemoryPromptFormDialog>
       child: LayoutBuilder(
         builder: (context, constraints) {
           final expand = constraints.hasBoundedHeight;
-          final editor = TextFormField(
+          final editor = AppTextField.form(
             key: const ValueKey('memory-prompt-content-field'),
             controller: _contentController,
             minLines: expand ? null : 6,
@@ -78,7 +79,7 @@ class _MemoryPromptFormDialogState extends State<MemoryPromptFormDialog>
           return Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextFormField(
+              AppTextField.form(
                 key: const ValueKey('memory-prompt-name-field'), // test-key
                 controller: _nameController,
                 decoration: const InputDecoration(

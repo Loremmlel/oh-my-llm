@@ -34,7 +34,7 @@ void main() {
     await tester.tap(copy);
     await tester.pump();
     expect(tester.widget<IconButton>(copy).onPressed, isNull);
-    expect(tester.widget<Switch>(find.byType(Switch)).onChanged, isNull);
+    expect(tester.widget<Checkbox>(find.byType(Checkbox)).onChanged, isNull);
     pending.completeError(StateError('模拟写入失败'));
     await tester.pump();
     expect(find.text('操作失败，请重试'), findsOneWidget);

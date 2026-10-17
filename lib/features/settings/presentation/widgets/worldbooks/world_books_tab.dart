@@ -96,10 +96,20 @@ class _WorldBookRowState extends ConsumerState<_WorldBookRow> {
               ),
         icon: const Icon(Icons.edit_outlined),
       ),
-      IconButton(
-        tooltip: '删除 ${widget.book.name}',
-        onPressed: _deleting ? null : _delete,
-        icon: const Icon(Icons.delete_outline),
+      PopupMenuButton<String>(
+        tooltip: '世界书操作',
+        enabled: !_deleting,
+        icon: const Icon(Icons.more_horiz, size: 18),
+        onSelected: (_) => _delete(),
+        itemBuilder: (context) => [
+          PopupMenuItem(
+            value: 'delete',
+            child: Text(
+              '删除 ${widget.book.name}',
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ),
+        ],
       ),
     ],
   );

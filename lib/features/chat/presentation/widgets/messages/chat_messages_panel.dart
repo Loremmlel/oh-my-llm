@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
+import 'package:oh_my_llm/core/widgets/app_scroll_to_latest_button.dart';
 
 import '../../../application/workspace/chat_workspace_view_state.dart';
 import '../workspace/chat_workspace_bindings.dart';
@@ -72,7 +73,7 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
     final listPadding = AppBreakpoints.isCompactShell(context) ? 10.0 : 14.0;
 
     return Material(
-      color: Theme.of(context).colorScheme.surface,
+      color: Theme.of(context).scaffoldBackgroundColor,
       clipBehavior: Clip.hardEdge,
       child: Stack(
         children: [
@@ -133,12 +134,14 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
             builder: (context, showScrollToBottom, _) {
               if (!showScrollToBottom) return const SizedBox.shrink();
               return Positioned(
-                right: 16,
+                left: 0,
+                right: 0,
                 bottom: 16,
-                child: FloatingActionButton.small(
-                  onPressed: widget.scrollBindings.onScrollToBottomPressed,
-                  tooltip: '滚动到底部',
-                  child: const Icon(Icons.arrow_downward_rounded),
+                child: Center(
+                  child: AppScrollToLatestButton(
+                    onPressed: widget.scrollBindings.onScrollToBottomPressed,
+                    tooltip: '滚动到底部',
+                  ),
                 ),
               );
             },

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:oh_my_llm/core/constants/app_animations.dart';
+import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 import 'package:oh_my_llm/core/llm/llm_reasoning_effort.dart';
 
 import '../composer_helpers.dart';
@@ -24,7 +25,7 @@ class ComposerEffortPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final isActive = supportsReasoning && reasoningEnabled;
     final labelColor = isActive
-        ? theme.colorScheme.onPrimaryContainer
+        ? theme.colorScheme.primary
         : theme.colorScheme.onSurfaceVariant;
 
     return PopupMenuButton<ReasoningEffort>(
@@ -40,7 +41,9 @@ class ComposerEffortPill extends StatelessWidget {
           .toList(growable: false),
       child: AnimatedContainer(
         duration: AppAnimations.quickTransition,
-        decoration: BoxDecoration(borderRadius: BorderRadius.circular(4)),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(AppRadii.sm),
+        ),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         child: Row(
           mainAxisSize: MainAxisSize.min,

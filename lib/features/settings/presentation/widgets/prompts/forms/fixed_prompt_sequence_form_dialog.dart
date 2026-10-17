@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_text_field.dart';
+import 'package:oh_my_llm/core/theme/app_ui_colors.dart';
 import 'package:oh_my_llm/core/widgets/app_dropdown_field.dart';
 import 'package:oh_my_llm/core/widgets/long_text_editing_controller.dart';
 
@@ -248,12 +250,12 @@ class _FixedPromptSequenceFormDialogState
               icon: const Icon(Icons.add_comment_outlined),
               label: const Text('新增步骤'),
             ),
-            IconButton.outlined(
+            IconButton(
               onPressed: _canMoveSelectedUp() ? () => _moveSelected(-1) : null,
               icon: const Icon(Icons.arrow_upward_rounded),
               tooltip: '上移',
             ),
-            IconButton.outlined(
+            IconButton(
               onPressed: _canMoveSelectedDown() ? () => _moveSelected(1) : null,
               icon: const Icon(Icons.arrow_downward_rounded),
               tooltip: '下移',
@@ -270,7 +272,7 @@ class _FixedPromptSequenceFormDialogState
       return const Text('请先选择左侧步骤。');
     }
 
-    final contentField = TextField(
+    final contentField = AppTextField(
       key: const ValueKey('fixed-step-content-field'), // test-key
       controller: selected.contentController,
       minLines: isWide ? null : 8,
@@ -286,7 +288,7 @@ class _FixedPromptSequenceFormDialogState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        TextFormField(
+        AppTextField.form(
           key: const ValueKey('fixed-step-title-field'), // test-key
           controller: selected.titleController,
           decoration: const InputDecoration(
@@ -310,7 +312,7 @@ class _FixedPromptSequenceFormDialogState
   }
 
   Widget _buildNameField() {
-    return TextFormField(
+    return AppTextField.form(
       key: const ValueKey('fixed-prompt-sequence-name-field'), // test-key
       controller: _nameController,
       decoration: const InputDecoration(
@@ -444,11 +446,10 @@ class _FixedPromptStepListTile extends StatelessWidget {
       animation: step.titleController,
       builder: (context, child) {
         final theme = Theme.of(context);
-        final colorScheme = theme.colorScheme;
 
         return Material(
           color: isSelected
-              ? colorScheme.secondaryContainer
+              ? Theme.of(context).uiColors.selection
               : Colors.transparent,
           child: InkWell(
             onTap: onTap,

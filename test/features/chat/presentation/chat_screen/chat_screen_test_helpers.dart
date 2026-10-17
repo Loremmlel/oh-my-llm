@@ -148,7 +148,7 @@ final chatModelSelectorFinder = find.descendant(
 /// 在聊天输入框中填入内容并点击发送按钮。
 Future<void> sendMessage(WidgetTester tester, String content) async {
   await tester.enterText(chatMessageComposerFinder, content);
-  final sendButton = find.widgetWithText(FilledButton, '发送');
+  final sendButton = find.byTooltip('发送');
   await tester.ensureVisible(sendButton);
   await tester.tap(sendButton);
   await tester.pump();

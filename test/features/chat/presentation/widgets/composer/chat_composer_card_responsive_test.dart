@@ -126,12 +126,17 @@ void main() {
     await pumpButton(streaming: false);
     expect(
       tester
-          .widget<FilledButton>(find.widgetWithText(FilledButton, '发送'))
+          .widget<IconButton>(
+            find.ancestor(
+              of: find.byTooltip('发送'),
+              matching: find.byType(IconButton),
+            ),
+          )
           .onPressed,
       isNull,
     );
     await pumpButton(streaming: true);
-    await tester.tap(find.widgetWithText(FilledButton, '终止回答'));
+    await tester.tap(find.byTooltip('终止回答'));
     expect(stopped, isTrue);
   });
 
@@ -162,12 +167,9 @@ void main() {
     await tester.tap(find.widgetWithText(ThinkingToggle, '深度思考').last);
     await tester.pump();
     expect(find.text('思考强度'), findsOneWidget);
-    expect(
-      find.widgetWithText(ChoiceChip, effortLabel(ReasoningEffort.low)),
-      findsOneWidget,
-    );
+    expect(find.text(effortLabel(ReasoningEffort.low)), findsOneWidget);
     expect(tester.takeException(), isNull);
-    final filter = find.widgetWithText(OutlinedButton, '上下文过滤');
+    final filter = find.widgetWithText(ListTile, '上下文过滤');
     await tester.ensureVisible(filter);
     await tester.tap(filter);
     await settleOverlayTransition(tester);

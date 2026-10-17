@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:oh_my_llm/core/widgets/app_text_field.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
@@ -145,10 +147,10 @@ void main() {
     );
     await tester.tap(find.text('编辑'));
     await settleOverlayTransition(tester);
-    final name = find.widgetWithText(TextField, '文档名');
-    final body = find.widgetWithText(TextField, '正文');
+    final name = find.widgetWithText(AppTextField, '文档名');
+    final body = find.widgetWithText(AppTextField, '正文');
     expect(
-      tester.widget<TextField>(body).controller!.text,
+      tester.widget<AppTextField>(body).controller!.text,
       List.filled(100, '校园设定').join('\n'),
     );
     await tester.tap(find.text('取消'));

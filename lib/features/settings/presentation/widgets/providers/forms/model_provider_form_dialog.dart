@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_text_field.dart';
 import 'package:oh_my_llm/core/widgets/app_dropdown_field.dart';
 
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
@@ -81,7 +82,7 @@ class _ModelProviderFormDialogState extends State<ModelProviderFormDialog>
           AppFieldGroup(
             fieldWidth: 254,
             children: [
-              TextFormField(
+              AppTextField.form(
                 key: const ValueKey('model-provider-name-field'), // test-key
                 controller: _nameController,
                 decoration: const InputDecoration(
@@ -120,7 +121,7 @@ class _ModelProviderFormDialogState extends State<ModelProviderFormDialog>
             ],
           ),
           const SizedBox(height: 12),
-          TextFormField(
+          AppTextField.form(
             key: const ValueKey('model-provider-api-url-field'), // test-key
             controller: _apiUrlController,
             decoration: const InputDecoration(
@@ -131,7 +132,7 @@ class _ModelProviderFormDialogState extends State<ModelProviderFormDialog>
             validator: _validateUrl,
           ),
           const SizedBox(height: 12),
-          TextFormField(
+          AppTextField.form(
             key: const ValueKey('model-provider-api-key-field'), // test-key
             controller: _apiKeyController,
             decoration: const InputDecoration(labelText: 'API Key'),

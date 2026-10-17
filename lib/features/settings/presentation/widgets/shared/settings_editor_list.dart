@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/theme/app_ui_colors.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 
 /// 世界书与预设编辑共用条目工具栏、列表间距和滚动区域。
@@ -33,12 +34,12 @@ class SettingsEditorList extends StatelessWidget {
             icon: const Icon(Icons.add),
             label: const Text('新增条目'),
           ),
-          IconButton.outlined(
+          IconButton(
             onPressed: onMoveUp,
             icon: const Icon(Icons.arrow_upward_rounded),
             tooltip: '上移',
           ),
-          IconButton.outlined(
+          IconButton(
             onPressed: onMoveDown,
             icon: const Icon(Icons.arrow_downward_rounded),
             tooltip: '下移',
@@ -80,7 +81,9 @@ class SettingsEditorListTile extends StatelessWidget {
     return Semantics(
       selected: selected,
       child: Material(
-        color: selected ? colors.secondaryContainer : Colors.transparent,
+        color: selected
+            ? Theme.of(context).uiColors.selection
+            : Colors.transparent,
         shape: BorderDirectional(
           start: BorderSide(
             color: selected ? colors.primary : Colors.transparent,

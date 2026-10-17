@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_text_field.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -24,15 +25,18 @@ void main() {
     await pumpTestApp(tester, preferences: preferences, router: router);
     await tester.tap(find.text('新增世界书'));
     await settleRouteTransition(tester);
-    await tester.enterText(find.widgetWithText(TextFormField, '世界书名称'), '群岛');
+    await tester.enterText(find.widgetWithText(AppTextField, '世界书名称'), '群岛');
     await tester.tap(find.text('新增条目'));
     await tester.pump();
-    await tester.enterText(find.widgetWithText(TextFormField, '标题'), '世界');
-    await tester.enterText(find.widgetWithText(TextField, '正文'), '城市之间由帆船联系。');
+    await tester.enterText(find.widgetWithText(AppTextField, '标题'), '世界');
+    await tester.enterText(
+      find.widgetWithText(AppTextField, '正文'),
+      '城市之间由帆船联系。',
+    );
     await tester.tap(find.text('新增条目'));
     await tester.pump();
-    await tester.enterText(find.widgetWithText(TextFormField, '标题'), '人物');
-    await tester.enterText(find.widgetWithText(TextField, '正文'), '人物设定');
+    await tester.enterText(find.widgetWithText(AppTextField, '标题'), '人物');
+    await tester.enterText(find.widgetWithText(AppTextField, '正文'), '人物设定');
     await tester.tap(find.text('启用条目'));
     await tester.tap(find.byTooltip('上移'));
     await tester.pump();
@@ -50,7 +54,9 @@ void main() {
     expect(find.text('人物设定'), findsOneWidget);
     await tester.tap(find.text('取消'));
     await settleRouteTransition(tester);
-    await tester.tap(find.byTooltip('删除 群岛'));
+    await tester.tap(find.byTooltip('世界书操作'));
+    await settleOverlayTransition(tester);
+    await tester.tap(find.text('删除 群岛'));
     await settleOverlayTransition(tester);
     expect(find.textContaining('已有聊天记录保留'), findsOneWidget);
     await tester.tap(find.text('删除'));
@@ -95,7 +101,7 @@ void main() {
     );
     await tester.tap(find.text('编辑'));
     await settleRouteTransition(tester);
-    await tester.enterText(find.widgetWithText(TextField, '正文'), '修改正文');
+    await tester.enterText(find.widgetWithText(AppTextField, '正文'), '修改正文');
     await tester.tap(find.text('保存'));
     await tester.pump();
     expect(find.textContaining('保存失败测试'), findsOneWidget);

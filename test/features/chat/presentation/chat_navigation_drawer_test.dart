@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_dropdown_field.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -155,9 +156,7 @@ void main() {
     await tester.tap(find.text('预设'));
     await tester.pump();
     await tester.tap(
-      find
-          .widgetWithText(DropdownButtonFormField<String>, '预设 Prompt')
-          .hitTestable(),
+      find.widgetWithText(AppDropdownField<String>, '预设 Prompt').hitTestable(),
     );
     await settleOverlayTransition(tester);
     await tester.tap(find.text('写作规则').last);
@@ -182,7 +181,7 @@ void main() {
     await tester.tap(find.text('关闭'));
     await settleOverlayTransition(tester);
     await tester.tap(
-      find.widgetWithText(DropdownButtonFormField<String>, '世界书').hitTestable(),
+      find.widgetWithText(AppDropdownField<String>, '世界书').hitTestable(),
     );
     await settleOverlayTransition(tester);
     await tester.tap(find.text('群岛世界书').last);
@@ -191,7 +190,7 @@ void main() {
       container.read(activeChatConversationProvider).selectedWorldBookId,
       book.id,
     );
-    await tester.tap(find.byType(Switch).at(1));
+    await tester.tap(find.byType(Checkbox).at(1));
     await tester.pump();
     expect(
       container.read(presetPromptsProvider).single.messages.first.enabled,

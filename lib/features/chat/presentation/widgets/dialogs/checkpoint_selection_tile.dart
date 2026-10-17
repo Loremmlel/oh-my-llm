@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/theme/app_ui_colors.dart';
 
 import '../../../domain/models/chat_checkpoint.dart';
 
@@ -30,7 +31,7 @@ class CheckpointSelectionTile extends StatelessWidget {
 
     return Material(
       color: selected
-          ? colorScheme.primaryContainer.withValues(alpha: 0.72)
+          ? Theme.of(context).uiColors.selection
           : Colors.transparent,
       child: InkWell(
         onTap: onFocus,
@@ -58,7 +59,7 @@ class CheckpointSelectionTile extends StatelessWidget {
                             style: theme.textTheme.titleMedium,
                           ),
                         ),
-                        FilledButton.tonal(
+                        OutlinedButton(
                           onPressed: onApply,
                           style: FilledButton.styleFrom(
                             visualDensity: VisualDensity.compact,

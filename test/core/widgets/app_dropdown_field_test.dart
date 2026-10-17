@@ -6,6 +6,49 @@ import 'package:oh_my_llm/core/widgets/app_field_group.dart';
 import '../../helpers/async/widget_test_animation.dart';
 
 void main() {
+  testWidgets('统一下拉箭头仍保留字段帮助与选项选择入口', (tester) async {
+    var helpOpened = false;
+    String? selected;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: AppDropdownField<String>(
+              initialValue: 'first',
+              decoration: InputDecoration(
+                labelText: '项目',
+                suffixIcon: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      tooltip: '项目说明',
+                      onPressed: () => helpOpened = true,
+                      icon: const Icon(Icons.help_outline),
+                    ),
+                    const Icon(Icons.expand_more),
+                  ],
+                ),
+              ),
+              items: const [
+                DropdownMenuItem(value: 'first', child: Text('第一个')),
+                DropdownMenuItem(value: 'second', child: Text('第二个')),
+              ],
+              onChanged: (value) => selected = value,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.byTooltip('项目说明'));
+    expect(helpOpened, isTrue);
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await settleOverlayTransition(tester);
+    await tester.tap(find.text('第二个').last);
+    await settleOverlayTransition(tester);
+    expect(selected, 'second');
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('窄容器大字号选择后无需父级重建即可更新提示并保留校验', (tester) async {
     final formKey = GlobalKey<FormState>();
     String? selected;

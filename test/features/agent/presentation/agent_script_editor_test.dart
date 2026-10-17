@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_text_field.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
@@ -36,7 +37,7 @@ void main() {
     expect(find.textContaining(agentScriptExample), findsOneWidget);
     await tester.tap(find.text('关闭'));
     await settleOverlayTransition(tester);
-    final body = find.widgetWithText(TextField, '正文');
+    final body = find.widgetWithText(AppTextField, '正文');
     await tester.enterText(body, '保留这份未写完的剧本');
     await tester.tap(find.text('保存'));
     await tester.pump();

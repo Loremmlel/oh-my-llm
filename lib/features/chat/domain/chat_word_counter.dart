@@ -6,16 +6,18 @@
 /// - 标点、空格、数字、其他字符不计
 class StreamingChatWordCounter {
   int _count = 0;
-  int _processedLength = 0;
+  String _previousText = '';
   bool _inEnglishWord = false;
 
   int get count => _count;
 
   void update(String fullText) {
-    if (fullText.length < _processedLength) {
+    if (fullText == _previousText) return;
+    // 完整文本可能被替换，只有前缀追加才能复用计数与英文单词状态。
+    if (!fullText.startsWith(_previousText)) {
       reset();
     }
-    for (var i = _processedLength; i < fullText.length; i += 1) {
+    for (var i = _previousText.length; i < fullText.length; i += 1) {
       final c = fullText[i];
       if (isCjkCharacter(c)) {
         _count += 1;
@@ -29,12 +31,12 @@ class StreamingChatWordCounter {
         _inEnglishWord = false;
       }
     }
-    _processedLength = fullText.length;
+    _previousText = fullText;
   }
 
   void reset() {
     _count = 0;
-    _processedLength = 0;
+    _previousText = '';
     _inEnglishWord = false;
   }
 }

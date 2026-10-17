@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_text_field.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -98,7 +99,7 @@ class _FavoriteDetailScreenState extends ConsumerState<FavoriteDetailScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // ── 来源对话主操作 ────────────────────────────────────────
-                FilledButton.tonalIcon(
+                OutlinedButton.icon(
                   onPressed: hasSource
                       ? () => _goToConversation(context, favorite)
                       : null,
@@ -171,7 +172,7 @@ class _FavoriteDetailScreenState extends ConsumerState<FavoriteDetailScreen> {
             onSubmit: submit,
             child: AlertDialog(
               title: const Text('重命名收藏'),
-              content: TextField(
+              content: AppTextField(
                 controller: controller,
                 autofocus: true,
                 textInputAction: TextInputAction.done,

@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/theme/app_ui_colors.dart';
 
 import '../../utils/id_generator.dart';
 
@@ -30,14 +31,12 @@ enum NotificationBubbleType {
   /// 类型对应的装饰色。
   ///
   /// 暗黑模式下自动降低饱和度以保证可读性。
-  Color iconColor(ColorScheme cs) {
-    final isDark = cs.brightness == Brightness.dark;
+  Color iconColor(ThemeData theme) {
+    final cs = theme.colorScheme;
     return switch (this) {
       NotificationBubbleType.info => cs.primary,
-      NotificationBubbleType.success =>
-        isDark ? const Color(0xFF66BB6A) : const Color(0xFF43A047),
-      NotificationBubbleType.warning =>
-        isDark ? const Color(0xFFFFCA28) : const Color(0xFFEF6C00),
+      NotificationBubbleType.success => cs.primary,
+      NotificationBubbleType.warning => theme.uiColors.warning,
       NotificationBubbleType.error => cs.error,
     };
   }

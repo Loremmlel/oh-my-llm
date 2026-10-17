@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/theme/app_ui_colors.dart';
+import 'package:oh_my_llm/core/widgets/app_text_field.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 import 'package:oh_my_llm/core/widgets/app_side_drawer.dart';
@@ -75,7 +77,7 @@ class _AgentNavigationDrawerState extends ConsumerState<AgentNavigationDrawer> {
                       ),
                     ),
                   ),
-                TextField(
+                AppTextField(
                   controller: _search,
                   focusNode: _searchFocus,
                   onChanged: (_) => setState(() {}),
@@ -124,8 +126,8 @@ class _AgentNavigationDrawerState extends ConsumerState<AgentNavigationDrawer> {
                         color: Colors.transparent,
                         child: ListTile(
                           selectedTileColor: Theme.of(context)
-                              .colorScheme
-                              .primaryContainer,
+                              .uiColors
+                              .selection,
                           selected: entry.id == state.workspace?.id,
                           enabled: !state.busy,
                           title: Tooltip(

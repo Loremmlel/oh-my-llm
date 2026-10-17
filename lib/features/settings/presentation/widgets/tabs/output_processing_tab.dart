@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_text_field.dart';
 import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 import 'package:oh_my_llm/core/widgets/dialogs/app_confirm_dialog.dart';
@@ -227,7 +228,10 @@ class _RuleTile extends StatelessWidget {
                 children: [
                   Tooltip(
                     message: rule.enabled ? '已启用' : '已停用',
-                    child: Switch(value: rule.enabled, onChanged: onToggle),
+                    child: Checkbox(
+                      value: rule.enabled,
+                      onChanged: (value) => onToggle(value!),
+                    ),
                   ),
                   IconButton(
                     onPressed: onMoveUp,
@@ -356,7 +360,7 @@ class _RuleFormDialogState extends State<_RuleFormDialog> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(
+              AppTextField(
                 controller: _titleController,
                 decoration: const InputDecoration(
                   labelText: '标题',
@@ -364,7 +368,7 @@ class _RuleFormDialogState extends State<_RuleFormDialog> {
                 ),
               ),
               const SizedBox(height: 12),
-              TextField(
+              AppTextField(
                 controller: _patternController,
                 decoration: InputDecoration(
                   labelText: '正则表达式',
@@ -380,7 +384,7 @@ class _RuleFormDialogState extends State<_RuleFormDialog> {
                 },
               ),
               const SizedBox(height: 12),
-              TextField(
+              AppTextField(
                 controller: _replacementController,
                 decoration: const InputDecoration(labelText: '替换字（留空表示删除匹配）'),
               ),

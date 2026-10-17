@@ -36,6 +36,16 @@ void main() {
   // ── StreamingChatWordCounter ──────────────────────────────────
 
   group('StreamingChatWordCounter', () {
+    for (final (replacement, expected) in [('abc', 1), ('abc def', 2)]) {
+      test('替换为非前缀文本 "$replacement" 后重新计数，后续追加继续累计', () {
+        final counter = StreamingChatWordCounter()..update('甲乙丙');
+        counter.update(replacement);
+        expect(counter.count, expected);
+        counter.update('$replacement中文');
+        expect(counter.count, expected + 2);
+      });
+    }
+
     test('增量 update 结果与一次性 update 一致', () {
       const fullText = '你好 hello 世界！这是 test 123。';
       final batch = countChatWords(fullText);
@@ -82,7 +92,7 @@ void main() {
       counter.update('你好');
       expect(counter.count, 2);
 
-      // 空串长度 0 < _processedLength → reset
+      // 清空内容后不保留旧文本的计数。
       counter.update('');
       expect(counter.count, 0);
     });

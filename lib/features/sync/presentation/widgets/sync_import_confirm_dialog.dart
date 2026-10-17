@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 
 import 'package:oh_my_llm/core/widgets/transfer_summary_list.dart';
 import 'package:oh_my_llm/core/widgets/dialogs/app_dialog_actions.dart';
@@ -76,7 +77,7 @@ class _SyncImportConfirmDialogState
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: Theme.of(context).colorScheme.errorContainer,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(AppRadii.sm),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

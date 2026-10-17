@@ -60,7 +60,7 @@ void main() {
           )
           .position;
       expect(position.extentBefore, 0, reason: '打开执行流不自动跳到末尾');
-      await tester.tap(find.text('回到最新'));
+      await tester.tap(find.byTooltip('回到最新'));
       await tester.pump();
       final collapsedOffset = position.pixels;
       await tester.tap(find.textContaining('read_document'));
@@ -72,7 +72,7 @@ void main() {
       await tester.pump();
       await tester.pump();
       expect(position.pixels, closeTo(collapsedOffset, 0.01));
-      await tester.tap(find.text('回到最新'));
+      await tester.tap(find.byTooltip('回到最新'));
       await tester.pump();
       await tester.pump();
       expect(position.extentAfter, closeTo(0, 0.01));
@@ -102,7 +102,7 @@ void main() {
       await drag?.up();
       await tester.pump();
       expect(refreshedOffset, closeTo(readingOffset, 0.01));
-      expect(find.text('回到最新'), findsOneWidget);
+      expect(find.byTooltip('回到最新'), findsOneWidget);
 
       if (mouse) {
         await tester.sendEventToBinding(
@@ -112,19 +112,19 @@ void main() {
           ),
         );
       } else {
-        await tester.tap(find.text('回到最新'));
+        await tester.tap(find.byTooltip('回到最新'));
       }
       await tester.pump();
       await tester.pump();
       expect(position.extentAfter, closeTo(0, 0.01));
-      expect(find.text('回到最新'), findsNothing);
+      expect(find.byTooltip('回到最新'), findsNothing);
       final latestOffset = position.pixels;
       record.value = _runningRecord(extraLines: 30);
       await tester.pump();
       await tester.pump();
       expect(position.pixels, closeTo(latestOffset, 0.01));
       expect(position.extentAfter, greaterThan(0));
-      expect(find.text('回到最新'), findsOneWidget);
+      expect(find.byTooltip('回到最新'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   }

@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_text_field.dart';
 
 import 'package:oh_my_llm/features/settings/domain/models/prompts/template_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/template_prompt_language/template_prompt_evaluator.dart';
@@ -59,7 +60,7 @@ class ComposerTemplateVariableFields extends StatelessWidget {
                   ),
                   TemplatePromptVariableType.text => SizedBox(
                     width: itemWidth,
-                    child: TextField(
+                    child: AppTextField(
                       key: ValueKey('template-variable-${variable.name}'),
                       controller: templateVariableControllers[variable.name]!,
                       decoration: InputDecoration(

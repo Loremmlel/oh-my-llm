@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_text_field.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../application/preferences/custom_headers_controller.dart';
@@ -66,7 +67,7 @@ class _HeaderFormDialogState extends ConsumerState<HeaderFormDialog>
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          TextFormField(
+          AppTextField.form(
             controller: _keyController,
             decoration: const InputDecoration(
               labelText: '请求头键',
@@ -77,7 +78,7 @@ class _HeaderFormDialogState extends ConsumerState<HeaderFormDialog>
             validator: validateRequired,
           ),
           const SizedBox(height: 16),
-          TextFormField(
+          AppTextField.form(
             controller: _valueController,
             decoration: const InputDecoration(
               labelText: '请求头值',

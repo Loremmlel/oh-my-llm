@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 
 import 'package:oh_my_llm/features/media/application/media_resource_provider.dart';
 import 'package:oh_my_llm/features/media/application/models/media_resource_request.dart';
@@ -147,7 +148,7 @@ class _ImageViewerPageState extends State<ImageViewerPage>
                 ),
                 decoration: BoxDecoration(
                   color: Colors.black26,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(AppRadii.md),
                 ),
                 child: Text(
                   '${_currentIndex + 1} / ${widget.imageRequests.length}',

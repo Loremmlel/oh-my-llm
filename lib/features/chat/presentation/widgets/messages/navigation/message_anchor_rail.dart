@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:oh_my_llm/core/constants/app_animations.dart';
+import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 
 import '../../../../domain/models/chat_message.dart';
 
@@ -153,12 +154,15 @@ class _MessageAnchorRailState extends State<MessageAnchorRail> {
                 child: DecoratedBox(
                   key: const ValueKey('message-anchor-rail'), // test-key
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: theme.colorScheme.outlineVariant.withValues(
-                        alpha: 0.4,
-                      ),
-                    ),
+                    borderRadius: BorderRadius.circular(AppRadii.sm),
+                    color: _isExpanded ? theme.colorScheme.surface : null,
+                    border: _isExpanded
+                        ? Border.all(
+                            color: theme.colorScheme.outlineVariant.withValues(
+                              alpha: 0.4,
+                            ),
+                          )
+                        : null,
                   ),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
@@ -194,7 +198,7 @@ class _MessageAnchorRailState extends State<MessageAnchorRail> {
                                 : '第 ${index + 1} 条用户消息：$previewText',
                             child: InkWell(
                               key: ValueKey('message-anchor-item-${index + 1}'),
-                              borderRadius: BorderRadius.circular(999),
+                              borderRadius: BorderRadius.circular(AppRadii.tag),
                               focusColor: theme.colorScheme.primary.withValues(
                                 alpha: 0.12,
                               ),

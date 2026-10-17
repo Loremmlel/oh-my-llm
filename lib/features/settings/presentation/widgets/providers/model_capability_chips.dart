@@ -20,30 +20,29 @@ class ModelCapabilityChips extends StatelessWidget {
   Widget build(BuildContext context) => Wrap(
     spacing: AppSpacing.sm,
     children: [
-      FilterChip(
-        label: const Text('深度思考'),
-        avatar: Icon(
-          supportsReasoning ? Icons.check : Icons.psychology_outlined,
-          size: 18,
-        ),
-        showCheckmark: false,
-        materialTapTargetSize: MaterialTapTargetSize.padded,
-        tooltip: '声明模型支持深度思考',
-        selected: supportsReasoning,
-        onSelected: onReasoningChanged,
-      ),
-      FilterChip(
-        label: const Text('图像'),
-        avatar: Icon(
-          supportsImageInput ? Icons.check : Icons.image_outlined,
-          size: 18,
-        ),
-        showCheckmark: false,
-        materialTapTargetSize: MaterialTapTargetSize.padded,
-        tooltip: '多模态：允许模型接收图像输入',
-        selected: supportsImageInput,
-        onSelected: onImageInputChanged,
-      ),
+      _option('深度思考', supportsReasoning, onReasoningChanged),
+      _option('图像', supportsImageInput, onImageInputChanged),
     ],
   );
+
+  Widget _option(String label, bool value, ValueChanged<bool>? onChanged) =>
+      InkWell(
+        onTap: onChanged == null ? null : () => onChanged(!value),
+        // 原生复选框独占键盘与语义，外层只扩大指针命中区。
+        canRequestFocus: false,
+        excludeFromSemantics: true,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Checkbox(
+              value: value,
+              semanticLabel: label,
+              onChanged: onChanged == null
+                  ? null
+                  : (value) => onChanged(value!),
+            ),
+            ExcludeSemantics(child: Text(label)),
+          ],
+        ),
+      );
 }

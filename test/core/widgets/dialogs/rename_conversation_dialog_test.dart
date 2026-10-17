@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_text_field.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/core/widgets/dialogs/rename_conversation_dialog.dart';
 
@@ -27,7 +28,10 @@ void main() {
     );
     await tester.tap(find.text('打开重命名'));
     await settleOverlayTransition(tester);
-    await tester.enterText(find.widgetWithText(TextField, '会话标题'), '  新标题  ');
+    await tester.enterText(
+      find.widgetWithText(AppTextField, '会话标题'),
+      '  新标题  ',
+    );
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await settleOverlayTransition(tester);
     expect(result, '新标题');

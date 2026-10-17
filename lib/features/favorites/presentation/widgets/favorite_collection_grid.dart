@@ -113,7 +113,7 @@ class _FavoriteCollectionGridState extends State<FavoriteCollectionGrid> {
           AppInteractionSizes.minimumHitTarget +
           textHeight(
             summary.collection.name,
-            textTheme.titleMedium,
+            textTheme.titleLarge,
             maxLines: 2,
           ) +
           (summary.collection.isSystem

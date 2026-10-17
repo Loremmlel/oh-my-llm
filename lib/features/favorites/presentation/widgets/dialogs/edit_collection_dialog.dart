@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_text_field.dart';
 
 import 'package:oh_my_llm/core/constants/app_reserved_entities.dart';
 import 'package:oh_my_llm/core/widgets/dialogs/app_dialog_actions.dart';
@@ -65,7 +66,7 @@ class _EditCollectionDialogState extends State<EditCollectionDialog> {
   Widget build(BuildContext context) {
     final dialog = AlertDialog(
       title: Text(_title),
-      content: TextField(
+      content: AppTextField(
         controller: _controller,
         autofocus: true,
         textInputAction: TextInputAction.done,

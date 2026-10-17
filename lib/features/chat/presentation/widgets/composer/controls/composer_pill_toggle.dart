@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:oh_my_llm/core/constants/app_animations.dart';
+import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 
 /// 聊天工具栏的轻量切换按钮。
 ///
@@ -27,11 +28,8 @@ class ComposerPillToggle extends StatelessWidget {
     // 禁用视觉、Semantics enabled/action 与 InkWell onTap 必须同源，
     // 禁止出现视觉可用但实际是 no-op 的可聚焦 InkWell。
     final isInteractive = enabled && onChanged != null;
-    final backgroundColor = isInteractive && value
-        ? theme.colorScheme.primaryContainer
-        : Colors.transparent;
     final labelColor = isInteractive && value
-        ? theme.colorScheme.onPrimaryContainer
+        ? theme.colorScheme.primary
         : theme.colorScheme.onSurfaceVariant;
     final iconColor = isInteractive && value
         ? theme.colorScheme.primary
@@ -40,13 +38,12 @@ class ComposerPillToggle extends StatelessWidget {
     return AnimatedContainer(
       duration: AppAnimations.quickTransition,
       decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(AppRadii.sm),
       ),
-      // InkWell 挂在 Material 上以正确显示水波纹；clipBehavior 限定在圆角内
+      // Material 承载 hover 与焦点反馈，裁剪保持控件圆角边界。
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(AppRadii.sm),
         clipBehavior: Clip.antiAlias,
         child: Semantics(
           label: label,

@@ -74,7 +74,7 @@ Future<void> _pumpShell(
 }
 
 void main() {
-  const navigationViewports = [phonePortrait, wideDesktop];
+  const navigationViewports = [phonePortrait, desktop, wideDesktop];
   const drawerViewports = [phonePortrait];
 
   for (final viewport in navigationViewports) {
@@ -92,10 +92,12 @@ void main() {
         await tester.tap(
           find.descendant(of: find.byType(NavigationBar), matching: navLabel),
         );
-      } else {
+      } else if (viewport == wideDesktop) {
         await tester.tap(
           find.descendant(of: find.byType(ListTile), matching: navLabel),
         );
+      } else {
+        await tester.tap(find.byTooltip(target.label));
       }
       await settleRouteTransition(tester);
 
@@ -148,6 +150,29 @@ void main() {
       expect(find.text('侧边内容'), findsNothing);
     });
   }
+
+  testWidgets('短视口侧栏可滚动到主入口，设置与同步保持可达', (tester) async {
+    await _pumpShell(
+      tester,
+      destination: AppDestination.chat,
+      size: const Size(900, 300),
+    );
+    expect(tester.takeException(), isNull);
+
+    await tester.ensureVisible(find.byTooltip('收藏'));
+    await tester.tap(find.byTooltip('收藏'));
+    await settleRouteTransition(tester);
+    expect(find.text('收藏页面'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('同步'));
+    await settleRouteTransition(tester);
+    expect(find.text('同步页面'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('设置'));
+    await settleRouteTransition(tester);
+    expect(find.text('设置页面'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('系统返回将非对话顶层目的地退回对话', (tester) async {
     final router = _shellRouter(initialLocation: AppDestination.settings.path);
@@ -217,13 +242,11 @@ void main() {
     expect(find.text('固定动作'), findsOneWidget);
     expect(find.text('宽侧动作'), findsOneWidget);
     expect(find.text('紧凑动作'), findsNothing);
-    expect(find.byType(NavigationRail), findsOneWidget);
-    await tester.tap(
-      find.descendant(
-        of: find.byType(NavigationRail),
-        matching: find.text(AppDestination.history.label),
-      ),
+    expect(
+      find.byTooltip(AppDestination.history.label).hitTestable(),
+      findsOneWidget,
     );
+    await tester.tap(find.byTooltip(AppDestination.history.label));
     await settleRouteTransition(tester);
     expect(find.text('${AppDestination.history.label}页面'), findsOneWidget);
     expect(tester.takeException(), isNull);

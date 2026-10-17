@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:oh_my_llm/core/widgets/app_text_field.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -69,7 +71,7 @@ void main() {
   /// 在模型对话框内按可见 label 定位表单输入框。
   Finder modelField(String label) => find.descendant(
     of: find.byType(ModelConfigFormDialog),
-    matching: find.widgetWithText(TextFormField, label),
+    matching: find.widgetWithText(AppTextField, label),
   );
 
   /// 按远端模型名定位所属行的选择框；模型名唯一标识该行。
@@ -82,7 +84,9 @@ void main() {
 
   Finder modelReasoningCheckbox(String remoteModelId) => find.descendant(
     of: modelRow(remoteModelId),
-    matching: find.widgetWithText(FilterChip, '深度思考'),
+    matching: find.byWidgetPredicate(
+      (widget) => widget is Checkbox && widget.semanticLabel == '深度思考',
+    ),
   );
 
   Finder modelDisplayNameField(String remoteModelId) => find.descendant(
@@ -94,7 +98,7 @@ void main() {
   Future<void> switchToFetchAndClickFetch(WidgetTester tester) async {
     await tester.tap(find.text('从 API 拉取'));
     await tester.pump();
-    await tester.tap(find.widgetWithText(FilledButton, '拉取模型'));
+    await tester.tap(find.widgetWithText(OutlinedButton, '拉取模型'));
     await tester.pump();
     expect(find.text('正在拉取...'), findsOneWidget);
   }
@@ -304,8 +308,8 @@ void main() {
         );
         expect(
           tester
-              .widget<FilterChip>(modelReasoningCheckbox('existing-model'))
-              .onSelected,
+              .widget<Checkbox>(modelReasoningCheckbox('existing-model'))
+              .onChanged,
           isNull,
         );
 
@@ -317,7 +321,9 @@ void main() {
         await tester.tap(
           find.descendant(
             of: modelRow('reasoning-model'),
-            matching: find.widgetWithText(FilterChip, '图像'),
+            matching: find.byWidgetPredicate(
+              (widget) => widget is Checkbox && widget.semanticLabel == '图像',
+            ),
           ),
         );
         await tester.pump();
@@ -328,8 +334,8 @@ void main() {
         await tester.pump();
         expect(
           tester
-              .widget<FilterChip>(modelReasoningCheckbox('reasoning-model'))
-              .selected,
+              .widget<Checkbox>(modelReasoningCheckbox('reasoning-model'))
+              .value,
           isTrue,
         );
 

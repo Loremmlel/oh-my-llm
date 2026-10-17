@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 
 class ComposerSendButton extends StatelessWidget {
   const ComposerSendButton({
@@ -23,7 +24,8 @@ class ComposerSendButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isStopping = isStreaming || isAutoRetryWaiting;
-    return FilledButton.icon(
+    return IconButton.filled(
+      tooltip: isStopping ? '终止回答' : '发送',
       onPressed: isStopping
           ? () {
               onStopStreaming?.call();
@@ -33,19 +35,23 @@ class ComposerSendButton extends StatelessWidget {
           : () {
               onSendPressed?.call();
             },
-      style: FilledButton.styleFrom(
-        minimumSize: const Size(80, 48),
-        padding: const EdgeInsets.symmetric(horizontal: 14),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        backgroundColor: isStopping ? theme.colorScheme.error : null,
-        foregroundColor: isStopping ? theme.colorScheme.onError : null,
+      style: IconButton.styleFrom(
+        fixedSize: const Size.square(AppInteractionSizes.standardVisualControl),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadii.sm),
+        ),
+        tapTargetSize: MaterialTapTargetSize.padded,
+        backgroundColor: isStopping
+            ? theme.colorScheme.onSurface
+            : theme.colorScheme.primary,
+        foregroundColor: isStopping
+            ? theme.colorScheme.surface
+            : theme.colorScheme.onPrimary,
       ),
       icon: Icon(
         isStopping ? Icons.stop_rounded : Icons.arrow_upward_rounded,
         size: 18,
       ),
-      label: Text(isStopping ? '终止回答' : '发送'),
     );
   }
 }

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
+import 'package:oh_my_llm/core/widgets/app_text_field.dart';
 import 'package:flutter/services.dart';
 
 /// 紧凑的数字变量输入框，支持上下箭头 +1/-1。
@@ -52,7 +54,7 @@ class NumberVariableField extends StatelessWidget {
             color: theme.colorScheme.primary,
           ),
           Expanded(
-            child: TextField(
+            child: AppTextField(
               key: ValueKey('template-variable-$labelText'),
               controller: controller,
               keyboardType: const TextInputType.numberWithOptions(signed: true),
@@ -95,7 +97,7 @@ class _ArrowButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      borderRadius: BorderRadius.circular(4),
+      borderRadius: BorderRadius.circular(AppRadii.sm),
       onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.all(6),

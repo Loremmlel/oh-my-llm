@@ -120,7 +120,7 @@ class _FavoriteCollectionTileState extends State<FavoriteCollectionTile> {
                         isSystem
                             ? Icons.folder_special_outlined
                             : Icons.folder_outlined,
-                        color: theme.colorScheme.primary,
+                        color: theme.colorScheme.onSurfaceVariant,
                       ),
                       const Spacer(),
                       if (_hasMenu)
@@ -141,7 +141,7 @@ class _FavoriteCollectionTileState extends State<FavoriteCollectionTile> {
                     collection.name,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.titleMedium,
+                    style: theme.textTheme.titleLarge,
                   ),
                   if (isSystem)
                     Padding(

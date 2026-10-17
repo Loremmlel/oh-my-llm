@@ -32,6 +32,7 @@ class ChatNavigationDrawer extends ConsumerWidget {
               AppSpacing.sm,
             ),
             child: SegmentedButton<ChatSidebarFunction>(
+              showSelectedIcon: false,
               segments: const [
                 ButtonSegment(
                   value: ChatSidebarFunction.history,

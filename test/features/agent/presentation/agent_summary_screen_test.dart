@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:oh_my_llm/core/widgets/app_text_field.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -66,7 +68,7 @@ void main() {
     await settleOverlayTransition(tester);
     tester.view.viewInsets = const FakeViewPadding(bottom: 300);
     await tester.pump();
-    await tester.enterText(find.widgetWithText(TextField, '摘要'), '窗口内的摘要');
+    await tester.enterText(find.widgetWithText(AppTextField, '摘要'), '窗口内的摘要');
     await tester.pump();
     expect(tester.takeException(), isNull);
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);

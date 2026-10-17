@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_text_field.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/core/widgets/pagination/app_pagination_bar.dart';
@@ -32,7 +33,7 @@ Future<void> _pumpBar(
 
 /// 定位跳转输入框（label 为「页码」的 TextField）。
 Finder _jumpField() =>
-    find.ancestor(of: find.text('页码'), matching: find.byType(TextField));
+    find.ancestor(of: find.text('页码'), matching: find.byType(AppTextField));
 
 void main() {
   group('AppPaginationBar', () {
@@ -91,7 +92,7 @@ void main() {
         onPageSizeChanged: (size) => changedSize = size,
       );
 
-      await tester.tap(find.text('每页'), warnIfMissed: false);
+      await tester.tap(find.byType(DropdownButtonFormField<int>));
       await settleOverlayTransition(tester);
       await tester.tap(find.text('50'));
       await settleOverlayTransition(tester);

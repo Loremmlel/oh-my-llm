@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_text_field.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../navigation/app_destination.dart';
@@ -224,7 +225,7 @@ class _MediaRootDirectoryConfigurationState
   @override
   Widget build(BuildContext context) {
     final running = ref.watch(syncServerControllerProvider).isRunning;
-    return TextField(
+    return AppTextField(
       controller: _controller,
       readOnly: true,
       enabled: !running,

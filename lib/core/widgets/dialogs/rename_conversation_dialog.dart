@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_text_field.dart';
 
 import 'app_dialog_actions.dart';
 
@@ -49,7 +50,7 @@ class _RenameConversationDialogState extends State<RenameConversationDialog> {
       onSubmit: _submit,
       child: AlertDialog(
         title: Text(widget.title),
-        content: TextField(
+        content: AppTextField(
           controller: _titleController,
           decoration: InputDecoration(labelText: widget.labelText),
           autofocus: true,

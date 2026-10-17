@@ -38,7 +38,7 @@ class WorldBookSelector extends ConsumerWidget {
                 title: '世界书',
                 message: '在设置的“世界书”页签管理条目。当前选择仅用于本对话，启用条目按顺序全量注入，位于预设前置消息之后、对话内容之前。修改选择从下一次请求起生效。',
               ),
-              Icon(Icons.arrow_drop_down),
+              Icon(Icons.expand_more, size: 18),
             ],
           ),
         ),

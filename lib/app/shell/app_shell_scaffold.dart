@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:oh_my_llm/core/constants/app_identity.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
+import 'package:oh_my_llm/core/theme/app_ui_colors.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
@@ -116,25 +117,34 @@ class AppShellScaffold extends StatelessWidget {
           // barrier 点击或系统返回关闭。
           endDrawerEnableOpenDragGesture: false,
           bottomNavigationBar: isCompact
-              ? NavigationBar(
-                  height: 64,
-                  selectedIndex: currentDestination.index,
-                  onDestinationSelected: (index) {
-                    final destination = AppDestination.values[index];
-                    if (destination == currentDestination) {
-                      return;
-                    }
-
-                    context.go(destination.path);
-                  },
-                  destinations: [
-                    for (final destination in AppDestination.values)
-                      NavigationDestination(
-                        icon: Icon(destination.icon),
-                        selectedIcon: Icon(destination.selectedIcon),
-                        label: destination.label,
+              ? DecoratedBox(
+                  decoration: BoxDecoration(
+                    border: Border(
+                      top: BorderSide(
+                        color: Theme.of(context).colorScheme.outlineVariant,
                       ),
-                  ],
+                    ),
+                  ),
+                  child: NavigationBar(
+                    height: 60,
+                    selectedIndex: currentDestination.index,
+                    onDestinationSelected: (index) {
+                      final destination = AppDestination.values[index];
+                      if (destination == currentDestination) {
+                        return;
+                      }
+
+                      context.go(destination.path);
+                    },
+                    destinations: [
+                      for (final destination in AppDestination.values)
+                        NavigationDestination(
+                          icon: Icon(destination.icon),
+                          selectedIcon: Icon(destination.selectedIcon),
+                          label: destination.label,
+                        ),
+                    ],
+                  ),
                 )
               : null,
           body: Row(
@@ -197,109 +207,103 @@ class _DesktopNavigationRail extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    if (!spacious) {
-      return NavigationRail(
-        selectedIndex: currentDestination.index,
-        labelType: NavigationRailLabelType.all,
-        minWidth: 68,
-        onDestinationSelected: (index) {
-          final destination = AppDestination.values[index];
-          if (destination != currentDestination) context.go(destination.path);
-        },
-        destinations: [
-          for (final destination in AppDestination.values)
-            NavigationRailDestination(
-              icon: Icon(destination.icon),
-              selectedIcon: Icon(destination.selectedIcon),
-              label: Text(destination.label),
-            ),
-        ],
-      );
-    }
+    final primaryItems = [
+      for (final destination in AppDestination.values.where(
+        (destination) =>
+            destination != AppDestination.settings &&
+            destination != AppDestination.sync,
+      ))
+        _navigationItem(context, destination),
+    ];
 
     return SizedBox(
-      width: AppContentWidths.workspaceSidebar,
+      width: spacious ? AppContentWidths.workspaceSidebar : 68,
       child: Material(
         color: theme.colorScheme.surfaceContainer,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Padding(
-              padding: const EdgeInsets.all(AppSpacing.lg),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.baseline,
-                textBaseline: TextBaseline.alphabetic,
-                children: [
-                  Text(
-                    AppIdentity.displayName,
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontSize: 28,
-                      letterSpacing: 2,
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Flexible(
-                    child: Text(
-                      AppIdentity.latinName,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.labelLarge?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                        letterSpacing: 0.5,
+            if (spacious)
+              Padding(
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    Text(
+                      AppIdentity.displayName,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontSize: 28,
+                        letterSpacing: 2,
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-            for (final destination in AppDestination.values.where(
-              (destination) =>
-                  destination != AppDestination.settings &&
-                  destination != AppDestination.sync,
-            ))
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: ListTile(
-                  dense: true,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  selected: destination == currentDestination,
-                  selectedTileColor: theme.colorScheme.primaryContainer,
-                  leading: Icon(destination.icon),
-                  title: Text(destination.label),
-                  onTap: () {
-                    if (destination != currentDestination) {
-                      context.go(destination.path);
-                    }
-                  },
+                    const SizedBox(width: AppSpacing.sm),
+                    Flexible(
+                      child: Text(
+                        AppIdentity.latinName,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            if (auxiliary != null)
-              Expanded(child: auxiliary!)
+            if (spacious)
+              ...primaryItems
             else
-              const Spacer(),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.only(top: AppSpacing.sm),
+                  child: Column(children: primaryItems),
+                ),
+              ),
+            if (spacious)
+              if (auxiliary != null)
+                Expanded(child: auxiliary!)
+              else
+                const Spacer(),
             for (final destination in const [
               AppDestination.settings,
               AppDestination.sync,
             ])
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: ListTile(
-                  dense: true,
-                  selected: destination == currentDestination,
-                  selectedTileColor: theme.colorScheme.primaryContainer,
-                  leading: Icon(destination.icon),
-                  title: Text(destination.label),
-                  onTap: () {
-                    if (destination != currentDestination) {
-                      context.go(destination.path);
-                    }
-                  },
-                ),
-              ),
+              _navigationItem(context, destination),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _navigationItem(BuildContext context, AppDestination destination) {
+    final item = ListTile(
+      dense: true,
+      minTileHeight: 48,
+      contentPadding: spacious ? null : EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadii.sm),
+      ),
+      selected: destination == currentDestination,
+      selectedTileColor: Theme.of(context).uiColors.selection,
+      leading: spacious ? Icon(destination.icon, size: 22) : null,
+      title: spacious
+          ? Text(
+              destination.label,
+              style: TextStyle(
+                fontWeight: destination == currentDestination
+                    ? FontWeight.w600
+                    : FontWeight.w400,
+              ),
+            )
+          : Icon(destination.icon, size: 22),
+      onTap: () {
+        if (destination != currentDestination) context.go(destination.path);
+      },
+    );
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+      child: spacious ? item : Tooltip(message: destination.label, child: item),
     );
   }
 }

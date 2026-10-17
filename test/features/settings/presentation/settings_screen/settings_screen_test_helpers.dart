@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_text_field.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -185,14 +186,9 @@ Future<SharedPreferences> createDefaultsSeededPreferences(
 // 限定 dialog 祖先范围消除歧义；禁止全局「第 N 个 TextField」式定位。
 
 /// 在指定 dialog 内按可见 label 定位输入框。
-Finder fieldInDialog<T extends Widget>(
-  String label, {
-  bool wrapsText = false,
-}) => find.descendant(
+Finder fieldInDialog<T extends Widget>(String label) => find.descendant(
   of: find.byType(T),
-  matching: wrapsText
-      ? find.widgetWithText(TextField, label)
-      : find.widgetWithText(TextFormField, label),
+  matching: find.widgetWithText(AppTextField, label),
 );
 
 Finder providerNameField() => fieldInDialog<ModelProviderFormDialog>('服务商名称');
@@ -238,7 +234,7 @@ Finder presetPromptNameField() =>
 Finder presetPromptTitleField() => fieldInDialog<PresetPromptEditor>('标题');
 
 Finder presetPromptContentField() =>
-    fieldInDialog<PresetPromptEditor>('Prompt 内容', wrapsText: true);
+    fieldInDialog<PresetPromptEditor>('Prompt 内容');
 
 Finder fixedPromptSequenceNameField() =>
     fieldInDialog<FixedPromptSequenceFormDialog>('序列名称');
@@ -247,7 +243,7 @@ Finder fixedStepTitleField() =>
     fieldInDialog<FixedPromptSequenceFormDialog>('步骤标题');
 
 Finder fixedStepContentField() =>
-    fieldInDialog<FixedPromptSequenceFormDialog>('步骤内容', wrapsText: true);
+    fieldInDialog<FixedPromptSequenceFormDialog>('步骤内容');
 
 Finder templatePromptTitleField() =>
     fieldInDialog<TemplatePromptFormDialog>('标题');

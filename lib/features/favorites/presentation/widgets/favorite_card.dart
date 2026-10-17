@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 
 import 'package:oh_my_llm/core/utils/date_formatting.dart';
 import 'package:oh_my_llm/features/chat/presentation/widgets/messages/bubble/reasoning_panel.dart';
@@ -45,7 +46,7 @@ class FavoriteCard extends StatelessWidget {
               children: [
                 // 所属收藏夹入口：可点击跳转到对应收藏夹列表。
                 InkWell(
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: BorderRadius.circular(AppRadii.sm),
                   onTap: onCollectionTap,
                   child: Padding(
                     padding: const EdgeInsets.symmetric(

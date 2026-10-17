@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
+import 'package:oh_my_llm/core/theme/app_ui_colors.dart';
 
 import '../../../domain/chat_conversation_groups.dart';
 import 'grouped_conversation_list.dart';
@@ -43,33 +45,32 @@ class ConversationHistoryPanel extends StatelessWidget {
                     itemBuilder: (context, conversation) {
                       final theme = Theme.of(context);
                       return Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
+                        padding: EdgeInsets.zero,
                         // 背景与墨水在行内绘制，才会随条目一起受到列表视口裁剪。
                         child: Material(
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
+                            borderRadius: BorderRadius.circular(AppRadii.sm),
                           ),
                           clipBehavior: Clip.antiAlias,
                           color: conversation.id == activeConversationId
-                              ? theme.colorScheme.primaryContainer
-                              : theme.colorScheme.surfaceContainerLow,
+                              ? theme.uiColors.selection
+                              : Colors.transparent,
                           child: ListTile(
                             selected: conversation.id == activeConversationId,
                             title: Tooltip(
                               message: conversation.resolvedTitle,
                               child: Text(
                                 conversation.resolvedTitle,
-                                maxLines: conversation.hasCustomTitle ? 2 : 1,
+                                maxLines: 1,
+                                style: TextStyle(
+                                  fontWeight:
+                                      conversation.id == activeConversationId
+                                      ? FontWeight.w600
+                                      : FontWeight.w400,
+                                ),
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
-                            subtitle: conversation.hasCustomTitle
-                                ? null
-                                : Text(
-                                    conversation.previewText,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
                             onTap: () =>
                                 onConversationSelected(conversation.id),
                           ),

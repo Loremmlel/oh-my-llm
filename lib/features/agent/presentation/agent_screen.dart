@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_text_tab.dart';
 import 'package:oh_my_llm/core/widgets/long_text_editing_controller.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -288,7 +289,6 @@ class _AgentScreenState extends ConsumerState<AgentScreen> {
   }
 
   Widget _buildViewTabs() {
-    final colors = Theme.of(context).colorScheme;
     return Wrap(
       spacing: AppSpacing.xs,
       children: [
@@ -297,32 +297,11 @@ class _AgentScreenState extends ConsumerState<AgentScreen> {
           (_WorkspaceView.documents, '工作文档', '工作文档'),
           (_WorkspaceView.story, '剧情状态', '剧情状态与正文'),
         ])
-          Tooltip(
-            message: item.$3,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                border: Border(
-                  bottom: BorderSide(
-                    color: _view == item.$1
-                        ? colors.primary
-                        : Colors.transparent,
-                    width: 2,
-                  ),
-                ),
-              ),
-              child: TextButton(
-                onPressed: () => setState(() => _view = item.$1),
-                style: TextButton.styleFrom(
-                  foregroundColor: _view == item.$1
-                      ? colors.primary
-                      : colors.onSurfaceVariant,
-                ),
-                child: Semantics(
-                  selected: _view == item.$1,
-                  child: Text(item.$2),
-                ),
-              ),
-            ),
+          AppTextTab(
+            label: item.$2,
+            tooltip: item.$3,
+            selected: _view == item.$1,
+            onPressed: () => setState(() => _view = item.$1),
           ),
       ],
     );

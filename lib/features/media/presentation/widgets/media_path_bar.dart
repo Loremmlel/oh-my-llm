@@ -103,7 +103,7 @@ class _PathChip extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: BorderRadius.circular(AppRadii.sm),
           // 局部、主题派生的焦点反馈，不引入全局 theme token
           focusColor: theme.colorScheme.primary.withValues(alpha: 0.12),
           child: Container(

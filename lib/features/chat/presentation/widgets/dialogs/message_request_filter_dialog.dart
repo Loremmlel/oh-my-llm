@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
+import 'package:oh_my_llm/core/theme/app_ui_colors.dart';
 import 'package:oh_my_llm/core/widgets/app_help_button.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -195,7 +197,7 @@ class _MessageRequestFilterDialogState
           if (index == 0) {
             return Align(
               alignment: Alignment.centerLeft,
-              child: FilledButton.tonalIcon(
+              child: OutlinedButton.icon(
                 // 标记排除状态只影响下次请求上下文，不影响进行中的流。
                 onPressed: excludedCount == 0
                     ? null
@@ -210,7 +212,7 @@ class _MessageRequestFilterDialogState
           }
 
           final message = messages[index - 1];
-          return SwitchListTile.adaptive(
+          return CheckboxListTile(
             value: !excludedMessageIds.contains(message.id),
             contentPadding: const EdgeInsets.symmetric(horizontal: 8),
             title: Text(_messageTitle(message)),
@@ -222,7 +224,7 @@ class _MessageRequestFilterDialogState
             onChanged: (included) {
               _setMessagesExcluded(
                 messageIds: [message.id],
-                excluded: !included,
+                excluded: !included!,
               );
             },
           );
@@ -277,7 +279,7 @@ class _MessageRequestFilterDialogState
                         ],
                       ),
                     ),
-                    FilledButton.tonal(
+                    OutlinedButton(
                       onPressed: excludedCount == 0
                           ? null
                           : () => _setMessagesExcluded(
@@ -362,7 +364,7 @@ class _MessageRequestFilterDialogState
                             color: theme.colorScheme.errorContainer.withValues(
                               alpha: 0.72,
                             ),
-                            borderRadius: BorderRadius.circular(999),
+                            borderRadius: BorderRadius.circular(AppRadii.tag),
                           ),
                           child: Padding(
                             padding: const EdgeInsets.symmetric(
@@ -474,9 +476,7 @@ class _MessageFilterSelectionTile extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Material(
-      color: focused
-          ? theme.colorScheme.primaryContainer.withValues(alpha: 0.52)
-          : Colors.transparent,
+      color: focused ? theme.uiColors.selection : Colors.transparent,
       child: InkWell(
         onTap: onFocus,
         child: Padding(
@@ -502,7 +502,12 @@ class _MessageFilterSelectionTile extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              Switch(value: !excluded, onChanged: onChanged),
+              Checkbox(
+                value: !excluded,
+                onChanged: onChanged == null
+                    ? null
+                    : (value) => onChanged!(value!),
+              ),
             ],
           ),
         ),

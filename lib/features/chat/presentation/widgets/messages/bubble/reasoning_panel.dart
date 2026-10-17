@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import 'package:oh_my_llm/core/constants/app_animations.dart';
 
+import '../../../../domain/chat_word_counter.dart';
+
 import 'streaming_markdown_view.dart';
 
 /// 折叠式推理内容面板，用于展示模型的深度思考文本。
@@ -22,6 +24,19 @@ class ReasoningPanel extends StatefulWidget {
 /// 推理面板的展开状态。
 class _ReasoningPanelState extends State<ReasoningPanel> {
   bool _expanded = false;
+  final _counter = StreamingChatWordCounter();
+
+  @override
+  void initState() {
+    super.initState();
+    _counter.update(widget.content);
+  }
+
+  @override
+  void didUpdateWidget(ReasoningPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _counter.update(widget.content);
+  }
 
   /// 指针与屏幕阅读器共用的展开切换入口。
   void _toggleExpanded() {
@@ -81,7 +96,7 @@ class _ReasoningPanelState extends State<ReasoningPanel> {
                   const SizedBox(width: 8),
                   ExcludeSemantics(
                     child: Text(
-                      _expanded ? '收起' : '展开',
+                      '· ${_counter.count} 字',
                       style: theme.textTheme.labelSmall?.copyWith(
                         color: textColor,
                       ),
@@ -98,7 +113,39 @@ class _ReasoningPanelState extends State<ReasoningPanel> {
           child: _expanded
               ? Padding(
                   padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                  child: _buildReasoningMarkdown(),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      border: Border(
+                        left: BorderSide(
+                          color: theme.colorScheme.outlineVariant,
+                          width: 2,
+                        ),
+                      ),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: 12),
+                      child: Theme(
+                        data: theme.copyWith(
+                          textTheme: theme.textTheme
+                              .apply(bodyColor: textColor)
+                              .copyWith(
+                                bodyMedium: theme.textTheme.bodyMedium
+                                    ?.copyWith(
+                                      color: textColor,
+                                      fontSize:
+                                          (theme
+                                                  .textTheme
+                                                  .bodyMedium
+                                                  ?.fontSize ??
+                                              14) -
+                                          1,
+                                    ),
+                              ),
+                        ),
+                        child: _buildReasoningMarkdown(),
+                      ),
+                    ),
+                  ),
                 )
               : const SizedBox.shrink(),
         ),

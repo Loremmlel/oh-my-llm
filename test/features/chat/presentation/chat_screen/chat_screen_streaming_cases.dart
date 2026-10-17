@@ -27,7 +27,7 @@ void registerChatScreenStreamingTests() {
     );
 
     await tester.enterText(chatMessageComposerFinder, '帮我总结一下这个仓库的结构和当前能力');
-    final sendButton = find.widgetWithText(FilledButton, '发送');
+    final sendButton = find.byTooltip('发送');
     await tester.ensureVisible(sendButton);
     await tester.tap(sendButton);
     await tester.pump();
@@ -41,7 +41,7 @@ void registerChatScreenStreamingTests() {
     await pumpStreamMarkdownRefresh(tester);
 
     expect(find.textContaining('第一段'), findsWidgets);
-    expect(find.widgetWithText(FilledButton, '终止回答'), findsOneWidget);
+    expect(find.byTooltip('终止回答'), findsOneWidget);
 
     controlled.add(const ChatGenerationChunk(contentDelta: '第二段'));
     await controlled.close();
@@ -168,7 +168,7 @@ void registerChatScreenStreamingTests() {
     await tester.pump();
     await pumpStreamMarkdownRefresh(tester);
 
-    await tester.tap(find.widgetWithText(FilledButton, '终止回答'));
+    await tester.tap(find.byTooltip('终止回答'));
     await tester.pump();
     final firstRoute = ModalRoute.of(tester.element(find.text('终止本次回答？')))!;
     await settleStreamingOverlayTransition(
@@ -186,9 +186,9 @@ void registerChatScreenStreamingTests() {
       AnimationStatus.dismissed,
     );
     expect(find.text('终止本次回答？'), findsNothing);
-    expect(find.widgetWithText(FilledButton, '终止回答'), findsOneWidget);
+    expect(find.byTooltip('终止回答'), findsOneWidget);
     expect(find.textContaining('已生成部分'), findsWidgets);
-    await tester.tap(find.widgetWithText(FilledButton, '终止回答'));
+    await tester.tap(find.byTooltip('终止回答'));
     await tester.pump();
     final secondRoute = ModalRoute.of(tester.element(find.text('终止本次回答？')))!;
     await settleStreamingOverlayTransition(
@@ -210,7 +210,7 @@ void registerChatScreenStreamingTests() {
     );
     await settleOverlayTransition(tester);
     expect(find.textContaining('已生成部分'), findsWidgets);
-    expect(find.widgetWithText(FilledButton, '发送'), findsOneWidget);
+    expect(find.byTooltip('发送'), findsOneWidget);
     expect(fakeClient.requestHistory, hasLength(1));
   });
 }

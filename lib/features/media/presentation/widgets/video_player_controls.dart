@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 import 'package:oh_my_llm/core/widgets/dialogs/app_dialog_actions.dart';
 
 import '../pages/video_playback_state.dart';
@@ -534,7 +535,7 @@ class VideoCenterHint extends StatelessWidget {
             decoration: BoxDecoration(
               // 25% 透明度，符合 PRD 20%-35% 要求
               color: Colors.black.withValues(alpha: 0.25),
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(AppRadii.dialog),
             ),
             child: content,
           ),
