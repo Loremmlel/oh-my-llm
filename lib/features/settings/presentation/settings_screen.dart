@@ -1,67 +1,63 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
-import 'package:oh_my_llm/core/widgets/dialogs/app_confirm_dialog.dart';
-import 'package:oh_my_llm/core/widgets/app_adaptive_actions.dart';
-import 'package:oh_my_llm/core/widgets/app_help_button.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import 'package:oh_my_llm/app/navigation/app_destination.dart';
 import 'package:oh_my_llm/app/shell/app_shell_scaffold.dart';
+import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 import 'package:oh_my_llm/core/utils/id_generator.dart';
+import 'package:oh_my_llm/core/widgets/app_adaptive_actions.dart';
+import 'package:oh_my_llm/core/widgets/app_help_button.dart';
+import 'package:oh_my_llm/core/widgets/dialogs/app_confirm_dialog.dart';
 
-import '../application/prompts/fixed_prompt_sequences_controller.dart';
-import '../application/providers/llm_model_configs_controller.dart';
-import '../application/prompts/memory_prompts_controller.dart';
-import '../application/providers/model_catalog_workflow.dart';
-import '../application/prompts/preset_prompts_controller.dart';
 import '../application/preferences/settings_tab_preferences.dart';
-import '../application/transfer/settings_transfer_coordinator_provider.dart';
-import '../application/transfer/settings_transfer_coordinator.dart';
-import '../application/transfer/settings_transfer_types.dart';
+import '../application/prompts/fixed_prompt_sequences_controller.dart';
+import '../application/prompts/memory_prompts_controller.dart';
+import '../application/prompts/preset_prompts_controller.dart';
 import '../application/prompts/template_prompts_controller.dart';
+import '../application/providers/llm_model_configs_controller.dart';
+import '../application/providers/model_catalog_workflow.dart';
+import '../application/transfer/settings_transfer_coordinator.dart';
+import '../application/transfer/settings_transfer_coordinator_provider.dart';
+import '../application/transfer/settings_transfer_types.dart';
+import '../domain/models/preferences/settings_tab.dart';
 import '../domain/models/prompts/fixed_prompt_sequence.dart';
-import '../domain/models/providers/llm_provider_config.dart';
 import '../domain/models/prompts/memory_prompt.dart';
 import '../domain/models/prompts/preset_prompt.dart';
 import '../domain/models/prompts/template_prompt.dart';
-import 'widgets/transfer/import_confirm_dialog.dart';
+import '../domain/models/providers/llm_provider_config.dart';
+import 'widgets/prompts/forms/silly_tavern_import_dialog.dart';
 import 'widgets/settings_widgets.dart';
 import 'widgets/shared/settings_workspace.dart';
-import 'widgets/worldbooks/world_books_tab.dart';
 import 'widgets/tabs/network_settings_tab.dart';
 import 'widgets/tabs/other_settings_tab.dart';
 import 'widgets/tabs/output_processing_tab.dart';
-import 'widgets/prompts/forms/silly_tavern_import_dialog.dart';
+import 'widgets/transfer/import_confirm_dialog.dart';
+import 'widgets/worldbooks/world_books_tab.dart';
 
-const _tabProviders = 0;
-const _tabPresets = 1;
-const _tabPrompts = 2;
-const _tabNetwork = 3;
-const _tabOutputProcessing = 4;
-const _tabOther = 5;
+SettingsTransferGroup _transferGroupForTab(SettingsTab tab) {
+  switch (tab) {
+    case SettingsTab.providers:
+      return SettingsTransferGroup.providers;
+    case SettingsTab.presets:
+      return SettingsTransferGroup.presets;
+    case SettingsTab.prompts:
+      return SettingsTransferGroup.prompts;
+    case SettingsTab.network:
+      return SettingsTransferGroup.network;
+    case SettingsTab.outputProcessing:
+      return SettingsTransferGroup.outputProcessing;
+    case SettingsTab.other:
+      return SettingsTransferGroup.other;
+    case SettingsTab.worldBooks:
+      return SettingsTransferGroup.worldBooks;
+  }
+}
 
-const _tabLabelProviders = '服务商';
-const _tabLabelPresets = '预设 Prompt';
-const _tabLabelPrompts = '提示词';
-const _tabLabelOther = '其它设置';
-const _tabLabelNetwork = '网络';
-const _tabLabelOutputProcessing = '输出处理';
-
-const _transferGroupsByTab = <SettingsTransferGroup>[
-  SettingsTransferGroup.providers,
-  SettingsTransferGroup.presets,
-  SettingsTransferGroup.prompts,
-  SettingsTransferGroup.network,
-  SettingsTransferGroup.outputProcessing,
-  SettingsTransferGroup.other,
-  SettingsTransferGroup.worldBooks,
-];
-
-/// 设置页入口，使用标签页组织服务商、预设、提示词和其它设置。
+/// 设置页入口，使用可拖拽标签页组织服务商、预设、提示词和其它设置。
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
@@ -77,11 +73,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
   @override
   void initState() {
     super.initState();
+    final initialOrder = ref.read(settingsTabOrderProvider);
     _tabController = TabController(
       initialIndex: ref
           .read(settingsTabPreferencesProvider)
-          .initialIndex(tabCount: 7),
-      length: 7,
+          .initialIndex(tabCount: initialOrder.length),
+      length: initialOrder.length,
       vsync: this,
     );
     _tabController.addListener(_onTabChanged);
@@ -118,8 +115,50 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     }
   }
 
+  Future<void> _handleReorder(int oldIndex, int newIndex) async {
+    final currentOrder = ref.read(settingsTabOrderProvider);
+    if (oldIndex < 0 ||
+        oldIndex >= currentOrder.length ||
+        newIndex < 0 ||
+        newIndex >= currentOrder.length) {
+      return;
+    }
+
+    final activeIndex = _tabController.index.clamp(0, currentOrder.length - 1);
+    final activeTab = currentOrder[activeIndex];
+
+    // 同步预计算重排后索引并更新控制器，避免 await 持久化导致 TabBarView 错帧闪烁
+    final nextOrder = List<SettingsTab>.of(currentOrder);
+    final item = nextOrder.removeAt(oldIndex);
+    nextOrder.insert(newIndex, item);
+    final nextActiveIndex = nextOrder.indexOf(activeTab);
+
+    if (nextActiveIndex != -1 && nextActiveIndex != _tabController.index) {
+      _tabController.index = nextActiveIndex;
+    }
+
+    await ref
+        .read(settingsTabOrderProvider.notifier)
+        .reorder(oldIndex, newIndex);
+
+    await _saveTabIndex();
+  }
+
+  SettingsTab _currentTab(List<SettingsTab> tabsOrder) {
+    if (tabsOrder.isEmpty) return SettingsTab.providers;
+    final index = _tabController.index.clamp(0, tabsOrder.length - 1);
+    return tabsOrder[index];
+  }
+
+  String _currentTabLabel(List<SettingsTab> tabsOrder) =>
+      _currentTab(tabsOrder).exportLabel;
+
+  SettingsTransferGroup _currentTransferGroup(List<SettingsTab> tabsOrder) =>
+      _transferGroupForTab(_currentTab(tabsOrder));
+
   @override
   Widget build(BuildContext context) {
+    final tabsOrder = ref.watch(settingsTabOrderProvider);
     final fixedPromptSequences = ref.watch(fixedPromptSequencesProvider);
     final modelProviders = ref.watch(llmProviderConfigsProvider);
     final memoryPrompts = ref.watch(memoryPromptsProvider);
@@ -134,15 +173,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
           Tooltip(
             message: '从剪贴板导入设置',
             child: TextButton.icon(
-              onPressed: _importToCurrentTab,
+              onPressed: () => _importToCurrentTab(tabsOrder),
               icon: const Icon(Icons.file_upload_outlined),
               label: const Text('导入'),
             ),
           ),
           Tooltip(
-            message: '导出$_currentTabLabel',
+            message: '导出${_currentTabLabel(tabsOrder)}',
             child: TextButton.icon(
-              onPressed: _exportCurrentTab,
+              onPressed: () => _exportCurrentTab(tabsOrder),
               icon: const Icon(Icons.file_download_outlined),
               label: const Text('导出'),
             ),
@@ -151,19 +190,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
         ],
         compactActions: [
           IconButton(
-            onPressed: () => _importToCurrentTab(),
+            onPressed: () => _importToCurrentTab(tabsOrder),
             icon: const Icon(Icons.file_upload_outlined),
             tooltip: '从剪贴板导入设置',
           ),
           IconButton(
-            onPressed: () => _exportCurrentTab(),
+            onPressed: () => _exportCurrentTab(tabsOrder),
             icon: const Icon(Icons.file_download_outlined),
-            tooltip: '导出$_currentTabLabel',
+            tooltip: '导出${_currentTabLabel(tabsOrder)}',
           ),
         ],
       ),
       body: SettingsWorkspace(
         controller: _tabController,
+        tabs: tabsOrder,
+        onReorder: _handleReorder,
         onPromptCategorySelected: (index) =>
             setState(() => _promptCategory = index),
         onPromptOverview: () => setState(() => _promptCategory = null),
@@ -181,9 +222,37 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
             ),
           ],
         ),
-        children: [
-          // 服务商
-          ListView(
+        children: tabsOrder
+            .map(
+              (tab) => _buildTabContent(
+                context,
+                tab,
+                modelProviders: modelProviders,
+                presetPrompts: presetPrompts,
+                memoryPrompts: memoryPrompts,
+                templatePrompts: templatePrompts,
+                fixedPromptSequences: fixedPromptSequences,
+              ),
+            )
+            .toList(),
+      ),
+    );
+  }
+
+  Widget _buildTabContent(
+    BuildContext context,
+    SettingsTab tab, {
+    required List<LlmProviderConfig> modelProviders,
+    required List<PresetPrompt> presetPrompts,
+    required List<MemoryPrompt> memoryPrompts,
+    required List<TemplatePrompt> templatePrompts,
+    required List<FixedPromptSequence> fixedPromptSequences,
+  }) {
+    switch (tab) {
+      case SettingsTab.providers:
+        return KeyedSubtree(
+          key: const ValueKey('settings_tab_content_providers'),
+          child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
               Align(
@@ -224,8 +293,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
               ),
             ],
           ),
-          // 预设
-          ListView(
+        );
+      case SettingsTab.presets:
+        return KeyedSubtree(
+          key: const ValueKey('settings_tab_content_presets'),
+          child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
               SettingsSectionCard(
@@ -267,8 +339,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
               ),
             ],
           ),
-          // 提示词
-          ListView(
+        );
+      case SettingsTab.prompts:
+        return KeyedSubtree(
+          key: const ValueKey('settings_tab_content_prompts'),
+          child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
               Align(
@@ -357,47 +432,40 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
               ),
             ],
           ),
-          // 网络
-          const NetworkSettingsTab(),
-          // 输出处理
-          const OutputProcessingTab(),
-          // 其它
-          const OtherSettingsTab(),
-          const WorldBooksTab(),
-        ],
-      ),
-    );
-  }
-
-  String get _currentTabLabel {
-    switch (_tabController.index) {
-      case _tabProviders:
-        return _tabLabelProviders;
-      case _tabPresets:
-        return _tabLabelPresets;
-      case _tabPrompts:
-        return _tabLabelPrompts;
-      case _tabOther:
-        return _tabLabelOther;
-      case _tabNetwork:
-        return _tabLabelNetwork;
-      case _tabOutputProcessing:
-        return _tabLabelOutputProcessing;
-      case 6:
-        return '世界书';
-      default:
-        return '';
+        );
+      case SettingsTab.network:
+        return const KeyedSubtree(
+          key: ValueKey('settings_tab_content_network'),
+          child: NetworkSettingsTab(),
+        );
+      case SettingsTab.outputProcessing:
+        return const KeyedSubtree(
+          key: ValueKey('settings_tab_content_output_processing'),
+          child: OutputProcessingTab(),
+        );
+      case SettingsTab.other:
+        return const KeyedSubtree(
+          key: ValueKey('settings_tab_content_other'),
+          child: OtherSettingsTab(),
+        );
+      case SettingsTab.worldBooks:
+        return const KeyedSubtree(
+          key: ValueKey('settings_tab_content_world_books'),
+          child: WorldBooksTab(),
+        );
     }
   }
 
   // ── 导出/导入 ──────────────────────────────────────────────────
 
-  Future<void> _exportCurrentTab() async {
+  Future<void> _exportCurrentTab(List<SettingsTab> tabsOrder) async {
+    final group = _currentTransferGroup(tabsOrder);
+    final label = _currentTabLabel(tabsOrder);
     final preparation = ref
         .read(settingsTransferCoordinatorProvider)
-        .exportGroups({_currentTransferGroup});
+        .exportGroups({group});
     if (preparation is SettingsExportNoContent) {
-      showSettingsSnackbar(context, '$_currentTabLabel 没有可导出的数据');
+      showSettingsSnackbar(context, '$label 没有可导出的数据');
       return;
     }
 
@@ -423,11 +491,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     if (exposed is! SettingsExportJsonExposed) return;
     await Clipboard.setData(ClipboardData(text: exposed.text));
     if (mounted) {
-      showSettingsSnackbar(context, '已复制$_currentTabLabel到剪贴板');
+      showSettingsSnackbar(context, '已复制$label到剪贴板');
     }
   }
 
-  Future<void> _importToCurrentTab() async {
+  Future<void> _importToCurrentTab(List<SettingsTab> tabsOrder) async {
     final clipboardData = await Clipboard.getData(Clipboard.kTextPlain);
     final preparation = ref
         .read(settingsTransferCoordinatorProvider)
@@ -467,9 +535,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
       }
     }
   }
-
-  SettingsTransferGroup get _currentTransferGroup =>
-      _transferGroupsByTab[_tabController.index];
 
   // ── 复制预设 ──────────────────────────────────────────────────
 
@@ -515,8 +580,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                   name: formData.name,
                   apiUrl: formData.apiUrl,
                   apiKey: formData.apiKey,
-                  // 保存表单所选协议：编辑时表单初始值为原协议，新建默认
-                  // Chat Completions；协议变更立即作用于其下全部模型。
                   apiProtocol: formData.apiProtocol,
                   models: initialValue?.models ?? const [],
                 );

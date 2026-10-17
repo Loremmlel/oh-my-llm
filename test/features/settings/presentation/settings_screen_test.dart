@@ -1,3 +1,4 @@
+import 'settings_screen/settings_screen_draggable_tabs_cases.dart';
 import 'settings_screen/settings_screen_fixed_prompt_sequences_cases.dart';
 import 'settings_screen/settings_screen_models_and_prompts_cases.dart';
 import 'settings_screen/settings_screen_responsive_cases.dart';
@@ -8,4 +9,5 @@ void main() {
   registerSettingsScreenFixedPromptSequencesTests();
   registerSettingsScreenResponsiveTests();
   registerSettingsScreenTransferTests();
+  registerSettingsScreenDraggableTabsTests();
 }
