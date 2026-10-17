@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_text_field.dart';
+import 'package:oh_my_llm/core/theme/app_ui_colors.dart';
+import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 
 import 'package:oh_my_llm/core/constants/app_reserved_entities.dart';
 import 'package:oh_my_llm/core/widgets/dialogs/app_dialog_actions.dart';
@@ -122,7 +125,7 @@ class _AddToFavoritesDialogState extends State<AddToFavoritesDialog> {
               if (_showNewCollectionField)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8),
-                  child: TextField(
+                  child: AppTextField(
                     controller: _newNameController,
                     autofocus: true,
                     textInputAction: TextInputAction.done,
@@ -187,12 +190,10 @@ class _CollectionTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Material(
-      color: selected
-          ? theme.colorScheme.secondaryContainer
-          : Colors.transparent,
-      borderRadius: BorderRadius.circular(8),
+      color: selected ? theme.uiColors.selection : Colors.transparent,
+      borderRadius: BorderRadius.circular(AppRadii.sm),
       child: InkWell(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(AppRadii.sm),
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -202,7 +203,7 @@ class _CollectionTile extends StatelessWidget {
                 icon,
                 size: 20,
                 color: selected
-                    ? theme.colorScheme.onSecondaryContainer
+                    ? theme.colorScheme.onSurface
                     : theme.colorScheme.onSurfaceVariant,
               ),
               const SizedBox(width: 12),
@@ -210,9 +211,7 @@ class _CollectionTile extends StatelessWidget {
                 child: Text(
                   label,
                   style: theme.textTheme.bodyMedium?.copyWith(
-                    color: selected
-                        ? theme.colorScheme.onSecondaryContainer
-                        : null,
+                    color: selected ? theme.colorScheme.onSurface : null,
                     fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
                   ),
                 ),
@@ -221,7 +220,7 @@ class _CollectionTile extends StatelessWidget {
                 Icon(
                   Icons.check_rounded,
                   size: 18,
-                  color: theme.colorScheme.onSecondaryContainer,
+                  color: theme.colorScheme.onSurface,
                 ),
             ],
           ),

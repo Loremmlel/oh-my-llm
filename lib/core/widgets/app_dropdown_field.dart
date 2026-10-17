@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 
+import 'app_input_label.dart';
+
 /// 下拉字段共用内容宽度规则；长选项限宽，并提供完整选中值的提示。
 class AppDropdownField<T> extends StatefulWidget {
   const AppDropdownField({
@@ -36,6 +38,13 @@ class AppDropdownField<T> extends StatefulWidget {
 
 class _AppDropdownFieldState<T> extends State<AppDropdownField<T>> {
   var _fieldKey = GlobalKey<FormFieldState<T>>();
+  final _focus = FocusNode();
+
+  @override
+  void dispose() {
+    _focus.dispose();
+    super.dispose();
+  }
 
   @override
   void didUpdateWidget(AppDropdownField<T> oldWidget) {
@@ -106,26 +115,38 @@ class _AppDropdownFieldState<T> extends State<AppDropdownField<T>> {
                     preferredWidth.ceilToDouble(),
                   ),
                 ),
-          child: DropdownButtonFormField<T>(
-            key: _fieldKey,
-            initialValue: widget.initialValue,
+          child: AppInputLabel(
             decoration: widget.decoration,
-            items: widget.items,
-            // 由 FormField 选择提示，避免父级不重建时仍显示旧值。
-            selectedItemBuilder: (context) => [
-              for (final item in widget.items)
-                Tooltip(
-                  message: _text(item.child) ?? '',
-                  excludeFromSemantics: true,
-                  child: item.child,
-                ),
-            ],
-            onChanged: widget.onChanged,
-            validator: widget.validator,
-            borderRadius:
-                widget.borderRadius ?? BorderRadius.circular(AppRadii.sm),
-            isExpanded: widget.isExpanded,
-            isDense: widget.isDense,
+            onLabelTap: widget.onChanged == null ? null : _focus.requestFocus,
+            child: DropdownButtonFormField<T>(
+              key: _fieldKey,
+              initialValue: widget.initialValue,
+              focusNode: _focus,
+              elevation: 0,
+              dropdownColor: theme.colorScheme.surface,
+              icon:
+                  widget.decoration.suffixIcon ??
+                  const Icon(Icons.expand_more, size: 18),
+              decoration: widget.decoration.labelText == null
+                  ? widget.decoration
+                  : AppInputLabel.fieldDecoration(widget.decoration),
+              items: widget.items,
+              // 由 FormField 选择提示，避免父级不重建时仍显示旧值。
+              selectedItemBuilder: (context) => [
+                for (final item in widget.items)
+                  Tooltip(
+                    message: _text(item.child) ?? '',
+                    excludeFromSemantics: true,
+                    child: item.child,
+                  ),
+              ],
+              onChanged: widget.onChanged,
+              validator: widget.validator,
+              borderRadius:
+                  widget.borderRadius ?? BorderRadius.circular(AppRadii.sm),
+              isExpanded: widget.isExpanded,
+              isDense: widget.isDense,
+            ),
           ),
         ),
       ),

@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
+import 'package:oh_my_llm/core/theme/app_ui_colors.dart';
 import 'package:oh_my_llm/core/widgets/notification_bubble/notification_bubble_context_ext.dart';
 
 import '../../../../domain/chat_word_counter.dart';
@@ -36,7 +37,6 @@ class ChatMessageBubble extends StatefulWidget {
 }
 
 class _ChatMessageBubbleState extends State<ChatMessageBubble> {
-  final _reasoningCounter = StreamingChatWordCounter();
   final _contentCounter = StreamingChatWordCounter();
   bool _isUserMessageCollapsed = true;
 
@@ -64,6 +64,7 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
   Widget _moreButton() {
     return PopupMenuButton<String>(
       tooltip: '消息操作',
+      icon: const Icon(Icons.more_horiz, size: 18),
       onSelected: (value) {
         if (value == 'exclude') {
           widget.actions.onToggleRequestExclusionPressed?.call();
@@ -105,7 +106,25 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
     required String tooltip,
     required IconData icon,
   }) {
-    return IconButton(onPressed: onPressed, tooltip: tooltip, icon: Icon(icon));
+    return Tooltip(
+      message: tooltip,
+      child: TextButton.icon(
+        onPressed: onPressed,
+        style: TextButton.styleFrom(
+          foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
+          textStyle: Theme.of(context).textTheme.bodySmall,
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+        ),
+        icon: Icon(icon, size: 16),
+        label: Text(switch (tooltip) {
+          '复制消息' => '复制',
+          '收藏回复' => '收藏',
+          '编辑消息' => '编辑',
+          '重试回复' => '重试',
+          _ => tooltip,
+        }),
+      ),
+    );
   }
 
   @override
@@ -120,7 +139,6 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.message.id != widget.message.id) {
       // 消息 id 变更（重试或切换会话），重置计数器后重新扫描。
-      _reasoningCounter.reset();
       _contentCounter.reset();
       _syncUserMessageCollapse(widget.message, reset: true);
     } else if (oldWidget.message.content != widget.message.content ||
@@ -131,7 +149,6 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
   }
 
   void _syncCounters(ChatMessage message) {
-    _reasoningCounter.update(message.reasoningContent);
     _contentCounter.update(message.content);
   }
 
@@ -177,9 +194,7 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
             constraints: BoxConstraints.tightFor(width: bubbleWidth),
             child: DecoratedBox(
               decoration: BoxDecoration(
-                color: isUser
-                    ? theme.colorScheme.primaryContainer
-                    : Colors.transparent,
+                color: Colors.transparent,
                 borderRadius: BorderRadius.circular(AppRadii.md),
               ),
               child: Padding(
@@ -187,62 +202,45 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Tooltip(
-                                message: isUser
-                                    ? '你'
-                                    : message.resolvedAssistantModelDisplayName,
-                                child: Text(
-                                  isUser
+                    if (!isUser)
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Tooltip(
+                                  message: isUser
                                       ? '你'
                                       : message
                                             .resolvedAssistantModelDisplayName,
-                                  style: theme.textTheme.labelLarge,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
+                                  child: Text(
+                                    isUser
+                                        ? '你'
+                                        : message
+                                              .resolvedAssistantModelDisplayName,
+                                    style: theme.textTheme.labelLarge,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ),
-                              ),
-                              if (viewState.isExcludedFromRequest) ...[
-                                const SizedBox(height: 4),
-                                _buildRequestExclusionChip(theme, message.id),
+                                if (viewState.isExcludedFromRequest) ...[
+                                  const SizedBox(height: 4),
+                                  _buildRequestExclusionChip(theme, message.id),
+                                ],
                               ],
-                            ],
+                            ),
                           ),
-                        ),
-                        if (message.isStreaming) ...[
-                          const SizedBox(width: 8),
-                          const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
+                          if (message.isStreaming) ...[
+                            const SizedBox(width: 8),
+                            const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          ],
                         ],
-                        _copyButton(context),
-                        if (widget.actions.onFavoritePressed != null)
-                          _favoriteButton(),
-                        if (viewState.canEdit)
-                          _iconButton(
-                            onPressed: widget.actions.onEditPressed,
-                            tooltip: '编辑消息',
-                            icon: Icons.edit_outlined,
-                          ),
-                        if (viewState.canRetry)
-                          _iconButton(
-                            onPressed: widget.actions.onRetryPressed,
-                            tooltip: '重试回复',
-                            icon: Icons.refresh_rounded,
-                          ),
-                        if (widget.actions.onDeletePressed != null ||
-                            widget.actions.onToggleRequestExclusionPressed !=
-                                null)
-                          _moreButton(),
-                      ],
-                    ),
+                      ),
                     if (!isUser &&
                         viewState.inlineErrorMessage != null &&
                         viewState.inlineErrorMessage!.trim().isNotEmpty) ...[
@@ -256,14 +254,6 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                           message: viewState.inlineErrorMessage!.trim(),
                         ),
                     ],
-                    if (!isUser &&
-                        message.appliedCheckpointTitle.trim().isNotEmpty)
-                      _buildCheckpointUsageRow(
-                        theme,
-                        message.appliedCheckpointTitle,
-                      ),
-                    if (!isUser && _shouldShowWordCount(message))
-                      _buildWordCountRow(theme, message),
                     if (!isUser &&
                         message.reasoningContent.trim().isNotEmpty) ...[
                       const SizedBox(height: 12),
@@ -285,12 +275,70 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                         content: isUser ? userContent : message.content,
                         segments: isUser ? displaySegments : const [],
                       ),
-                    if (!isUser &&
-                        message.finishReason != null &&
-                        !message.isStreaming)
-                      _buildFinishReasonChip(theme, message),
-                    if (!isUser && !message.isStreaming && hasDisplayableUsage)
-                      _buildTokenUsageRow(theme, message),
+                    if (isUser && viewState.isExcludedFromRequest)
+                      _buildRequestExclusionChip(theme, message.id),
+                    if (!isUser) ...[
+                      const SizedBox(height: AppSpacing.xs),
+                      DefaultTextStyle(
+                        style: theme.textTheme.bodySmall!.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                        child: Wrap(
+                          spacing: AppSpacing.xs,
+                          runSpacing: AppSpacing.xxs,
+                          children: [
+                            if (_shouldShowWordCount(message))
+                              _buildWordCountRow(theme),
+                            if (message.appliedCheckpointTitle
+                                .trim()
+                                .isNotEmpty)
+                              _buildCheckpointUsageRow(
+                                theme,
+                                message.appliedCheckpointTitle,
+                              ),
+                            if (!message.isStreaming && hasDisplayableUsage)
+                              _buildTokenUsageRow(theme, message),
+                            if (!message.isStreaming &&
+                                message.finishReason != null &&
+                                message.finishReason != 'stop')
+                              _buildFinishReasonChip(theme, message),
+                          ],
+                        ),
+                      ),
+                    ],
+                    Align(
+                      alignment: isUser
+                          ? Alignment.centerRight
+                          : Alignment.centerLeft,
+                      child: Wrap(
+                        alignment: isUser
+                            ? WrapAlignment.end
+                            : WrapAlignment.start,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: AppSpacing.xxs,
+                        children: [
+                          _copyButton(context),
+                          if (widget.actions.onFavoritePressed != null)
+                            _favoriteButton(),
+                          if (viewState.canEdit)
+                            _iconButton(
+                              onPressed: widget.actions.onEditPressed,
+                              tooltip: '编辑消息',
+                              icon: Icons.edit_outlined,
+                            ),
+                          if (viewState.canRetry)
+                            _iconButton(
+                              onPressed: widget.actions.onRetryPressed,
+                              tooltip: '重试回复',
+                              icon: Icons.refresh_rounded,
+                            ),
+                          if (widget.actions.onDeletePressed != null ||
+                              widget.actions.onToggleRequestExclusionPressed !=
+                                  null)
+                            _moreButton(),
+                        ],
+                      ),
+                    ),
                     if (isUser && viewState.autoRetryCount > 0) ...[
                       const SizedBox(height: 8),
                       Row(
@@ -369,50 +417,18 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
     );
   }
 
-  static Color _finishReasonColor(String reason, ColorScheme colorScheme) {
-    switch (reason) {
-      case 'stop':
-        return colorScheme.tertiaryContainer;
-      case 'length':
-        return const Color.fromRGBO(255, 167, 38, 0.15);
-      case 'content_filter':
-        return const Color.fromRGBO(244, 67, 54, 0.15);
-      default:
-        return colorScheme.surfaceContainerHighest;
-    }
-  }
-
-  static Color _finishReasonTextColor(String reason, ColorScheme colorScheme) {
-    switch (reason) {
-      case 'stop':
-        return colorScheme.onTertiaryContainer;
-      case 'length':
-        return const Color.fromRGBO(230, 120, 0, 1.0);
-      case 'content_filter':
-        return const Color.fromRGBO(200, 40, 30, 1.0);
-      default:
-        return colorScheme.onSurfaceVariant;
-    }
-  }
-
   Widget _buildFinishReasonChip(ThemeData theme, ChatMessage message) {
     final reason = message.finishReason!;
-    final colorScheme = theme.colorScheme;
-    return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-        decoration: BoxDecoration(
-          color: _finishReasonColor(reason, colorScheme),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Text(
-          reason,
-          style: theme.textTheme.labelSmall?.copyWith(
-            color: _finishReasonTextColor(reason, colorScheme),
-          ),
-        ),
-      ),
+    final color = reason == 'content_filter'
+        ? theme.colorScheme.error
+        : theme.uiColors.warning;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.info_outline, size: 14, color: color),
+        const SizedBox(width: 4),
+        Text(reason, style: theme.textTheme.bodySmall?.copyWith(color: color)),
+      ],
     );
   }
 
@@ -428,7 +444,7 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
       color: theme.colorScheme.onSurfaceVariant,
     );
     return Padding(
-      padding: const EdgeInsets.only(top: 8),
+      padding: EdgeInsets.zero,
       child: Wrap(
         spacing: 6,
         runSpacing: 2,
@@ -451,18 +467,15 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
     );
   }
 
-  /// 构建字数统计行，格式视 reasoning 是否存在而定。
-  Widget _buildWordCountRow(ThemeData theme, ChatMessage message) {
+  /// 推理字数在折叠标题显示，底部只记录回复字数。
+  Widget _buildWordCountRow(ThemeData theme) {
     final style = theme.textTheme.bodySmall?.copyWith(
       color: theme.colorScheme.onSurfaceVariant,
     );
-    final hasReasoning = message.reasoningContent.trim().isNotEmpty;
-    final label = hasReasoning
-        ? '深度思考：${_reasoningCounter.count} 字，回复：${_contentCounter.count} 字'
-        : '回复：${_contentCounter.count} 字';
+    final label = '回复：${_contentCounter.count} 字';
 
     return Padding(
-      padding: const EdgeInsets.only(top: 2, bottom: 2),
+      padding: EdgeInsets.zero,
       child: Text(label, style: style),
     );
   }
@@ -473,7 +486,7 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
       color: theme.colorScheme.onSurfaceVariant,
     );
     return Padding(
-      padding: const EdgeInsets.only(top: 2, bottom: 2),
+      padding: EdgeInsets.zero,
       child: Text('使用检查点：$checkpointTitle', style: style),
     );
   }
@@ -483,7 +496,7 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
       key: ValueKey('message-excluded-chip-$messageId'),
       decoration: BoxDecoration(
         color: theme.colorScheme.errorContainer.withValues(alpha: 0.72),
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(AppRadii.tag),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -511,32 +524,39 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
     required List<UserMessageSegment> segments,
   }) {
     if (isUser) {
-      final bodyColor = theme.colorScheme.onPrimaryContainer;
-      final bodyStyle = theme.textTheme.bodyMedium?.copyWith(color: bodyColor);
+      final bodyColor = theme.colorScheme.onSurface;
+      final bodyStyle = theme.textTheme.bodyMedium?.copyWith(
+        color: bodyColor,
+        fontSize: (theme.textTheme.bodyMedium?.fontSize ?? 14) + 2,
+        height: 1.6,
+      );
       final templateStyle = theme.textTheme.bodyMedium?.copyWith(
         color: bodyColor.withValues(alpha: 0.62),
       );
 
       if (segments.isNotEmpty) {
-        return SelectableText.rich(
-          TextSpan(
-            style: bodyStyle,
-            children: segments
-                .map((segment) {
-                  return TextSpan(
-                    text: segment.text,
-                    style: segment.kind == UserMessageSegmentKind.body
-                        ? bodyStyle
-                        : templateStyle,
-                  );
-                })
-                .toList(growable: false),
+        return _userInputBlock(
+          theme,
+          SelectableText.rich(
+            TextSpan(
+              style: bodyStyle,
+              children: segments
+                  .map((segment) {
+                    return TextSpan(
+                      text: segment.text,
+                      style: segment.kind == UserMessageSegmentKind.body
+                          ? bodyStyle
+                          : templateStyle,
+                    );
+                  })
+                  .toList(growable: false),
+            ),
           ),
         );
       }
 
       // 用户消息只需要按原文展示，不需要为 Markdown 解析支付额外成本。
-      return SelectableText(content, style: bodyStyle);
+      return _userInputBlock(theme, SelectableText(content, style: bodyStyle));
     }
 
     return StreamingMarkdownView(
@@ -544,6 +564,16 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
       isStreaming: widget.message.isStreaming,
     );
   }
+
+  Widget _userInputBlock(ThemeData theme, Widget child) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(AppSpacing.md),
+    decoration: BoxDecoration(
+      color: theme.uiColors.userInput,
+      borderRadius: BorderRadius.circular(AppRadii.md),
+    ),
+    child: child,
+  );
 
   void _syncUserMessageCollapse(ChatMessage message, {bool reset = false}) {
     if (!shouldCollapseUserMessage(message)) {

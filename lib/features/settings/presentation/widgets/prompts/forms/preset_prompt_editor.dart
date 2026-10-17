@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_text_field.dart';
 
 import 'package:oh_my_llm/core/widgets/dialogs/app_confirm_dialog.dart';
 import 'package:oh_my_llm/core/widgets/app_dropdown_field.dart';
@@ -169,7 +170,7 @@ class _PresetPromptEditorState extends State<PresetPromptEditor>
                   ],
                 ),
                 const SizedBox(height: 12),
-                TextFormField(
+                AppTextField.form(
                   controller: _reasoningTagController,
                   decoration: const InputDecoration(
                     labelText: '自定义 CoT 标签（可选）',
@@ -349,7 +350,7 @@ class _PresetPromptEditorState extends State<PresetPromptEditor>
       return const Text('请先选择左侧条目。');
     }
 
-    final contentField = TextField(
+    final contentField = AppTextField(
       key: const ValueKey('preset-prompt-content-field'), // test-key
       controller: selected.contentController,
       minLines: isWide ? null : 8,
@@ -363,7 +364,7 @@ class _PresetPromptEditorState extends State<PresetPromptEditor>
     );
 
     final fields = <Widget>[
-      TextFormField(
+      AppTextField.form(
         key: const ValueKey('preset-prompt-title-field'), // test-key
         controller: selected.titleController,
         decoration: const InputDecoration(
@@ -372,6 +373,7 @@ class _PresetPromptEditorState extends State<PresetPromptEditor>
         ),
       ),
       AppDropdownField<PresetPromptEditorRole>(
+        fillWidth: true,
         key: const ValueKey('preset-prompt-role-field'), // test-key
         initialValue: selected.role,
         items: const [
@@ -398,6 +400,7 @@ class _PresetPromptEditorState extends State<PresetPromptEditor>
         decoration: const InputDecoration(labelText: '角色'),
       ),
       AppDropdownField<PromptMessagePlacement>(
+        fillWidth: true,
         key: const ValueKey('preset-prompt-placement-field'), // test-key
         initialValue: selected.placement,
         items: PromptMessagePlacement.values
@@ -462,7 +465,7 @@ class _PresetPromptEditorState extends State<PresetPromptEditor>
   }
 
   Widget _buildNameField() {
-    return TextFormField(
+    return AppTextField.form(
       key: const ValueKey('preset-prompt-name-field'), // test-key
       controller: _nameController,
       decoration: const InputDecoration(

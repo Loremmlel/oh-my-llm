@@ -218,7 +218,7 @@ class _SyncOperationTabState extends ConsumerState<SyncOperationTab>
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: theme.colorScheme.error.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(AppRadii.sm),
           ),
           child: Text(
             state.errorMessage ?? '发生未知错误',
@@ -347,7 +347,7 @@ class _SyncOperationTabState extends ConsumerState<SyncOperationTab>
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: successColor.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(AppRadii.sm),
       ),
       child: Row(
         children: [

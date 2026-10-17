@@ -39,13 +39,19 @@ class DeleteMessageDialog extends StatelessWidget {
           child: const Text('取消'),
         ),
         if (_hasSiblingVersions)
-          FilledButton.tonal(
+          TextButton(
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.error,
+            ),
             onPressed: () {
               Navigator.of(context).pop(ChatMessageDeletionScope.currentBranch);
             },
             child: const Text('删除当前分支'),
           ),
-        FilledButton(
+        TextButton(
+          style: TextButton.styleFrom(
+            foregroundColor: Theme.of(context).colorScheme.error,
+          ),
           onPressed: () {
             Navigator.of(context).pop(
               _hasSiblingVersions

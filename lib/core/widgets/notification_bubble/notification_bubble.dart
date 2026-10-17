@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 
 import 'notification_bubble_data.dart';
 
@@ -32,7 +33,7 @@ class NotificationBubbleContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final iconColor = data.type.iconColor(cs);
+    final iconColor = data.type.iconColor(theme);
     final hasAction = data.action != null;
 
     // 整条通知是一个完整自足的 live status 节点；装饰 icon 与可见 message
@@ -51,15 +52,9 @@ class NotificationBubbleContent extends StatelessWidget {
             decoration: BoxDecoration(
               // 跟随主题方向的浮层表面色：light 浅底 / dark 深底，与主应用明暗一致。
               // 不用 inverseSurface——那是 SnackBar 式「反色浮层」，会与主应用色调相反。
-              color: cs.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: cs.shadow.withValues(alpha: 0.25),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
+              color: cs.surface,
+              border: Border.all(color: cs.outlineVariant),
+              borderRadius: BorderRadius.circular(AppRadii.md),
             ),
             padding: EdgeInsets.symmetric(
               horizontal: 16,

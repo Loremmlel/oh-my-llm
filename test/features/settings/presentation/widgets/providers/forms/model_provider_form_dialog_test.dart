@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:oh_my_llm/core/widgets/app_text_field.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -34,7 +36,7 @@ void main() {
   /// 在对话框内按可见 label 定位表单输入框。
   Finder formField(String label) => find.descendant(
     of: find.byType(ModelProviderFormDialog),
-    matching: find.widgetWithText(TextFormField, label),
+    matching: find.widgetWithText(AppTextField, label),
   );
 
   Finder protocolDropdown() => find.descendant(

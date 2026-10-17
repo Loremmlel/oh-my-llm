@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:oh_my_llm/core/widgets/app_text_field.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -84,14 +86,14 @@ void main() {
     );
     await tester.tap(find.byTooltip('打开侧边内容'));
     await settleOverlayTransition(tester);
-    await tester.enterText(find.widgetWithText(TextField, '搜索作品'), '作品 1');
+    await tester.enterText(find.widgetWithText(AppTextField, '搜索作品'), '作品 1');
     await tester.pump();
     await tester.tap(find.byTooltip('重命名作品「作品 1」'));
     await settleOverlayTransition(tester);
-    await tester.enterText(find.widgetWithText(TextField, '作品名称'), '雾港');
+    await tester.enterText(find.widgetWithText(AppTextField, '作品名称'), '雾港');
     await tester.tap(find.text('保存'));
     await settleOverlayTransition(tester);
-    await tester.enterText(find.widgetWithText(TextField, '搜索作品'), '雾港');
+    await tester.enterText(find.widgetWithText(AppTextField, '搜索作品'), '雾港');
     await tester.pump();
     await tester.tap(find.widgetWithText(ListTile, '雾港'));
     await tester.pump();
@@ -101,7 +103,7 @@ void main() {
 
     await tester.tap(find.byTooltip('打开侧边内容'));
     await settleOverlayTransition(tester);
-    await tester.enterText(find.widgetWithText(TextField, '搜索作品'), '作品 2');
+    await tester.enterText(find.widgetWithText(AppTextField, '搜索作品'), '作品 2');
     await tester.pump();
     await tester.tap(find.widgetWithText(ListTile, '作品 2'));
     await settleOverlayTransition(tester);
@@ -110,7 +112,7 @@ void main() {
 
     await tester.tap(find.byTooltip('打开侧边内容'));
     await settleOverlayTransition(tester);
-    await tester.enterText(find.widgetWithText(TextField, '搜索作品'), '雾港');
+    await tester.enterText(find.widgetWithText(AppTextField, '搜索作品'), '雾港');
     await tester.pump();
     await tester.tap(find.widgetWithText(ListTile, '雾港'));
     await settleOverlayTransition(tester);
@@ -148,14 +150,14 @@ void main() {
     await tester.pump();
     await tester.tap(find.text('新建文档'));
     await settleOverlayTransition(tester);
-    await tester.enterText(find.widgetWithText(TextField, '文档名'), '世界规则');
+    await tester.enterText(find.widgetWithText(AppTextField, '文档名'), '世界规则');
     await tester.tap(find.byType(DropdownButtonFormField<AgentDocumentKind>));
     await settleOverlayTransition(tester);
     await tester.tap(
       find.text(agentDocumentKindLabel(AgentDocumentKind.worldBook)).last,
     );
     await settleOverlayTransition(tester);
-    await tester.enterText(find.widgetWithText(TextField, '正文'), '日落后禁止出城。');
+    await tester.enterText(find.widgetWithText(AppTextField, '正文'), '日落后禁止出城。');
     await tester.tap(find.text('保存'));
     await settleOverlayTransition(tester);
     expect(find.text('世界书 1'), findsOneWidget);
@@ -169,7 +171,7 @@ void main() {
     expect(find.textContaining('不兼容的推理、签名'), findsOneWidget);
     await tester.tap(find.text('关闭').last);
     await settleOverlayTransition(tester);
-    await tester.enterText(find.widgetWithText(TextField, '方案名称'), '独立审稿方案');
+    await tester.enterText(find.widgetWithText(AppTextField, '方案名称'), '独立审稿方案');
     await tester.tap(find.byType(DropdownButtonFormField<AgentRole>));
     await settleOverlayTransition(tester);
     await tester.tap(find.text('审稿 Agent').last);
@@ -179,7 +181,7 @@ void main() {
     await tester.tap(find.text('测试商 / 审稿模型').last);
     await settleOverlayTransition(tester);
     await tester.enterText(
-      find.widgetWithText(TextField, '角色提示词'),
+      find.widgetWithText(AppTextField, '角色提示词'),
       '只报告有原文依据的矛盾。',
     );
     await tester.tap(find.text('保存方案'));
@@ -344,7 +346,7 @@ void main() {
       extraOverrides: [llmClientProvider.overrideWithValue(client)],
     );
     expect(find.widgetWithText(AppBar, '小说工作区'), findsOneWidget);
-    expect(find.widgetWithText(TextField, '搜索作品'), findsOneWidget);
+    expect(find.widgetWithText(AppTextField, '搜索作品'), findsOneWidget);
     expect(find.byTooltip('打开侧边内容'), findsNothing);
     await tester.enterText(
       find.widgetWithText(TextField, '描述下一步要完成的任务…'),

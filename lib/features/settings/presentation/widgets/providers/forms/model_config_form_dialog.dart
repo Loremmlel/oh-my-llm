@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_text_field.dart';
 
 import '../../../../application/providers/model_catalog_workflow.dart';
 import '../../../../domain/models/providers/model_catalog_entry.dart';
@@ -156,6 +157,7 @@ class _ModelConfigFormDialogState extends State<ModelConfigFormDialog>
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: SegmentedButton<_FormMode>(
+        showSelectedIcon: false,
         key: const ValueKey('model-config-mode-switch'),
         segments: const [
           ButtonSegment(
@@ -181,7 +183,7 @@ class _ModelConfigFormDialogState extends State<ModelConfigFormDialog>
 
   List<Widget> _buildManualForm() {
     return [
-      TextFormField(
+      AppTextField.form(
         key: const ValueKey('model-config-display-name-field'),
         controller: _displayNameController,
         decoration: const InputDecoration(
@@ -191,7 +193,7 @@ class _ModelConfigFormDialogState extends State<ModelConfigFormDialog>
         validator: validateRequired,
       ),
       const SizedBox(height: 12),
-      TextFormField(
+      AppTextField.form(
         key: const ValueKey('model-config-api-name-field'),
         controller: _modelNameController,
         decoration: const InputDecoration(

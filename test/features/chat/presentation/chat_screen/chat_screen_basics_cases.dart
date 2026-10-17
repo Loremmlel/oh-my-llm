@@ -11,6 +11,7 @@ import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
 import 'package:oh_my_llm/features/chat/presentation/widgets/messages/bubble/chat_inline_error_card.dart';
+import 'package:oh_my_llm/features/chat/presentation/widgets/messages/chat_messages_panel.dart';
 import 'package:oh_my_llm/features/settings/application/prompts/memory_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/application/prompts/preset_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.dart';
@@ -313,7 +314,7 @@ void registerChatScreenBasicsTests() {
 
     expect(find.text('上下文过滤'), findsOneWidget);
     // 恢复分支是同步状态变更；关闭按钮走 overlay 过渡。
-    await tester.tap(find.widgetWithText(FilledButton, '恢复当前分支'));
+    await tester.tap(find.widgetWithText(OutlinedButton, '恢复当前分支'));
     await tester.pump();
     await tester.tap(find.widgetWithText(TextButton, '关闭'));
     await settleOverlayTransition(tester);
@@ -365,17 +366,14 @@ void registerChatScreenBasicsTests() {
       tester.element(find.byType(ChatScreen)),
     );
     await tester.enterText(chatMessageComposerFinder, '等待展开后发送');
-    expect(find.widgetWithText(FilledButton, '发送'), findsOneWidget);
+    expect(find.byTooltip('发送'), findsOneWidget);
 
     await tester.tap(find.byTooltip('收起输入区'));
     await settleAnimatedWidgetTransition(tester);
 
     expect(find.text('输入区已隐藏'), findsOneWidget);
-    expect(find.widgetWithText(FilledButton, '发送').hitTestable(), findsNothing);
-    await tester.tap(
-      find.widgetWithText(FilledButton, '发送'),
-      warnIfMissed: false,
-    );
+    expect(find.byTooltip('发送').hitTestable(), findsNothing);
+    await tester.tap(find.byTooltip('发送'), warnIfMissed: false);
     // 折叠态下点击不产生任何请求，单帧处理该 tap 即可。
     await tester.pump();
     expect(fakeClient.requestHistory, isEmpty);
@@ -383,9 +381,9 @@ void registerChatScreenBasicsTests() {
     await tester.tap(find.byTooltip('展开输入区'));
     await settleAnimatedWidgetTransition(tester);
 
-    expect(find.widgetWithText(FilledButton, '发送'), findsOneWidget);
+    expect(find.byTooltip('发送'), findsOneWidget);
     expect(find.text('等待展开后发送'), findsOneWidget);
-    await tester.tap(find.widgetWithText(FilledButton, '发送'));
+    await tester.tap(find.byTooltip('发送'));
     await waitForChatGeneration(
       tester,
       container,
@@ -635,7 +633,15 @@ void registerChatScreenBasicsTests() {
     await tester.pump();
 
     // 先离开底部再返回，不依赖初次布局的换行高度恰好露出导航按钮。
-    await tester.drag(find.byType(Scrollable).first, const Offset(0, 600));
+    await tester.drag(
+      find
+          .descendant(
+            of: find.byType(ChatMessagesPanel),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+      const Offset(0, 600),
+    );
     await settleScrollMotion(tester);
     expect(find.byTooltip('滚动到底部'), findsOneWidget);
     await tester.tap(find.byTooltip('滚动到底部'));
@@ -703,7 +709,12 @@ void registerChatScreenBasicsTests() {
 
     final beforeScroll = selectedAnchorIndex();
 
-    final scrollable = find.byType(Scrollable).first;
+    final scrollable = find
+        .descendant(
+          of: find.byType(ChatMessagesPanel),
+          matching: find.byType(Scrollable),
+        )
+        .first;
     await tester.drag(scrollable, const Offset(0, 400));
     await settleScrollMotion(tester);
 

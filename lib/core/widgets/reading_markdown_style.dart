@@ -8,11 +8,16 @@ MarkdownStyleSheet readingMarkdownStyle(ThemeData theme, {double? fontSize}) {
     fontFamilyFallback: const ['Noto Sans SC'],
   );
   final base = MarkdownStyleSheet.fromTheme(theme.copyWith(textTheme: reading));
+  final readingSize =
+      fontSize ?? (theme.textTheme.bodyMedium?.fontSize ?? 14) + 2;
   return base.copyWith(
-    textStyle: reading.bodyMedium?.copyWith(height: 1.85, fontSize: fontSize),
+    textStyle: reading.bodyMedium?.copyWith(
+      height: 1.85,
+      fontSize: readingSize,
+    ),
     paragraphStyle: reading.bodyMedium?.copyWith(
       height: 1.85,
-      fontSize: fontSize,
+      fontSize: readingSize,
     ),
     h1Style: reading.headlineSmall,
     h2Style: reading.titleLarge,

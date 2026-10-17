@@ -20,29 +20,31 @@ class ModelCapabilityChips extends StatelessWidget {
   Widget build(BuildContext context) => Wrap(
     spacing: AppSpacing.sm,
     children: [
-      FilterChip(
-        label: const Text('深度思考'),
-        avatar: Icon(
-          supportsReasoning ? Icons.check : Icons.psychology_outlined,
-          size: 18,
-        ),
-        showCheckmark: false,
-        materialTapTargetSize: MaterialTapTargetSize.padded,
-        tooltip: '声明模型支持深度思考',
-        selected: supportsReasoning,
-        onSelected: onReasoningChanged,
+      Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Checkbox(
+            value: supportsReasoning,
+            semanticLabel: '深度思考',
+            onChanged: onReasoningChanged == null
+                ? null
+                : (value) => onReasoningChanged!(value!),
+          ),
+          const ExcludeSemantics(child: Text('深度思考')),
+        ],
       ),
-      FilterChip(
-        label: const Text('图像'),
-        avatar: Icon(
-          supportsImageInput ? Icons.check : Icons.image_outlined,
-          size: 18,
-        ),
-        showCheckmark: false,
-        materialTapTargetSize: MaterialTapTargetSize.padded,
-        tooltip: '多模态：允许模型接收图像输入',
-        selected: supportsImageInput,
-        onSelected: onImageInputChanged,
+      Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Checkbox(
+            value: supportsImageInput,
+            semanticLabel: '图像',
+            onChanged: onImageInputChanged == null
+                ? null
+                : (value) => onImageInputChanged!(value!),
+          ),
+          const ExcludeSemantics(child: Text('图像')),
+        ],
       ),
     ],
   );

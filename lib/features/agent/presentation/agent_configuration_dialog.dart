@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/theme/app_ui_colors.dart';
+import 'package:oh_my_llm/core/widgets/app_text_field.dart';
 import 'package:oh_my_llm/core/widgets/app_dropdown_field.dart';
 import 'package:oh_my_llm/core/widgets/app_help_button.dart';
 import 'package:oh_my_llm/core/widgets/long_text_editing_controller.dart';
@@ -182,7 +184,7 @@ class _ConfigurationDialogState extends ConsumerState<_ConfigurationDialog> {
         ),
         const SizedBox(height: AppSpacing.sm),
         if (models.isEmpty) const Text('请先在设置中添加支持工具调用的模型。'),
-        TextField(
+        AppTextField(
           key: ValueKey(_role),
           controller: _instructions[_role],
           readOnly: state.busy,
@@ -267,7 +269,7 @@ class _ConfigurationDialogState extends ConsumerState<_ConfigurationDialog> {
                                 );
                               },
                       ),
-                    TextField(
+                    AppTextField(
                       controller: _name,
                       readOnly: state.busy,
                       decoration: const InputDecoration(labelText: '方案名称'),
@@ -302,8 +304,8 @@ class _ConfigurationDialogState extends ConsumerState<_ConfigurationDialog> {
                                       title: Text(agentRoleLabel(role)),
                                       selected: _role == role,
                                       selectedTileColor: Theme.of(context)
-                                          .colorScheme
-                                          .secondaryContainer,
+                                          .uiColors
+                                          .selection,
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(
                                           AppRadii.sm,
@@ -386,7 +388,7 @@ class _ConfigurationDialogState extends ConsumerState<_ConfigurationDialog> {
                 ],
                 const Text('切换模型会丢弃不兼容的原生推理与厂商字段。'),
                 const SizedBox(height: AppSpacing.sm),
-                TextField(
+                AppTextField(
                   controller: _preset,
                   readOnly: state.busy,
                   minLines: 3,
@@ -399,18 +401,24 @@ class _ConfigurationDialogState extends ConsumerState<_ConfigurationDialog> {
                   runSpacing: AppSpacing.xs,
                   children: [
                     for (final role in AgentRole.values)
-                      FilterChip(
-                        label: Text(agentRoleLabel(role)),
-                        selected: _presetRoles.contains(role),
-                        onSelected: state.busy
-                            ? null
-                            : (selected) => setState(() {
-                                if (selected) {
-                                  _presetRoles.add(role);
-                                } else {
-                                  _presetRoles.remove(role);
-                                }
-                              }),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Checkbox(
+                            semanticLabel: agentRoleLabel(role),
+                            value: _presetRoles.contains(role),
+                            onChanged: state.busy
+                                ? null
+                                : (selected) => setState(() {
+                                    if (selected!) {
+                                      _presetRoles.add(role);
+                                    } else {
+                                      _presetRoles.remove(role);
+                                    }
+                                  }),
+                          ),
+                          Text(agentRoleLabel(role)),
+                        ],
                       ),
                   ],
                 ),

@@ -135,11 +135,11 @@ class _PresetPromptRowState extends State<PresetPromptRow> {
           Flexible(child: Text('单条 System', style: theme.textTheme.bodySmall)),
         Semantics(
           label: '单 System Prompt',
-          child: Switch.adaptive(
+          child: Checkbox(
             value: template.singleSystemPrompt,
             onChanged: _pending
                 ? null
-                : (v) => _run(() => widget.onSingleSystemChanged(v)),
+                : (v) => _run(() => widget.onSingleSystemChanged(v!)),
           ),
         ),
         if (!widget.compact)

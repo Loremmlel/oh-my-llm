@@ -1,6 +1,8 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/theme/app_ui_colors.dart';
+import 'package:oh_my_llm/core/widgets/app_scroll_to_latest_button.dart';
 import 'package:flutter_smooth_markdown/flutter_smooth_markdown.dart'
     as smooth_md;
 import 'package:go_router/go_router.dart';
@@ -182,12 +184,10 @@ class _AgentTranscriptState extends State<AgentTranscript> {
           Positioned(
             right: AppSpacing.md,
             bottom: AppSpacing.xs,
-            child: FilledButton.tonalIcon(
+            child: AppScrollToLatestButton(
               onPressed: () {
                 _scroll.jumpTo(_scroll.position.maxScrollExtent);
               },
-              icon: const Icon(Icons.arrow_downward),
-              label: const Text('回到最新'),
             ),
           ),
       ],
@@ -244,7 +244,7 @@ class _RunTranscriptState extends State<_RunTranscript> {
           Container(
             padding: const EdgeInsets.all(AppSpacing.md),
             decoration: BoxDecoration(
-              color: theme.colorScheme.primaryContainer.withValues(alpha: .45),
+              color: theme.uiColors.userInput,
               borderRadius: BorderRadius.circular(AppRadii.sm),
             ),
             child: Column(
@@ -402,7 +402,7 @@ class _StepView extends StatelessWidget {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: Theme.of(context).textTheme.labelLarge
-              ?.copyWith(fontWeight: FontWeight.w600),
+              ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
         ),
         children: [
           Align(
@@ -447,7 +447,11 @@ class _StepView extends StatelessWidget {
       minTileHeight: 48,
       dense: true,
       leading: Icon(step.isError ? Icons.error_outline : Icons.check, size: 18),
-      title: Text(step.label),
+      title: Text(
+        step.label,
+        style: Theme.of(context).textTheme.bodySmall
+            ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+      ),
       children: [details],
     );
   }
@@ -460,7 +464,7 @@ class _AgentMarkdown extends StatelessWidget {
   Widget build(BuildContext context) => smooth_md.SmoothMarkdown(
     data: content,
     selectable: true,
-    styleSheet: readingMarkdownStyle(Theme.of(context), fontSize: 18),
+    styleSheet: readingMarkdownStyle(Theme.of(context)),
   );
 }
 

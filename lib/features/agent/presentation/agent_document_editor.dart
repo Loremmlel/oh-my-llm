@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_text_field.dart';
 import 'package:oh_my_llm/core/widgets/app_dropdown_field.dart';
 import 'package:oh_my_llm/core/widgets/app_help_button.dart';
 import 'package:oh_my_llm/core/widgets/long_text_editing_controller.dart';
@@ -123,7 +124,7 @@ class _DocumentEditorState extends ConsumerState<_DocumentEditor> {
               AppFieldGroup(
                 children: [
                   if (_kind != AgentDocumentKind.script)
-                    TextField(
+                    AppTextField(
                       controller: _name,
                       readOnly: widget.document != null,
                       decoration: const InputDecoration(labelText: '文档名'),
@@ -151,7 +152,7 @@ class _DocumentEditorState extends ConsumerState<_DocumentEditor> {
               ),
               const SizedBox(height: AppSpacing.sm),
               Expanded(
-                child: TextField(
+                child: AppTextField(
                   controller: _content,
                   expands: true,
                   minLines: null,

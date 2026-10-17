@@ -78,12 +78,12 @@ class PresetPromptPanel extends ConsumerWidget {
           Row(
             children: [
               Expanded(
-                child: SwitchListTile.adaptive(
+                child: CheckboxListTile(
                   title: const Text('单 System Prompt'),
                   value: selectedPreset.singleSystemPrompt,
                   onChanged: (enabled) => ref
                       .read(presetPromptsProvider.notifier)
-                      .setSingleSystemPrompt(selectedPreset.id, enabled),
+                      .setSingleSystemPrompt(selectedPreset.id, enabled!),
                 ),
               ),
               const AppHelpButton(

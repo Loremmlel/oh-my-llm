@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_text_field.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:oh_my_llm/core/widgets/app_field_group.dart';
@@ -13,7 +14,7 @@ import '../shared/settings_section_card.dart';
 /// contentPadding 保持 EdgeInsets.zero，让 title 与上方
 /// SegmentedButton / 数字输入框的左基线对齐。
 const _switchTileShape = RoundedRectangleBorder(
-  borderRadius: BorderRadius.all(Radius.circular(12)),
+  borderRadius: BorderRadius.all(Radius.circular(AppRadii.md)),
 );
 
 /// 其它设置标签页，包含自动重试等杂项配置。
@@ -82,6 +83,7 @@ class OtherSettingsTab extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               SegmentedButton<RetryMode>(
+                showSelectedIcon: false,
                 segments: const [
                   ButtonSegment<RetryMode>(
                     value: RetryMode.perMinuteWindow,
@@ -198,7 +200,7 @@ class _AutoRetryNumberField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return TextFormField(
+    return AppTextField.form(
       initialValue: value.toString(),
       decoration: InputDecoration(
         labelText: label,

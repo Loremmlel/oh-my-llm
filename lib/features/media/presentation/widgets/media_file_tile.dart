@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../application/media_resource_provider.dart';
@@ -118,7 +119,7 @@ class MediaFileTile extends ConsumerWidget {
       return _fallbackIcon(theme);
     }
     return ClipRRect(
-      borderRadius: BorderRadius.circular(4),
+      borderRadius: BorderRadius.circular(AppRadii.sm),
       child: MediaImageResourceView(
         resource: resourceValue,
         fit: BoxFit.cover,

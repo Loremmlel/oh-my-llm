@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/theme/app_ui_colors.dart';
 
 import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
@@ -52,9 +53,7 @@ class FavoriteListItem extends StatelessWidget {
     final previewText = favorite.assistantContent.trim();
 
     return Material(
-      color: selected
-          ? theme.colorScheme.primaryContainer.withValues(alpha: 0.45)
-          : Colors.transparent,
+      color: selected ? theme.uiColors.selection : Colors.transparent,
       shape: Border(
         bottom: BorderSide(color: theme.colorScheme.outlineVariant),
       ),

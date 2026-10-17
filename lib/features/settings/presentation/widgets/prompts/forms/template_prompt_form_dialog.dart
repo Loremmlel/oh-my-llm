@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_text_field.dart';
 import 'package:oh_my_llm/core/widgets/app_dropdown_field.dart';
 import 'package:oh_my_llm/core/widgets/long_text_editing_controller.dart';
 
@@ -113,7 +114,7 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog>
       child: LayoutBuilder(
         builder: (context, constraints) {
           final expand = constraints.hasBoundedHeight;
-          final editor = TextFormField(
+          final editor = AppTextField.form(
             key: const ValueKey('template-prompt-content-field'),
             controller: _contentController,
             minLines: expand ? null : 5,
@@ -131,7 +132,7 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog>
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              TextFormField(
+              AppTextField.form(
                 key: const ValueKey('template-prompt-title-field'),
                 controller: _titleController,
                 decoration: const InputDecoration(
@@ -174,7 +175,7 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog>
                           else if (variable.isNumber)
                             Padding(
                               padding: const EdgeInsets.only(bottom: 12),
-                              child: TextFormField(
+                              child: AppTextField.form(
                                 key: ValueKey(
                                   'template-prompt-variable-field-${variable.name}',
                                 ),
@@ -225,7 +226,7 @@ class _TemplatePromptFormDialogState extends State<TemplatePromptFormDialog>
                           else
                             Padding(
                               padding: const EdgeInsets.only(bottom: 12),
-                              child: TextFormField(
+                              child: AppTextField.form(
                                 key: ValueKey(
                                   'template-prompt-variable-field-${variable.name}',
                                 ),

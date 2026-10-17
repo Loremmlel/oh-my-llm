@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_text_field.dart';
 import 'package:oh_my_llm/core/widgets/app_dropdown_field.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
@@ -128,7 +129,7 @@ class _SillyTavernImportDialogState
             ),
           if (source != null && plan != null) ...[
             const SizedBox(height: AppSpacing.md),
-            TextFormField(
+            AppTextField.form(
               controller: _name,
               decoration: const InputDecoration(labelText: '预设名称'),
               validator: (value) =>

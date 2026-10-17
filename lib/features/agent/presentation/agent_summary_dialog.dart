@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_text_field.dart';
 import 'package:oh_my_llm/core/widgets/app_help_button.dart';
 import 'package:oh_my_llm/core/widgets/long_text_editing_controller.dart';
 import 'package:oh_my_llm/core/widgets/dialogs/app_dialog_actions.dart';
@@ -91,7 +92,7 @@ class _SummaryManagerState extends ConsumerState<_SummaryManager> {
               else ...[
                 Text('从较早未整理的正文开始（第 ${rounds.indexOf(available.first) + 1} 楼）'),
                 const SizedBox(height: AppSpacing.sm),
-                TextField(
+                AppTextField(
                   controller: _count,
                   enabled: enabled,
                   keyboardType: TextInputType.number,
@@ -288,7 +289,7 @@ class _SummaryEditorState extends ConsumerState<_SummaryEditor> {
           child: Column(
             children: [
               Expanded(
-                child: TextField(
+                child: AppTextField(
                   controller: _text,
                   expands: true,
                   minLines: null,

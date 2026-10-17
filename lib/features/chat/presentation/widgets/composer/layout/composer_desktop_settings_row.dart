@@ -51,12 +51,24 @@ class ComposerDesktopSettingsRow extends StatelessWidget {
               Tooltip(
                 message: '固定顺序提示词',
                 child: TextButton.icon(
+                  style: TextButton.styleFrom(
+                    foregroundColor: theme.colorScheme.onSurfaceVariant,
+                    textStyle: theme.textTheme.bodySmall,
+                    iconSize: 14,
+                  ),
                   onPressed: bindings.onOpenFixedPromptSequenceRunner,
                   icon: const Icon(Icons.playlist_play_rounded),
                   label: const Text('固定顺序提示词'),
                 ),
               ),
               TextButton.icon(
+                style: TextButton.styleFrom(
+                  foregroundColor: state.excludedMessageCount > 0
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.onSurfaceVariant,
+                  textStyle: theme.textTheme.bodySmall,
+                  iconSize: 14,
+                ),
                 key: const ValueKey('chat-message-filter-button'),
                 // 过滤对话框只是查看/标记，不影响进行中的请求。
                 onPressed: bindings.onOpenMessageFilter,
@@ -69,12 +81,10 @@ class ComposerDesktopSettingsRow extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.data_usage_outlined, size: 18),
-                    const SizedBox(width: 4),
                     Text(
                       state.cacheHitRate == null
-                          ? '—'
-                          : '${(state.cacheHitRate! * 100).toStringAsFixed(1)}%',
+                          ? '缓存 —'
+                          : '缓存 ${(state.cacheHitRate! * 100).toStringAsFixed(1)}%',
                       style: theme.textTheme.bodySmall,
                     ),
                   ],

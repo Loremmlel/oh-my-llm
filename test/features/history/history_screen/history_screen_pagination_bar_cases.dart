@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_text_field.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
@@ -30,7 +31,7 @@ void registerHistoryScreenPaginationBarTests() {
 
     final jumpField = find.ancestor(
       of: find.text('页码'),
-      matching: find.byType(TextField),
+      matching: find.byType(AppTextField),
     );
     await tester.enterText(jumpField, '99');
     await tester.tap(find.widgetWithText(TextButton, '跳转'));
@@ -75,7 +76,7 @@ void registerHistoryScreenPaginationBarTests() {
     expect(find.textContaining('已选择 1 项'), findsOneWidget);
 
     // 切换容量为 10：回到第 1 页且选择态清空。
-    await tester.tap(find.text('每页'), warnIfMissed: false);
+    await tester.tap(find.byType(DropdownButtonFormField<int>));
     await settleOverlayTransition(tester);
     await tester.tap(find.text('10').last);
     await settleOverlayTransition(tester);

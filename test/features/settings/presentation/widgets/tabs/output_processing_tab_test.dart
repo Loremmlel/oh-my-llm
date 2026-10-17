@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_text_field.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -62,7 +63,7 @@ void main() {
       await settleOverlayTransition(tester);
 
       await tester.enterText(
-        find.widgetWithText(TextField, '正则表达式'),
+        find.widgetWithText(AppTextField, '正则表达式'),
         '[invalid',
       );
       await tester.tap(find.text('保存'));
@@ -70,8 +71,11 @@ void main() {
 
       expect(find.textContaining('无效正则'), findsOneWidget);
       expect(container.read(outputProcessingSettingsProvider).rules, isEmpty);
-      await tester.enterText(find.widgetWithText(TextField, '标题'), '新规则');
-      await tester.enterText(find.widgetWithText(TextField, '正则表达式'), r'\d+');
+      await tester.enterText(find.widgetWithText(AppTextField, '标题'), '新规则');
+      await tester.enterText(
+        find.widgetWithText(AppTextField, '正则表达式'),
+        r'\d+',
+      );
       await tester.tap(find.text('保存'));
       await settleOverlayTransition(tester);
       expect(find.text('新规则'), findsOneWidget);
@@ -88,7 +92,7 @@ void main() {
       ];
       final container = await pumpTab(tester, initialRules: rules);
 
-      await tester.tap(find.byType(Switch).first);
+      await tester.tap(find.byType(Checkbox).first);
       await tester.pump();
 
       final downButtons = find.byIcon(Icons.arrow_downward_rounded);

@@ -109,7 +109,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
 
     await tester.tap(find.text('批量添加'));
     await settleOverlayTransition(tester);
-    await tester.tap(find.widgetWithText(FilledButton, '拉取模型'));
+    await tester.tap(find.widgetWithText(OutlinedButton, '拉取模型'));
     await tester.pump();
 
     Finder modelRow(String modelName) => find.widgetWithText(Row, modelName);
@@ -118,7 +118,9 @@ void registerSettingsScreenModelsAndPromptsTests() {
         .first;
     Finder reasoningCheckbox(String modelName) => find.descendant(
       of: modelRow(modelName),
-      matching: find.widgetWithText(FilterChip, '深度思考'),
+      matching: find.byWidgetPredicate(
+        (widget) => widget is Checkbox && widget.semanticLabel == '深度思考',
+      ),
     );
 
     await tester.tap(selectionCheckbox('plain-model'));
@@ -129,7 +131,9 @@ void registerSettingsScreenModelsAndPromptsTests() {
     await tester.tap(
       find.descendant(
         of: modelRow('reasoning-model'),
-        matching: find.widgetWithText(FilterChip, '图像'),
+        matching: find.byWidgetPredicate(
+          (widget) => widget is Checkbox && widget.semanticLabel == '图像',
+        ),
       ),
     );
     await tester.pump();
@@ -266,7 +270,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
     expect(find.text('2 条'), findsOneWidget);
     final saved = presetPromptRepository.loadAll(database).single;
     expect(saved.singleSystemPrompt, isFalse);
-    await tester.tap(find.byType(Switch).last);
+    await tester.tap(find.byType(Checkbox).last);
     await tester.pump();
     expect(
       presetPromptRepository.loadAll(database).single.singleSystemPrompt,
@@ -280,7 +284,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
       presetPromptRepository.loadAll(database).single.singleSystemPrompt,
       isTrue,
     );
-    await tester.tap(find.byType(Switch).last);
+    await tester.tap(find.byType(Checkbox).last);
     await tester.pump();
     expect(
       presetPromptRepository.loadAll(database).single.singleSystemPrompt,
@@ -297,7 +301,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
         TestFixtures.presetPrompt(id: 'narrow-preset', name: '窄屏预设'),
       ],
     );
-    await tester.tap(find.byType(Switch).first);
+    await tester.tap(find.byType(Checkbox).first);
     await tester.pump();
     expect(
       presetPromptRepository.loadAll(database).single.singleSystemPrompt,

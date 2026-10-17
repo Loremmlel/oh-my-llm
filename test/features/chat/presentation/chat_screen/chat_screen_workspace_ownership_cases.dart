@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_text_field.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -23,7 +23,7 @@ void _expectFieldText(Finder field, String text) {
 
 /// 模板变量区域的变量输入框：按变量名 label 定位并限定在变量区域内，
 /// 避免与页面其他同名文本（如会话标题）混淆。
-Finder _variableField(String name) => find.widgetWithText(TextField, name);
+Finder _variableField(String name) => find.widgetWithText(AppTextField, name);
 
 /// 点击指定消息气泡（按完整可见用户消息正文定位）的「编辑消息」按钮。
 ///
@@ -201,7 +201,7 @@ void registerChatScreenWorkspaceOwnershipTests() {
     await tester.pump();
     await tester.enterText(_variableField('title'), '甲');
     await tester.pump();
-    await tester.tap(find.widgetWithText(FilledButton, '发送'));
+    await tester.tap(find.byTooltip('发送'));
     await waitForChatGeneration(
       tester,
       container,
@@ -216,7 +216,7 @@ void registerChatScreenWorkspaceOwnershipTests() {
     _expectFieldText(titleField, '甲');
     await tester.enterText(titleField, '乙');
     await tester.pump();
-    await tester.tap(find.widgetWithText(FilledButton, '发送'));
+    await tester.tap(find.byTooltip('发送'));
     await waitForChatGeneration(
       tester,
       container,

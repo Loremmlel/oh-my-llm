@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
+import 'package:oh_my_llm/core/widgets/app_text_field.dart';
 
 import '../../../../application/providers/model_catalog_workflow.dart';
 import '../../../../domain/models/providers/model_catalog_entry.dart';
@@ -169,7 +171,7 @@ class ModelFetchSectionState extends State<ModelFetchSection> {
       children: [
         _buildAdvancedSection(theme),
         const SizedBox(height: 12),
-        FilledButton.tonalIcon(
+        OutlinedButton.icon(
           key: const ValueKey('model-fetch-button'),
           onPressed: _status == _FetchStatus.loading ? null : _fetch,
           icon: _status == _FetchStatus.loading
@@ -208,7 +210,7 @@ class ModelFetchSectionState extends State<ModelFetchSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        TextFormField(
+        AppTextField.form(
           key: const ValueKey('model-fetch-url-field'),
           initialValue: _editedUrl,
           decoration: const InputDecoration(
@@ -352,7 +354,7 @@ class ModelFetchSectionState extends State<ModelFetchSection> {
                         ),
                         decoration: BoxDecoration(
                           color: theme.colorScheme.surfaceContainerHighest,
-                          borderRadius: BorderRadius.circular(4),
+                          borderRadius: BorderRadius.circular(AppRadii.sm),
                         ),
                         child: Text(
                           '已存在',
@@ -365,7 +367,7 @@ class ModelFetchSectionState extends State<ModelFetchSection> {
                   ],
                 ),
                 const SizedBox(height: 4),
-                TextFormField(
+                AppTextField.form(
                   key: ValueKey(
                     'model-fetch-display-name-${entry.remoteModel.id}',
                   ),

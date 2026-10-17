@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_text_field.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.dart';
@@ -46,7 +47,7 @@ void main() {
     await tester.tap(find.text('打开'));
     await settleRouteTransition(tester);
     await tester.enterText(
-      find.widgetWithText(TextFormField, '预设 Prompt 名称'),
+      find.widgetWithText(AppTextField, '预设 Prompt 名称'),
       '修改名称',
     );
     await tester.tap(find.text('保存'));
@@ -54,7 +55,7 @@ void main() {
     expect(find.textContaining('测试保存失败'), findsOneWidget);
     expect(find.text('修改名称'), findsOneWidget);
     await tester.enterText(
-      find.widgetWithText(TextFormField, '自定义 CoT 标签（可选）'),
+      find.widgetWithText(AppTextField, '自定义 CoT 标签（可选）'),
       'thinking_diy',
     );
     await tester.tap(find.text('保存'));
@@ -62,7 +63,7 @@ void main() {
     expect(submitted!.customReasoningTag, 'thinking_diy');
     submitted = null;
     await tester.enterText(
-      find.widgetWithText(TextFormField, '自定义 CoT 标签（可选）'),
+      find.widgetWithText(AppTextField, '自定义 CoT 标签（可选）'),
       '<thinking_diy>',
     );
     await tester.tap(find.text('保存'));

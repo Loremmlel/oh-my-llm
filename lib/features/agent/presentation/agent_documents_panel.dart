@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_text_tab.dart';
 import 'package:oh_my_llm/core/widgets/app_help_button.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
@@ -48,18 +49,17 @@ class _AgentDocumentsPanelState extends ConsumerState<AgentDocumentsPanel> {
         Wrap(
           spacing: AppSpacing.xs,
           children: [
-            ChoiceChip(
-              label: Text('全部 ${state.documents.length}'),
+            AppTextTab(
+              label: '全部 ${state.documents.length}',
               selected: _kind == null,
-              onSelected: (_) => setState(() => _kind = null),
+              onPressed: () => setState(() => _kind = null),
             ),
             for (final kind in AgentDocumentKind.values)
-              ChoiceChip(
-                label: Text(
-                  '${agentDocumentKindLabel(kind)} ${state.documents.where((d) => d.kind == kind).length}',
-                ),
+              AppTextTab(
+                label:
+                    '${agentDocumentKindLabel(kind)} ${state.documents.where((d) => d.kind == kind).length}',
                 selected: _kind == kind,
-                onSelected: (_) => setState(() => _kind = kind),
+                onPressed: () => setState(() => _kind = kind),
               ),
           ],
         ),

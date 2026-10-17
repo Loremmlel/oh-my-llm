@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:oh_my_llm/core/widgets/app_dropdown_field.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
+import 'package:oh_my_llm/core/theme/app_ui_colors.dart';
+import 'package:oh_my_llm/core/widgets/app_inline_notice.dart';
 
 import '../../application/broadcast_prefix_length_provider.dart';
 import '../../application/network_interface_provider.dart';
@@ -42,34 +44,10 @@ class InterfaceSelector extends ConsumerWidget {
       ),
       data: (interfaces) {
         if (interfaces.isEmpty) {
-          return Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.secondaryContainer,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: Theme.of(context).colorScheme.outlineVariant,
-              ),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.warning_amber_rounded,
-                  color: Theme.of(context).colorScheme.onSecondaryContainer,
-                  size: 18,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    '未检测到可用网络接口，将使用全局广播',
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.onSecondaryContainer,
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+          return AppInlineNotice(
+            message: '未检测到可用网络接口，将使用全局广播',
+            color: Theme.of(context).uiColors.warning,
+            icon: Icons.warning_amber_rounded,
           );
         }
 
@@ -127,6 +105,7 @@ class InterfaceSelector extends ConsumerWidget {
                 ),
                 const SizedBox(height: 4),
                 SegmentedButton<BroadcastPrefixLength>(
+                  showSelectedIcon: false,
                   segments: const [
                     ButtonSegment(
                       value: BroadcastPrefixLength.p8,

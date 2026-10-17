@@ -23,12 +23,6 @@ class PresetPromptMessageCard extends ConsumerWidget {
   /// 当前消息（含 enabled 字段）。
   final PromptMessage message;
 
-  IconData get _roleIcon => switch (message.role) {
-    PromptMessageRole.system => Icons.smart_toy_outlined,
-    PromptMessageRole.user => Icons.person_outline_rounded,
-    PromptMessageRole.assistant => Icons.psychology_outlined,
-  };
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
@@ -44,8 +38,6 @@ class PresetPromptMessageCard extends ConsumerWidget {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           child: Row(
             children: [
-              Icon(_roleIcon, size: 20, color: theme.colorScheme.primary),
-              const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -67,7 +59,7 @@ class PresetPromptMessageCard extends ConsumerWidget {
                   ],
                 ),
               ),
-              Switch(
+              Checkbox(
                 value: message.enabled,
                 onChanged: (_) {
                   ref

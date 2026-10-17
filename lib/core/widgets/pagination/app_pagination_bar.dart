@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_text_field.dart';
 import 'package:oh_my_llm/core/widgets/app_dropdown_field.dart';
 import 'package:flutter/services.dart';
 
@@ -201,7 +202,7 @@ class _AppPaginationBarState extends State<AppPaginationBar> {
             if (!compact) ...[
               SizedBox(
                 width: jumpWidth,
-                child: TextField(
+                child: AppTextField(
                   controller: _jumpController,
                   enabled: !disabled,
                   keyboardType: TextInputType.number,

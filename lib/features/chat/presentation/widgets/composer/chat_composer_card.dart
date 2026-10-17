@@ -125,6 +125,12 @@ class ChatComposerCard extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Card(
+              elevation: 1,
+              shadowColor: theme.colorScheme.shadow.withValues(alpha: 0.12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadii.dialog),
+                side: BorderSide(color: theme.colorScheme.outlineVariant),
+              ),
               child: Padding(
                 padding: const EdgeInsets.all(AppSpacing.xs),
                 // 变量/正文控制器变化不经过 Riverpod，用 ListenableBuilder 合并监听：
@@ -155,16 +161,19 @@ class ChatComposerCard extends ConsumerWidget {
                                 vertical: 8,
                               ),
                               decoration: BoxDecoration(
-                                color: theme.colorScheme.secondaryContainer,
-                                borderRadius: BorderRadius.circular(8),
+                                border: Border(
+                                  left: BorderSide(
+                                    color: theme.colorScheme.primary,
+                                    width: 2,
+                                  ),
+                                ),
                               ),
                               child: Row(
                                 children: [
                                   Icon(
                                     Icons.edit_rounded,
                                     size: 18,
-                                    color:
-                                        theme.colorScheme.onSecondaryContainer,
+                                    color: theme.colorScheme.onSurfaceVariant,
                                   ),
                                   const SizedBox(width: 8),
                                   Expanded(
@@ -174,14 +183,16 @@ class ChatComposerCard extends ConsumerWidget {
                                           ?.copyWith(
                                             color: theme
                                                 .colorScheme
-                                                .onSecondaryContainer,
+                                                .onSurfaceVariant,
                                           ),
                                     ),
                                   ),
                                   Tooltip(
                                     message: '取消编辑',
                                     child: InkWell(
-                                      borderRadius: BorderRadius.circular(16),
+                                      borderRadius: BorderRadius.circular(
+                                        AppRadii.dialog,
+                                      ),
                                       onTap: bindings.onCancelEdit,
                                       child: Padding(
                                         padding: const EdgeInsets.all(4),
@@ -190,7 +201,7 @@ class ChatComposerCard extends ConsumerWidget {
                                           size: 18,
                                           color: theme
                                               .colorScheme
-                                              .onSecondaryContainer,
+                                              .onSurfaceVariant,
                                         ),
                                       ),
                                     ),
@@ -540,35 +551,25 @@ class ChatComposerCard extends ConsumerWidget {
                         const SizedBox(height: 12),
                         Text('思考强度', style: theme.textTheme.labelLarge),
                         const SizedBox(height: 8),
-                        Wrap(
-                          spacing: 6,
-                          runSpacing: 6,
-                          children: [
-                            for (final effort in ReasoningEffort.values)
-                              ChoiceChip(
-                                // 关闭 checkmark：其 150ms 宽度动画会让 Wrap 在窄屏
-                                // 跨越换行阈值，导致弹窗高度随选中项跳变；
-                                // 选中态改由背景色与边框区分。
-                                showCheckmark: false,
-                                label: Text(effortLabel(effort)),
-                                labelPadding: const EdgeInsets.symmetric(
-                                  horizontal: 2,
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: SegmentedButton<ReasoningEffort>(
+                            showSelectedIcon: false,
+                            selected: {localEffort},
+                            onSelectionChanged: (values) {
+                              setModalState(() => localEffort = values.first);
+                              bindings.onReasoningEffortChanged?.call(
+                                values.first,
+                              );
+                            },
+                            segments: [
+                              for (final effort in ReasoningEffort.values)
+                                ButtonSegment<ReasoningEffort>(
+                                  value: effort,
+                                  label: Text(effortLabel(effort)),
                                 ),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 0,
-                                ),
-                                selected: localEffort == effort,
-                                onSelected: (_) {
-                                  setModalState(() {
-                                    localEffort = effort;
-                                  });
-                                  bindings.onReasoningEffortChanged?.call(
-                                    effort,
-                                  );
-                                },
-                              ),
-                          ],
+                            ],
+                          ),
                         ),
                       ],
                       const SizedBox(height: 12),
@@ -576,29 +577,31 @@ class ChatComposerCard extends ConsumerWidget {
                         width: double.infinity,
                         child: Tooltip(
                           message: '固定顺序提示词',
-                          child: OutlinedButton.icon(
+                          child: ListTile(
                             // 流式中仍可打开：仅对话框内「发送当前步骤」按 !isBusy 锁定。
-                            onPressed: () async {
+                            onTap: () async {
                               Navigator.of(bottomSheetContext).pop();
                               await bindings.onOpenFixedPromptSequenceRunner();
                             },
-                            icon: const Icon(Icons.playlist_play_rounded),
-                            label: const Text('固定顺序提示词'),
+                            leading: const Icon(Icons.playlist_play_rounded),
+                            title: const Text('固定顺序提示词'),
+                            trailing: const Icon(Icons.chevron_right, size: 18),
                           ),
                         ),
                       ),
                       const SizedBox(height: 12),
                       SizedBox(
                         width: double.infinity,
-                        child: OutlinedButton.icon(
+                        child: ListTile(
                           key: const ValueKey('chat-message-filter-button'),
                           // 上下文过滤只影响下次发送，流式中无需锁定。
-                          onPressed: () async {
+                          onTap: () async {
                             Navigator.of(bottomSheetContext).pop();
                             await bindings.onOpenMessageFilter();
                           },
-                          icon: const Icon(Icons.filter_alt_outlined),
-                          label: Text(
+                          leading: const Icon(Icons.filter_alt_outlined),
+                          trailing: const Icon(Icons.chevron_right, size: 18),
+                          title: Text(
                             messageFilterLabel(
                               state.readModel.excludedMessageCount,
                             ),

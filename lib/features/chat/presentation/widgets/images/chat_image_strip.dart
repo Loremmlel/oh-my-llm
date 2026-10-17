@@ -80,7 +80,12 @@ class _ChatImageThumbnailState extends State<_ChatImageThumbnail> {
               Positioned(
                 top: 0,
                 right: 0,
-                child: IconButton.filledTonal(
+                child: IconButton.filled(
+                  style: IconButton.styleFrom(
+                    backgroundColor: Colors.black.withValues(alpha: 0.65),
+                    foregroundColor: Colors.white,
+                    shape: const CircleBorder(),
+                  ),
                   tooltip: '移除图片：${widget.image.name}',
                   onPressed: () => widget.onRemove!(widget.image.id),
                   icon: const Icon(Icons.close, size: 18),

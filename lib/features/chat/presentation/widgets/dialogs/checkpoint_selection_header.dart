@@ -38,7 +38,7 @@ class CheckpointSelectionHeader extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
-            FilledButton.tonal(
+            OutlinedButton(
               onPressed: isBusy ? null : onClearSelection,
               child: const Text('使用完整上下文'),
             ),

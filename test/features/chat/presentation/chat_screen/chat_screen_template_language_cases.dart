@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_text_field.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -16,7 +16,7 @@ import 'chat_screen_test_helpers.dart';
 ///
 /// select 字段不是 TextField（InputDecorator + DropdownButton），不适用本 finder，
 /// 需用当前选中值文本断言其可见性。
-Finder _variableField(String name) => find.widgetWithText(TextField, name);
+Finder _variableField(String name) => find.widgetWithText(AppTextField, name);
 
 /// 断言字段当前展示的文本（TextField 值）。
 void _expectFieldText(Finder field, String text) {
@@ -108,7 +108,7 @@ void registerChatScreenTemplateLanguageTests() {
     await tester.pump();
     await tester.enterText(chatMessageComposerFinder, '正文');
     await tester.pump();
-    await tester.tap(find.widgetWithText(FilledButton, '发送'));
+    await tester.tap(find.byTooltip('发送'));
     await waitForChatGeneration(
       tester,
       container,
@@ -158,7 +158,7 @@ void registerChatScreenTemplateLanguageTests() {
     // 发送交互不产生请求。
     await tester.enterText(chatMessageComposerFinder, '正文');
     await tester.pump();
-    await tester.tap(find.widgetWithText(FilledButton, '发送'));
+    await tester.tap(find.byTooltip('发送'));
     await tester.pump();
     expect(fakeClient.requestHistory, isEmpty);
   });

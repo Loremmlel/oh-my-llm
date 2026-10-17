@@ -1,6 +1,7 @@
 import 'dart:io' show InternetAddress;
 
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/app_text_field.dart';
 import 'package:oh_my_llm/core/widgets/dialogs/app_dialog_actions.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
@@ -85,6 +86,7 @@ class _SyncConnectionTabState extends ConsumerState<SyncConnectionTab>
 
   Widget _buildModeSelector() {
     return SegmentedButton<bool>(
+      showSelectedIcon: false,
       expandedInsets: EdgeInsets.zero,
       segments: const [
         ButtonSegment(
@@ -253,7 +255,7 @@ class _SyncConnectionTabState extends ConsumerState<SyncConnectionTab>
         onSubmit: () => Navigator.pop(context, controller.text),
         child: AlertDialog(
           title: const Text('配对此设备'),
-          content: TextField(
+          content: AppTextField(
             controller: controller,
             autofocus: true,
             textInputAction: TextInputAction.done,
@@ -315,7 +317,7 @@ class _SyncConnectionTabState extends ConsumerState<SyncConnectionTab>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          TextField(
+          AppTextField(
             controller: _nameController,
             decoration: const InputDecoration(labelText: '设备名称'),
             enabled: !serverState.isRunning,
@@ -337,12 +339,16 @@ class _SyncConnectionTabState extends ConsumerState<SyncConnectionTab>
           if (serverState.isRunning) ...[
             Row(
               children: [
-                Icon(Icons.circle, color: Colors.green.shade400, size: 12),
+                Icon(
+                  Icons.circle,
+                  color: Theme.of(context).colorScheme.primary,
+                  size: 8,
+                ),
                 const SizedBox(width: 8),
                 Text(
                   '正在广播',
                   style: theme.textTheme.bodyMedium?.copyWith(
-                    color: Colors.green.shade700,
+                    color: Theme.of(context).colorScheme.primary,
                     fontWeight: FontWeight.w600,
                   ),
                 ),

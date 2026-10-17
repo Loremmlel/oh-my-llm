@@ -33,9 +33,18 @@ List<Widget> editDeleteActions({
     icon: const Icon(Icons.edit_outlined),
     tooltip: '编辑',
   ),
-  IconButton(
-    onPressed: onDelete,
-    icon: const Icon(Icons.delete_outline_rounded),
-    tooltip: '删除',
+  PopupMenuButton<String>(
+    tooltip: '更多操作',
+    icon: const Icon(Icons.more_horiz, size: 18),
+    onSelected: (_) => onDelete(),
+    itemBuilder: (context) => [
+      PopupMenuItem(
+        value: 'delete',
+        child: Text(
+          '删除',
+          style: TextStyle(color: Theme.of(context).colorScheme.error),
+        ),
+      ),
+    ],
   ),
 ];
