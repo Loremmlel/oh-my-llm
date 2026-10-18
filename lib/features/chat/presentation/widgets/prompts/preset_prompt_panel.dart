@@ -36,8 +36,17 @@ class _PresetPromptPanelState extends ConsumerState<PresetPromptPanel> {
   bool _saving = false;
   String? _error;
 
+  @override
+  void didUpdateWidget(covariant PresetPromptPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.selectedPresetPromptId != widget.selectedPresetPromptId) {
+      _error = null;
+    }
+  }
+
   Future<void> _save(Future<void> Function() action) async {
     if (_saving) return;
+    final selectedPresetPromptId = widget.selectedPresetPromptId;
     setState(() {
       _saving = true;
       _error = null;
@@ -45,7 +54,9 @@ class _PresetPromptPanelState extends ConsumerState<PresetPromptPanel> {
     try {
       await action();
     } catch (_) {
-      if (mounted) setState(() => _error = '预设设置保存失败，请重试');
+      if (mounted && widget.selectedPresetPromptId == selectedPresetPromptId) {
+        setState(() => _error = '预设设置保存失败，请重试');
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
