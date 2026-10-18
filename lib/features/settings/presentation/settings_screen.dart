@@ -204,9 +204,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
       body: SettingsWorkspace(
         controller: _tabController,
         tabs: tabsOrder,
+        selectedPromptCategory: _promptCategory,
         onReorder: _handleReorder,
         onPromptCategorySelected: (index) =>
-            setState(() => _promptCategory = index),
+            setState(() => _promptCategory = index < 0 ? null : index),
         onPromptOverview: () => setState(() => _promptCategory = null),
         providerAction: Row(
           mainAxisSize: MainAxisSize.min,
@@ -344,6 +345,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
         return KeyedSubtree(
           key: const ValueKey('settings_tab_content_prompts'),
           child: ListView(
+            key: PageStorageKey('settings-prompts-${_promptCategory ?? 'all'}'),
             padding: const EdgeInsets.all(16),
             children: [
               Align(
@@ -353,10 +355,33 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                     maxWidth: AppContentWidths.wide,
                   ),
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      if (_promptCategory == null) ...[
+                        Text(
+                          '提示词总览',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        const SizedBox(height: AppSpacing.xs),
+                        Text(
+                          '3 个分类 · ${memoryPrompts.length + templatePrompts.length + fixedPromptSequences.length} 项',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                        const SizedBox(height: AppSpacing.lg),
+                        const Divider(height: 1),
+                        const SizedBox(height: AppSpacing.lg),
+                      ],
                       if (_promptCategory == null || _promptCategory == 0)
                         SettingsSectionCard(
                           title: '记忆总结提示词',
+                          useSideHeader: _promptCategory == null,
+                          titleStyle: _promptCategory == null
+                              ? null
+                              : Theme.of(context).textTheme.titleLarge,
+                          status: Text(
+                            '${memoryPrompts.length} 项 · 检查点总结',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
                           description: '配置聊天页创建检查点时可选择的总结提示词，用于适配不同场景下的记忆沉淀方式。',
                           action: FilledButton.icon(
                             onPressed: () =>
@@ -378,9 +403,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                             },
                           ),
                         ),
+                      if (_promptCategory == null) ...[
+                        const SizedBox(height: AppSpacing.lg),
+                        const Divider(height: 1),
+                        const SizedBox(height: AppSpacing.lg),
+                      ],
                       if (_promptCategory == null || _promptCategory == 1)
                         SettingsSectionCard(
                           title: '模板提示词',
+                          useSideHeader: _promptCategory == null,
+                          titleStyle: _promptCategory == null
+                              ? null
+                              : Theme.of(context).textTheme.titleLarge,
+                          status: Text(
+                            '${templatePrompts.length} 项 · 输入与变量',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
                           description: '配置可在聊天页临时应用的变量模板。使用 {{变量名}} 声明注入位，{{正文}} 对应主输入框。',
                           action: FilledButton.icon(
                             onPressed: () =>
@@ -402,9 +440,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                             },
                           ),
                         ),
+                      if (_promptCategory == null) ...[
+                        const SizedBox(height: AppSpacing.lg),
+                        const Divider(height: 1),
+                        const SizedBox(height: AppSpacing.lg),
+                      ],
                       if (_promptCategory == null || _promptCategory == 2)
                         SettingsSectionCard(
                           title: '固定顺序提示词',
+                          useSideHeader: _promptCategory == null,
+                          titleStyle: _promptCategory == null
+                              ? null
+                              : Theme.of(context).textTheme.titleLarge,
+                          status: Text(
+                            '${fixedPromptSequences.length} 项 · 分步发送',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
                           description: '配置可逐步发送的用户提示词序列，适合做模型对比测试，不会自动整组连发。',
                           action: FilledButton.icon(
                             onPressed: () =>
