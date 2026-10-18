@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 
 /// 紧凑的数字变量输入框，支持上下箭头 +1/-1。
 ///
-/// 布局为 `[⬆️] [TextField] [⬇️]`，不独占一行，适合短数字场景。
+/// 布局为 `[⬇️] [TextField] [⬆️]`，不独占一行，适合短数字场景。
 /// 支持负数输入，无下限限制。空值时回退为 1。
 class NumberVariableField extends StatelessWidget {
   const NumberVariableField({
@@ -54,19 +54,19 @@ class NumberVariableField extends StatelessWidget {
           errorText: errorText,
           // 按钮随输入区域居中，外置标签与错误提示不参与对齐。
           prefixIcon: IconButton(
-            tooltip: '增加$labelText',
-            onPressed: _increment,
+            tooltip: '减少$labelText',
+            onPressed: _decrement,
             icon: Icon(
-              Icons.keyboard_arrow_up_rounded,
+              Icons.keyboard_arrow_down_rounded,
               size: 18,
               color: theme.colorScheme.primary,
             ),
           ),
           suffixIcon: IconButton(
-            tooltip: '减少$labelText',
-            onPressed: _decrement,
+            tooltip: '增加$labelText',
+            onPressed: _increment,
             icon: Icon(
-              Icons.keyboard_arrow_down_rounded,
+              Icons.keyboard_arrow_up_rounded,
               size: 18,
               color: theme.colorScheme.primary,
             ),
