@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
+import 'package:oh_my_llm/core/theme/app_ui_colors.dart';
 
 import '../../../domain/models/preferences/settings_tab.dart';
 import 'draggable_settings_tab_bar.dart';
@@ -16,6 +17,7 @@ class SettingsWorkspace extends StatelessWidget {
     required this.providerAction,
     this.onPromptCategorySelected,
     this.onPromptOverview,
+    this.selectedPromptCategory,
     super.key,
   });
 
@@ -26,6 +28,7 @@ class SettingsWorkspace extends StatelessWidget {
   final Widget providerAction;
   final ValueChanged<int>? onPromptCategorySelected;
   final VoidCallback? onPromptOverview;
+  final int? selectedPromptCategory;
 
   static const _promptLabels = ['记忆总结提示词', '模板提示词', '固定顺序提示词'];
 
@@ -110,18 +113,21 @@ class SettingsWorkspace extends StatelessWidget {
                         children: [
                           AdaptiveReorderableDragListener(
                             index: index,
-                            child: ListTile(
-                              dense: true,
-                              selected: isSelected,
-                              title: Text(
-                                tab.label,
-                                style: TextStyle(
-                                  fontWeight: isSelected
-                                      ? FontWeight.w600
-                                      : FontWeight.w400,
+                            child: Material(
+                              type: MaterialType.transparency,
+                              child: ListTile(
+                                dense: true,
+                                selected: isSelected,
+                                title: Text(
+                                  tab.label,
+                                  style: TextStyle(
+                                    fontWeight: isSelected
+                                        ? FontWeight.w600
+                                        : FontWeight.w400,
+                                  ),
                                 ),
+                                onTap: () => _select(index, tab),
                               ),
-                              onTap: () => _select(index, tab),
                             ),
                           ),
                           if (isPrompts && isSelected)
@@ -130,18 +136,37 @@ class SettingsWorkspace extends StatelessWidget {
                               category < _promptLabels.length;
                               category++
                             )
-                              ListTile(
-                                dense: true,
-                                contentPadding: const EdgeInsets.only(
-                                  left: AppSpacing.lg,
-                                  right: AppSpacing.xs,
+                              Material(
+                                color: selectedPromptCategory == category
+                                    ? Theme.of(context).uiColors.selection
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(
+                                  AppRadii.sm,
                                 ),
-                                title: Text(
-                                  _promptLabels[category],
-                                  style: Theme.of(context).textTheme.bodySmall,
+                                clipBehavior: Clip.antiAlias,
+                                child: ListTile(
+                                  dense: true,
+                                  selected: selectedPromptCategory == category,
+                                  contentPadding: const EdgeInsets.only(
+                                    left: AppSpacing.lg,
+                                    right: AppSpacing.xs,
+                                  ),
+                                  title: Text(
+                                    _promptLabels[category],
+                                    style: Theme.of(context).textTheme.bodySmall
+                                        ?.copyWith(
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .onSurface,
+                                          fontWeight:
+                                              selectedPromptCategory == category
+                                              ? FontWeight.w600
+                                              : FontWeight.w400,
+                                        ),
+                                  ),
+                                  onTap: () =>
+                                      onPromptCategorySelected?.call(category),
                                 ),
-                                onTap: () =>
-                                    onPromptCategorySelected?.call(category),
                               ),
                         ],
                       ),
@@ -189,21 +214,29 @@ class SettingsWorkspace extends StatelessWidget {
                   ),
                   child: PopupMenuButton<int>(
                     tooltip: '提示词分类',
+                    initialValue: selectedPromptCategory ?? -1,
                     onSelected: onPromptCategorySelected,
                     itemBuilder: (_) => [
+                      const PopupMenuItem(value: -1, child: Text('全部提示词')),
                       for (var index = 0; index < _promptLabels.length; index++)
                         PopupMenuItem(
                           value: index,
                           child: Text(_promptLabels[index]),
                         ),
                     ],
-                    child: const Padding(
-                      padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: AppSpacing.sm,
+                      ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text('提示词分类'),
-                          Icon(Icons.expand_more, size: 18),
+                          Text(
+                            selectedPromptCategory == null
+                                ? '全部提示词'
+                                : _promptLabels[selectedPromptCategory!],
+                          ),
+                          const Icon(Icons.expand_more, size: 18),
                         ],
                       ),
                     ),

@@ -60,6 +60,7 @@ void main() {
           .toList();
       expect(presetColumns, isNot(contains('system_prompt')));
       expect(presetColumns, contains('custom_reasoning_tag'));
+      expect(presetColumns, contains('random_header'));
     });
 
     test('全新数据库创建后立即播种系统未分类收藏夹', () {

@@ -1,3 +1,5 @@
+import 'dart:ui' show Tristate;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/features/settings/presentation/widgets/shared/settings_section_card.dart';
@@ -35,6 +37,15 @@ void registerSettingsScreenResponsiveTests() {
         await tester.tap(find.widgetWithText(ListTile, '模板提示词'));
       }
       await settleOverlayTransition(tester);
+      if (width >= 1000) {
+        expect(
+          tester
+              .getSemantics(find.widgetWithText(ListTile, '模板提示词'))
+              .flagsCollection
+              .isSelected,
+          Tristate.isTrue,
+        );
+      }
       expect(find.widgetWithText(SettingsSectionCard, '模板提示词'), findsOneWidget);
       expect(find.widgetWithText(SettingsSectionCard, '记忆总结提示词'), findsNothing);
       expect(find.widgetWithText(SettingsSectionCard, '固定顺序提示词'), findsNothing);

@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:oh_my_llm/core/llm/llm_reasoning_effort.dart';
 
 import 'package:oh_my_llm/features/chat/application/generation/chat_generation_lifecycle.dart';
 import 'package:oh_my_llm/features/chat/application/sessions/chat_sessions_controller.dart';
@@ -7,6 +8,7 @@ import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client
 import 'package:oh_my_llm/features/chat/domain/chat_error_messages.dart';
 import 'package:oh_my_llm/features/settings/application/preferences/auto_retry_settings_controller.dart';
 import 'package:oh_my_llm/features/settings/application/preferences/output_processing_settings_controller.dart';
+import 'package:oh_my_llm/features/settings/application/prompts/preset_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/domain/models/preferences/auto_retry_settings.dart';
 import 'package:oh_my_llm/features/settings/domain/models/preferences/output_processing_settings.dart';
 
@@ -73,6 +75,39 @@ void registerChatSessionsControllerRetryCases() {
     expect(state.isStreaming, isFalse);
     expect(state.activeConversation.messages, hasLength(2));
     expect(fakeClient.requestHistory.length, 3);
+  });
+
+  test('开启预设随机头部后自动重试复用快照，下一次发送重新生成', () async {
+    final presets = container.read(presetPromptsProvider.notifier);
+    await presets.setRandomHeader('prompt-1', true);
+    container
+        .read(chatSessionsProvider.notifier)
+        .updateActiveConversationPreferences(
+          selectedPresetPromptId: 'prompt-1',
+          autoRetryEnabled: true,
+        );
+    fakeClient.enqueueError(ChatGenerationException('请求失败'));
+    fakeClient.enqueueChunks(['重试成功']);
+    Future<void> sendWithPreset(String content) => container
+        .read(chatSessionsProvider.notifier)
+        .sendMessage(
+          content: content,
+          modelConfig: testModel,
+          presetPrompt: container
+              .read(presetPromptsProvider)
+              .firstWhere((p) => p.id == 'prompt-1'),
+          reasoningEnabled: false,
+          reasoningEffort: ReasoningEffort.medium,
+          retryDelay: Duration.zero,
+        );
+    await sendWithPreset('第一次问题');
+    final header = fakeClient.requestHistory.first.first.content;
+    expect(header, matches(RegExp(r'^[!-~]{10,50}$')));
+    expect(fakeClient.requestHistory, hasLength(2));
+    expect(fakeClient.requestHistory.last.first.content, header);
+    fakeClient.enqueueChunks(['第二次回复']);
+    await sendWithPreset('第二次问题');
+    expect(fakeClient.requestHistory.last.first.content, isNot(header));
   });
 
   test('超时前已收到部分内容仍触发自动重试', () async {

@@ -33,7 +33,7 @@ import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_tran
 
 import '../../../../helpers/fixtures.dart';
 
-const expectedFormatVersion = 11;
+const expectedFormatVersion = 12;
 
 const expectedSectionKeys = <String>[
   'modelProviders',
@@ -82,6 +82,7 @@ const expectedCanonicalSections = <String, Object?>{
         },
       ],
       'singleSystemPrompt': false,
+      'randomHeader': false,
       'customReasoningTag': '',
       'updatedAt': '2026-08-19T00:00:00.000Z',
     },
@@ -303,6 +304,7 @@ void main() {
     final incoming = plain.copyWith(
       id: 'incoming',
       syntax: PresetPromptSyntax.sillyTavernSubsetV1,
+      randomHeader: true,
       customReasoningTag: 'thinking_diy',
       messages: [
         plain.messages.single.copyWith(
@@ -325,6 +327,7 @@ void main() {
         .singleWhere((p) => p.syntax == incoming.syntax);
     expect(saved.messages, incoming.messages);
     expect(saved.customReasoningTag, 'thinking_diy');
+    expect(saved.randomHeader, isTrue);
     expect(
       coordinator.prepareDocument(
         SettingsTransferDocument(
@@ -334,6 +337,26 @@ void main() {
         ),
       ),
       isA<SettingsImportNoChanges>(),
+    );
+  });
+
+  test('仅随机头部开关不同的预设不会按内容去重', () async {
+    final (:coordinator, :container) = await _newContainer();
+    final plain = _presetFixture();
+    await container.read(presetPromptsProvider.notifier).upsert(plain);
+    final ready = coordinator.prepareDocument(
+      SettingsTransferDocument(
+        sections: {
+          'presetPrompts': [
+            plain.copyWith(id: 'incoming-header', randomHeader: true).toJson(),
+          ],
+        },
+      ),
+    ) as SettingsImportReady;
+    await ready.batch.execute(confirmedSensitive: false);
+    expect(
+      container.read(presetPromptsProvider).map((p) => p.randomHeader),
+      containsAll([true, false]),
     );
   });
 

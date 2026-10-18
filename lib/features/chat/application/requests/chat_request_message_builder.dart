@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/worldbooks/world_book.dart';
 import 'package:oh_my_llm/features/settings/domain/preset_macros/preset_macro_renderer.dart';
@@ -8,6 +10,8 @@ import '../ports/chat_generation_client.dart';
 import 'request_message_filter.dart';
 
 export 'request_message_filter.dart';
+
+final _randomHeaderGenerator = Random.secure();
 
 class ChatPreparedContext {
   ChatPreparedContext(Iterable<ChatRequestMessage> messages, this.preset)
@@ -91,6 +95,24 @@ ChatPreparedContext prepareChatContext({
       );
       return order == 0 ? indices[a.id]!.compareTo(indices[b.id]!) : order;
     });
+    if (placement == PromptMessagePlacement.before &&
+        presetPrompt?.randomHeader == true) {
+      // 第 0 条在导入顺序排序后插入；随机正文不经过宏展开，保留字面字符。
+      entries.insert(
+        0,
+        PromptMessage(
+          id: '__preset_random_header__',
+          title: '头部随机字符',
+          role: PromptMessageRole.system,
+          content: String.fromCharCodes(
+            List.generate(
+              10 + _randomHeaderGenerator.nextInt(41),
+              (_) => 33 + _randomHeaderGenerator.nextInt(94),
+            ),
+          ),
+        ),
+      );
+    }
     for (final entry in entries.where((m) => m.content.trim().isNotEmpty)) {
       messages.add(
         ChatRequestMessage(

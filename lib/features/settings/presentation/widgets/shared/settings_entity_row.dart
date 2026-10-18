@@ -30,7 +30,7 @@ class SettingsEntityRow extends StatelessWidget {
               Expanded(
                 child: Text(
                   title,
-                  style: Theme.of(context).textTheme.titleMedium,
+                  style: Theme.of(context).textTheme.titleSmall,
                 ),
               ),
               const SizedBox(width: AppSpacing.xs),

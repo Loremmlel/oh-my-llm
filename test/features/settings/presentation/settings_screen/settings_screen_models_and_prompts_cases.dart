@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:oh_my_llm/features/settings/application/prompts/preset_prompts_controller.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
@@ -276,12 +277,24 @@ void registerSettingsScreenModelsAndPromptsTests() {
       presetPromptRepository.loadAll(database).single.singleSystemPrompt,
       isTrue,
     );
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(SettingsScreen)),
+    );
+    await container
+        .read(presetPromptsProvider.notifier)
+        .setRandomHeader(saved.id, true);
+    await tester.pump();
+    expect(find.text('头部随机字符'), findsNothing);
     await tester.tap(find.widgetWithText(TextButton, '编辑'));
     await settleOverlayTransition(tester);
     await tester.tap(find.text('保存'));
     await settleOverlayTransition(tester);
     expect(
       presetPromptRepository.loadAll(database).single.singleSystemPrompt,
+      isTrue,
+    );
+    expect(
+      presetPromptRepository.loadAll(database).single.randomHeader,
       isTrue,
     );
     await tester.tap(find.byType(Checkbox).last);

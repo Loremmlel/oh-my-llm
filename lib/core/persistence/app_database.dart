@@ -27,7 +27,7 @@ class AppDatabase {
   /// 当前滚动迁移基线：全新数据库直接创建到该版本。
   ///
   /// 历史 V9→V13 逐级迁移已退役；v13 起的已发布迁移按顺序保留。
-  static const int currentSchemaVersion = 26;
+  static const int currentSchemaVersion = 27;
 
   final sqlite.Database _connection;
   final String path;
@@ -107,7 +107,8 @@ class AppDatabase {
         _migratePresetSingleSystemFromV23ToV24(sourceVersion: currentVersion);
       }
       if (currentVersion <= 24) _migratePresetSyntaxFromV24ToV25();
-      _migrateWorldBooksFromV25ToV26();
+      if (currentVersion <= 25) _migrateWorldBooksFromV25ToV26();
+      _migratePresetRandomHeaderFromV26ToV27();
     } else {
       throw AppDatabaseSchemaVersionException(currentVersion);
     }
@@ -148,6 +149,19 @@ class AppDatabase {
         "ALTER TABLE preset_prompts ADD COLUMN custom_reasoning_tag TEXT NOT NULL DEFAULT '';",
       );
       _connection.execute('PRAGMA user_version = 26; COMMIT;');
+    } catch (_) {
+      _connection.execute('ROLLBACK;');
+      rethrow;
+    }
+  }
+
+  void _migratePresetRandomHeaderFromV26ToV27() {
+    _connection.execute('BEGIN IMMEDIATE;');
+    try {
+      _connection.execute(
+        'ALTER TABLE preset_prompts ADD COLUMN random_header INTEGER NOT NULL DEFAULT 0;',
+      );
+      _connection.execute('PRAGMA user_version = 27; COMMIT;');
     } catch (_) {
       _connection.execute('ROLLBACK;');
       rethrow;
@@ -756,6 +770,7 @@ class AppDatabase {
         single_system_prompt INTEGER NOT NULL DEFAULT 0,
         syntax TEXT NOT NULL DEFAULT 'plain',
         custom_reasoning_tag TEXT NOT NULL DEFAULT '',
+        random_header INTEGER NOT NULL DEFAULT 0,
         updated_at TEXT NOT NULL
       );
     ''');

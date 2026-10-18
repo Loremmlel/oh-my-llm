@@ -33,4 +33,10 @@ class PresetPromptsController extends SettingsEntityController<PresetPrompt> {
     if (preset == null) return Future.value();
     return upsert(preset.copyWith(singleSystemPrompt: enabled));
   }
+
+  Future<void> setRandomHeader(String presetId, bool enabled) {
+    final preset = state.where((p) => p.id == presetId).firstOrNull;
+    if (preset == null) return Future.value();
+    return upsert(preset.copyWith(randomHeader: enabled));
+  }
 }

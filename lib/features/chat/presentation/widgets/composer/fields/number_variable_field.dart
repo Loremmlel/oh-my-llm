@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 import 'package:oh_my_llm/core/widgets/app_text_field.dart';
 import 'package:flutter/services.dart';
 
 /// 紧凑的数字变量输入框，支持上下箭头 +1/-1。
 ///
-/// 布局为 `[⬆️] [TextField] [⬇️]`，不独占一行，适合短数字场景。
+/// 布局为 `[⬇️] [TextField] [⬆️]`，不独占一行，适合短数字场景。
 /// 支持负数输入，无下限限制。空值时回退为 1。
 class NumberVariableField extends StatelessWidget {
   const NumberVariableField({
@@ -45,63 +44,39 @@ class NumberVariableField extends StatelessWidget {
 
     return SizedBox(
       width: 165,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _ArrowButton(
-            icon: Icons.keyboard_arrow_up_rounded,
-            onTap: _increment,
-            color: theme.colorScheme.primary,
-          ),
-          Expanded(
-            child: AppTextField(
-              key: ValueKey('template-variable-$labelText'),
-              controller: controller,
-              keyboardType: const TextInputType.numberWithOptions(signed: true),
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'^-?\d*')),
-              ],
-              decoration: InputDecoration(
-                labelText: labelText,
-                errorText: errorText,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 12,
-                ), // 取消 isDense 后保持略紧凑的行高
-              ),
-              textAlign: TextAlign.center,
+      child: AppTextField(
+        key: ValueKey('template-variable-$labelText'),
+        controller: controller,
+        keyboardType: const TextInputType.numberWithOptions(signed: true),
+        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^-?\d*'))],
+        decoration: InputDecoration(
+          labelText: labelText,
+          errorText: errorText,
+          // 按钮随输入区域居中，外置标签与错误提示不参与对齐。
+          prefixIcon: IconButton(
+            tooltip: '减少$labelText',
+            onPressed: _decrement,
+            icon: Icon(
+              Icons.keyboard_arrow_down_rounded,
+              size: 18,
+              color: theme.colorScheme.primary,
             ),
           ),
-          _ArrowButton(
-            icon: Icons.keyboard_arrow_down_rounded,
-            onTap: _decrement,
-            color: theme.colorScheme.primary,
+          suffixIcon: IconButton(
+            tooltip: '增加$labelText',
+            onPressed: _increment,
+            icon: Icon(
+              Icons.keyboard_arrow_up_rounded,
+              size: 18,
+              color: theme.colorScheme.primary,
+            ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ArrowButton extends StatelessWidget {
-  const _ArrowButton({
-    required this.icon,
-    required this.onTap,
-    required this.color,
-  });
-
-  final IconData icon;
-  final VoidCallback onTap;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(AppRadii.sm),
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.all(6),
-        child: Icon(icon, size: 18, color: color),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 8,
+            vertical: 12,
+          ), // 取消 isDense 后保持略紧凑的行高
+        ),
+        textAlign: TextAlign.center,
       ),
     );
   }
