@@ -34,6 +34,7 @@ class PresetEditorScreen extends ConsumerWidget {
               messages: data.messages,
               syntax: data.syntax,
               singleSystemPrompt: preset?.singleSystemPrompt ?? false,
+              randomHeader: preset?.randomHeader ?? false,
               customReasoningTag: data.customReasoningTag,
               updatedAt: DateTime.now(),
             ),

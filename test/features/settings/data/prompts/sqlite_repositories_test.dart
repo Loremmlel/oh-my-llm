@@ -73,11 +73,12 @@ void main() {
 
   tearDown(() => database.close());
 
-  test('预设在 SQLite 和 JSON 往返，旧 JSON 默认关闭单 System 模式', () async {
+  test('预设在 SQLite 和 JSON 往返，旧 JSON 默认关闭可选开关', () async {
     final original = PresetPrompt(
       id: 'full',
       name: '全字段',
       singleSystemPrompt: true,
+      randomHeader: true,
       messages: const [
         PromptMessage(
           id: 'msg-sys',
@@ -114,8 +115,11 @@ void main() {
     expect(presetPromptRepository.loadAll(database).single, original);
     expect(PresetPrompt.fromJson(original.toJson()), original);
     final legacyJson = Map<String, dynamic>.from(original.toJson())
-      ..remove('singleSystemPrompt');
+      ..remove('singleSystemPrompt')
+      ..remove('randomHeader');
     expect(PresetPrompt.fromJson(legacyJson).singleSystemPrompt, isFalse);
+    expect(PresetPrompt.fromJson(legacyJson).randomHeader, isFalse);
+    expect(original.copyWith(name: '改名').randomHeader, isTrue);
   });
 
   test('FixedPromptSequence round-trip', () async {

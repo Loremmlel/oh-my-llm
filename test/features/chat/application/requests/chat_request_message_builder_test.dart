@@ -9,6 +9,81 @@ import 'package:oh_my_llm/features/settings/domain/models/worldbooks/world_book.
 import '../../../../helpers/fixtures.dart';
 
 void main() {
+  test('随机头部作为第零条前置 System 注入并沿用预设归一化规则', () {
+    final preset = TestFixtures.presetPrompt(
+      id: 'random-header',
+      messages: const [
+        PromptMessage(
+          id: 'rule',
+          role: PromptMessageRole.system,
+          content: '正文规则',
+          importInsertionOrder: -10,
+        ),
+        PromptMessage(
+          id: 'late',
+          role: PromptMessageRole.system,
+          content: '后置规则',
+          placement: PromptMessagePlacement.after,
+        ),
+      ],
+    ).copyWith(randomHeader: true);
+    final history = [TestFixtures.userMessage(id: 'input', content: '问题')];
+    final prepared = prepareChatContext(
+      presetPrompt: preset,
+      conversationMessages: history,
+    );
+    final header = prepared.messages.first;
+    expect(header.content, matches(RegExp(r'^[!-~]{10,50}$')));
+    expect(header.role, ChatMessageRole.system);
+    expect(header.sourceLabel, '预设 · 头部随机字符 · 前置');
+    expect(prepared.messages.skip(1).map((m) => m.content), [
+      '正文规则',
+      '问题',
+      '后置规则',
+    ]);
+    expect(preset.messages, hasLength(2));
+
+    final merged = prepareChatContext(
+      presetPrompt: preset.copyWith(singleSystemPrompt: true),
+      conversationMessages: history,
+    ).messages;
+    expect(merged.first.content, matches(RegExp(r'^[!-~]{10,50}\n正文规则$')));
+    expect(merged.map((m) => m.role), [
+      ChatMessageRole.system,
+      ChatMessageRole.user,
+      ChatMessageRole.user,
+    ]);
+    expect(
+      buildRequestMessages(
+        presetPrompt: preset.copyWith(randomHeader: false),
+        conversationMessages: history,
+      ).map((m) => m.content),
+      ['正文规则', '问题', '后置规则'],
+    );
+  });
+
+  test('空预设和有限宏预设均可生成随机头部，重复准备不累加条目', () {
+    for (final syntax in PresetPromptSyntax.values) {
+      final preset = TestFixtures.presetPrompt(
+        id: 'empty',
+        messages: const [],
+      ).copyWith(randomHeader: true, syntax: syntax);
+      for (var index = 0; index < 50; index++) {
+        final prepared = prepareChatContext(
+          presetPrompt: preset,
+          conversationMessages: const [],
+        );
+        expect(prepared.messages, hasLength(1));
+        expect(
+          prepared.messages.single.content,
+          matches(RegExp(r'^[!-~]{10,50}$')),
+        );
+        expect(prepared.hasErrors, isFalse);
+      }
+      expect(preset.messages, isEmpty);
+    }
+  });
+
   test('世界书只注入启用非空条目且顺序稳定，固定在预设前置和历史之间', () {
     final book = TestFixtures.worldBook(
       name: '城市 & 群岛',

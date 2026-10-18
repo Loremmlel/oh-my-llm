@@ -190,7 +190,7 @@ void main() {
       container.read(activeChatConversationProvider).selectedWorldBookId,
       book.id,
     );
-    await tester.tap(find.byType(Checkbox).at(1));
+    await tester.tap(find.byType(Checkbox).at(2));
     await tester.pump();
     expect(
       container.read(presetPromptsProvider).single.messages.first.enabled,
@@ -202,6 +202,9 @@ void main() {
       container.read(presetPromptsProvider).single.singleSystemPrompt,
       isTrue,
     );
+    await tester.tap(find.text('头部随机字符'));
+    await tester.pump();
+    expect(container.read(presetPromptsProvider).single.randomHeader, isTrue);
     expect(find.byTooltip('关闭侧栏'), findsOneWidget);
     final target = find.text('写作规则条目 20');
     await tester.scrollUntilVisible(

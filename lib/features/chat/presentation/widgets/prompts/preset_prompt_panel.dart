@@ -15,7 +15,7 @@ import 'world_book_selector.dart';
 ///
 /// 顶部下拉选择预设，下方列出该预设内所有消息的开关卡片。
 /// 宽窄屏共用此组件，选择与消息开关即时生效。
-class PresetPromptPanel extends ConsumerWidget {
+class PresetPromptPanel extends ConsumerStatefulWidget {
   const PresetPromptPanel({
     required this.selectedPresetPromptId,
     required this.onPresetPromptSelected,
@@ -29,7 +29,31 @@ class PresetPromptPanel extends ConsumerWidget {
   final ValueChanged<String?> onPresetPromptSelected;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<PresetPromptPanel> createState() => _PresetPromptPanelState();
+}
+
+class _PresetPromptPanelState extends ConsumerState<PresetPromptPanel> {
+  bool _saving = false;
+  String? _error;
+
+  Future<void> _save(Future<void> Function() action) async {
+    if (_saving) return;
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      await action();
+    } catch (_) {
+      if (mounted) setState(() => _error = '预设设置保存失败，请重试');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final selectedPresetPromptId = widget.selectedPresetPromptId;
     final presetPrompts = ref.watch(presetPromptsProvider);
     final theme = Theme.of(context);
 
@@ -70,20 +94,27 @@ class PresetPromptPanel extends ConsumerWidget {
             ],
             onChanged: (value) {
               final mapped = value == noPresetPromptSelectedId ? null : value;
-              onPresetPromptSelected(mapped);
+              widget.onPresetPromptSelected(mapped);
             },
           ),
         ),
-        if (selectedPreset != null)
+        if (selectedPreset != null) ...[
           Row(
             children: [
               Expanded(
                 child: CheckboxListTile(
                   title: const Text('单 System Prompt'),
                   value: selectedPreset.singleSystemPrompt,
-                  onChanged: (enabled) => ref
-                      .read(presetPromptsProvider.notifier)
-                      .setSingleSystemPrompt(selectedPreset.id, enabled!),
+                  onChanged: _saving
+                      ? null
+                      : (enabled) => _save(
+                          () => ref
+                              .read(presetPromptsProvider.notifier)
+                              .setSingleSystemPrompt(
+                                selectedPreset.id,
+                                enabled!,
+                              ),
+                        ),
                 ),
               ),
               const AppHelpButton(
@@ -92,6 +123,39 @@ class PresetPromptPanel extends ConsumerWidget {
               ),
             ],
           ),
+          Row(
+            children: [
+              Expanded(
+                child: CheckboxListTile(
+                  title: const Text('头部随机字符'),
+                  value: selectedPreset.randomHeader,
+                  onChanged: _saving
+                      ? null
+                      : (enabled) => _save(
+                          () => ref
+                              .read(presetPromptsProvider.notifier)
+                              .setRandomHeader(selectedPreset.id, enabled!),
+                        ),
+                ),
+              ),
+              const AppHelpButton(
+                title: '头部随机字符',
+                message: '每次发送时生成 10–50 个可打印 ASCII 字符，作为预设第 0 条前置 System 消息；参与单 System 等预设规则。同一次发送的自动重试沿用相同内容。开关随当前预设保存。',
+              ),
+            ],
+          ),
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.all(AppSpacing.sm),
+              child: Semantics(
+                liveRegion: true,
+                child: Text(
+                  _error!,
+                  style: TextStyle(color: theme.colorScheme.error),
+                ),
+              ),
+            ),
+        ],
         const Divider(height: 1),
         // ── 消息列表 / 空状态 ──────────────
         Expanded(child: _buildMessageList(theme, selectedPreset)),
