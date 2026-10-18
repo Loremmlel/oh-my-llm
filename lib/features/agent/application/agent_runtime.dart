@@ -256,6 +256,7 @@ class AgentRuntime {
               content: result.content,
               reasoning: result.reasoningContent,
               inputItemCount: history.length,
+              usage: result.usage,
             ),
           ],
         );

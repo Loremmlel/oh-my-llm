@@ -5,7 +5,6 @@ import 'package:http/http.dart' as http;
 import 'package:oh_my_llm/core/http/llm_http_stream_transport.dart';
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/core/llm/llm_reasoning_effort.dart';
-import 'package:oh_my_llm/core/llm/llm_usage.dart';
 import 'package:oh_my_llm/core/llm/protocols/anthropic/anthropic_messages_client.dart';
 import 'package:oh_my_llm/core/logging/network_logger.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
@@ -385,12 +384,12 @@ void main() {
       expect(result.content, '你好');
       expect(result.finishReason, 'stop');
       expect(
-        result.usage,
-        const LlmUsage(
-          inputTokens: 17,
-          outputTokens: 20,
-          cachedInputTokens: 3,
-          cacheWriteInputTokens: 4,
+        result.usage?.toJson(),
+        allOf(
+          containsPair('inputTokens', 17),
+          containsPair('outputTokens', 20),
+          containsPair('cachedInputTokens', 3),
+          containsPair('cacheWriteInputTokens', 4),
         ),
       );
     });

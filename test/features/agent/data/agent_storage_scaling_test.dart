@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/core/llm/llm_content.dart';
+import 'package:oh_my_llm/core/llm/llm_usage.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/features/agent/application/agent_workspace_controller.dart';
 import 'package:oh_my_llm/features/agent/data/sqlite_agent_store.dart';
@@ -16,6 +17,59 @@ void main() {
     store.saveWorkspace(AgentWorkspace(id: 'novel', title: '小说'));
   });
   tearDown(() => database.close());
+
+  test('对话用量累计超过时间线分页的全部根任务与子任务，切换作品隔离统计', () {
+    for (var i = 0; i < 51; i++) {
+      store.checkpoint(
+        AgentRunRecord(
+          id: 'run-$i',
+          workspaceId: 'novel',
+          prompt: '继续',
+          startedAt: DateTime(2026).add(Duration(seconds: i)),
+          status: AgentRunStatus.completed,
+          usage: const AgentRunUsage(
+            modelCalls: 1,
+            tokens: LlmUsage(
+              inputTokens: 100,
+              cachedInputTokens: 50,
+              outputTokens: 20,
+            ),
+          ),
+        ),
+      );
+    }
+    store.checkpoint(
+      AgentRunRecord(
+        id: 'child',
+        workspaceId: 'novel',
+        parentId: 'run-0',
+        prompt: '写作',
+        startedAt: DateTime(2026),
+        status: AgentRunStatus.completed,
+        usage: const AgentRunUsage(
+          modelCalls: 1,
+          tokens: LlmUsage(
+            inputTokens: 200,
+            cachedInputTokens: 50,
+            outputTokens: 40,
+          ),
+        ),
+      ),
+    );
+    expect(store.listRuns('novel'), hasLength(50));
+    final container = ProviderContainer(
+      overrides: [agentStoreProvider.overrideWithValue(store)],
+    );
+    addTearDown(container.dispose);
+    final controller = container.read(agentWorkspaceProvider.notifier);
+    expect(controller.usageSummary.tokens.totalTokens, 6360);
+    controller.setDraft('保留累计值');
+    expect(controller.usageSummary.tokens.totalTokens, 6360);
+    controller.createWorkspace();
+    expect(controller.usageSummary.tokens.totalTokens, isNull);
+    controller.selectWorkspace('novel');
+    expect(controller.usageSummary.tokens.totalTokens, 6360);
+  });
 
   test('草稿单独落盘，不重写作品历史且不覆盖随后保存的上下文', () {
     final container = ProviderContainer(

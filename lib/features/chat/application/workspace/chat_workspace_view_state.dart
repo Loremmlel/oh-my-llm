@@ -217,7 +217,7 @@ final chatWorkspaceComposerReadModelProvider =
         isStreaming: isStreaming,
         isAutoRetryWaiting: isAutoRetryWaiting,
         excludedMessageCount: excludedVisibleMessageCount,
-        cacheHitRate: conversation.cacheHitRate,
+        usageSummary: conversation.usageSummary,
       );
     });
 

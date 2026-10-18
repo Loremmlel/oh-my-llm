@@ -91,6 +91,7 @@ Map<String, dynamic> encodeAgentRun(AgentRunRecord value) => {
         'kind': step.kind.name,
         'isRunning': step.isRunning,
         'inputItemCount': step.inputItemCount,
+        'usage': step.usage?.toJson(),
       },
   ],
 };
@@ -154,6 +155,7 @@ AgentRunRecord decodeAgentRun(Map<String, dynamic> json) {
           kind: AgentStepKind.values.byName(step['kind'] as String),
           isRunning: step['isRunning'] as bool,
           inputItemCount: step['inputItemCount'] as int?,
+          usage: LlmUsage.fromJson(step['usage']),
         ),
     ],
   );

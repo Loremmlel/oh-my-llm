@@ -7,6 +7,7 @@ import 'package:oh_my_llm/core/llm/llm_content.dart';
 import 'package:oh_my_llm/core/llm/llm_client.dart';
 import 'package:oh_my_llm/core/llm/llm_event.dart';
 import 'package:oh_my_llm/core/llm/llm_request.dart';
+import 'package:oh_my_llm/core/llm/llm_usage.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/data/generation/chat_text_generation_adapter.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
@@ -32,7 +33,15 @@ void main() {
           const LlmEvent(contentDelta: '<thinking_'),
           const LlmEvent(contentDelta: 'diy>自定义推理。</thinking_di'),
           const LlmEvent(contentDelta: 'y>正文<'),
-          LlmCompleted(const LlmResult(content: '完整结果不能重复追加')),
+          LlmCompleted(
+            const LlmResult(
+              content: '完整结果不能重复追加',
+              usage: LlmUsage(
+                outputTokens: 60,
+                outputDuration: Duration(seconds: 2),
+              ),
+            ),
+          ),
         ]),
       );
       final result = await ChatTextGenerationAdapter(core).complete(
@@ -49,6 +58,7 @@ void main() {
       );
       expect(result.content, '正文<');
       expect(result.reasoningContent, '原生推理。自定义推理。');
+      expect(result.usage?.tokensPerSecond, 30);
     });
     test('${protocol.name} 未声明图像能力时在读取文件与调用模型之前拒绝图片', () async {
       final core = _Client((_, _) => throw StateError('不得调用模型'));

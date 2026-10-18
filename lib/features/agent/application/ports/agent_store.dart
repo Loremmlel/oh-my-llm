@@ -42,6 +42,9 @@ abstract interface class AgentStore {
     int limit = 50,
     bool includeHistory = true,
   });
+
+  /// 只读全作品的调用用量，不受时间线分页限制，也不加载正文和输入历史。
+  Map<String, AgentRunUsage> readRunUsages(String workspaceId);
   AgentRunRecord? loadRun(String workspaceId, String runId);
   List<AgentRunRecord> listChildRuns(String workspaceId, String parentId);
   void checkpoint(AgentRunRecord run, {AgentWorkspace? workspace});

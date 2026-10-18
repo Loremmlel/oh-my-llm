@@ -61,6 +61,7 @@ void main() {
             outputTokens: 900,
             cachedInputTokens: 1500,
             cacheWriteInputTokens: 800,
+            outputDuration: Duration(seconds: 30),
           ),
         ),
       ],

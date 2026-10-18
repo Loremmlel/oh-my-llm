@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:oh_my_llm/core/llm/llm_content.dart';
+import 'package:oh_my_llm/core/llm/llm_usage.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/core/persistence/sqlite_json_history.dart';
 import 'package:oh_my_llm/core/utils/id_generator.dart';
@@ -16,6 +17,23 @@ class SqliteAgentStore implements AgentStore {
   SqliteAgentStore(this.database);
   final AppDatabase database;
   late final _histories = SqliteJsonHistory(database.connection);
+
+  @override
+  Map<String, AgentRunUsage> readRunUsages(String workspaceId) => {
+    for (final row in database.connection.select(
+      "SELECT id, status, json_extract(record_json, '\$.usage') AS usage, json_extract(record_json, '\$.modelCalls') AS calls, json_extract(record_json, '\$.usageIncomplete') AS incomplete FROM agent_runs WHERE workspace_id = ?;",
+      [workspaceId],
+    ))
+      row['id'] as String: AgentRunUsage(
+        modelCalls: row['calls'] as int,
+        tokens: LlmUsage.fromJson(
+          row['usage'] == null ? null : jsonDecode(row['usage'] as String),
+        ),
+        incomplete:
+            row['incomplete'] == 1 ||
+            (row['calls'] as int) > 0 && row['status'] != 'completed',
+      ),
+  };
 
   Map<String, dynamic> _readRecord(
     String workspaceId,

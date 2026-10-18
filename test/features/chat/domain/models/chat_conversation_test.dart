@@ -99,13 +99,14 @@ void main() {
       ],
     );
 
-    expect(conversation.cacheHitRate, 0.4375);
+    expect(conversation.usageSummary.cacheHitRate, 0.4375);
+    expect(conversation.usageSummary.tokens.inputTokens, 400);
     expect(
       ChatConversation(
         id: 'none',
         createdAt: DateTime(2026),
         updatedAt: DateTime(2026),
-      ).cacheHitRate,
+      ).usageSummary.cacheHitRate,
       isNull,
     );
   });
@@ -126,6 +127,6 @@ void main() {
       ],
     );
 
-    expect(conversation.cacheHitRate, isNull);
+    expect(conversation.usageSummary.cacheHitRate, isNull);
   });
 }

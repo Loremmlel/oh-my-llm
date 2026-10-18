@@ -29,4 +29,26 @@ void main() {
       const LlmUsage(inputTokens: 30, outputTokens: 10, cachedInputTokens: 0),
     );
   });
+
+  test('速度使用已报告输出和首段输出后的耗时，保存重开后保持一致', () {
+    const usage = LlmUsage(
+      inputTokens: 100,
+      cachedInputTokens: 40,
+      cacheWriteInputTokens: 20,
+      outputTokens: 30,
+      reasoningTokens: 10,
+      outputDuration: Duration(seconds: 2),
+    );
+    expect(usage.tokensPerSecond, 15);
+    expect(usage.uncachedInputTokens, 60);
+    expect(usage.totalTokens, 130);
+    expect(LlmUsage.fromJson(usage.toJson()), usage);
+    for (final missing in [
+      const LlmUsage(outputTokens: 30),
+      const LlmUsage(outputDuration: Duration(seconds: 2)),
+      const LlmUsage(outputTokens: 30, outputDuration: Duration.zero),
+    ]) {
+      expect(missing.tokensPerSecond, isNull);
+    }
+  });
 }
