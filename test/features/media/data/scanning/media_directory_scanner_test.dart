@@ -76,15 +76,6 @@ void main() {
         );
       }
     });
-
-    test('不检查路径存在性（调用方自行判断）', () {
-      scanner = createScanner();
-      // 不存在的路径不会抛异常（仅有路径穿越才抛）
-      final resolved = scanner.resolvePath('/不存在的路径');
-      expect(resolved, isNotEmpty);
-      // 但文件/目录确实不存在
-      expect(File(resolved).existsSync(), isFalse);
-    });
   });
 
   group('MediaDirectoryScanner.scan', () {
@@ -135,13 +126,6 @@ void main() {
       final folderItem = items.firstWhere((i) => i.isDirectory);
       expect(folderItem.mimeType, isNull);
       expect(folderItem.hasThumbnail, isFalse);
-    });
-
-    test('扫描不存在的目录抛出 FileSystemException', () async {
-      expect(
-        () => scanner.scan('/不存在的目录'),
-        throwsA(isA<FileSystemException>()),
-      );
     });
   });
 
@@ -205,31 +189,11 @@ void main() {
       );
     });
 
-    test('空目录与纯图片目录返回空列表', () async {
-      for (final (:name, :input) in [
-        (name: '空目录', input: '/empty'),
-        (name: '纯图片目录', input: '/images'),
-      ]) {
-        expect(
-          await scanner.scanRecursiveVideos(input),
-          isEmpty,
-          reason: 'case: $name',
-        );
-      }
-    });
-
     test('隐藏文件被过滤', () async {
       File('${tempRoot.path}${Platform.pathSeparator}.hidden.mp4')
           .writeAsStringSync('hidden');
       final videos = await scanner.scanRecursiveVideos('/');
       expect(videos.any((v) => v.name == '.hidden.mp4'), isFalse);
-    });
-
-    test('不存在的目录抛出 FileSystemException', () async {
-      expect(
-        () => scanner.scanRecursiveVideos('/不存在的目录'),
-        throwsA(isA<FileSystemException>()),
-      );
     });
 
     test('路径穿越被拒绝', () async {

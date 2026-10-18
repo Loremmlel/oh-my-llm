@@ -9,7 +9,6 @@ import 'package:oh_my_llm/features/settings/application/worldbooks/world_books_c
 import 'package:oh_my_llm/features/settings/domain/models/worldbooks/world_book.dart';
 import 'package:oh_my_llm/features/settings/presentation/widgets/worldbooks/world_book_editor.dart';
 
-import '../../../helpers/async/widget_test_animation.dart';
 import '../../../helpers/fixtures.dart';
 import '../../../helpers/test_harness.dart';
 
@@ -24,7 +23,7 @@ void main() {
     addTearDown(router.dispose);
     await pumpTestApp(tester, preferences: preferences, router: router);
     await tester.tap(find.text('新增世界书'));
-    await settleRouteTransition(tester);
+    await tester.pumpAndSettle();
     await tester.enterText(find.widgetWithText(AppTextField, '世界书名称'), '群岛');
     await tester.tap(find.text('新增条目'));
     await tester.pump();
@@ -41,7 +40,7 @@ void main() {
     await tester.tap(find.byTooltip('上移'));
     await tester.pump();
     await tester.tap(find.text('保存'));
-    await settleRouteTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.text('2 个条目 · 1 个启用'), findsOneWidget);
     final container = ProviderScope.containerOf(
       tester.element(find.text('新增世界书')),
@@ -50,17 +49,17 @@ void main() {
     expect(book.entries.map((entry) => entry.title), ['人物', '世界']);
     expect(book.entries.first.enabled, isFalse);
     await tester.tap(find.byTooltip('编辑 群岛'));
-    await settleRouteTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.text('人物设定'), findsOneWidget);
     await tester.tap(find.text('取消'));
-    await settleRouteTransition(tester);
+    await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('世界书操作'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('删除 群岛'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.textContaining('已有聊天记录保留'), findsOneWidget);
     await tester.tap(find.text('删除'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(container.read(worldBooksProvider), isEmpty);
     expect(find.textContaining('还没有世界书'), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -100,22 +99,22 @@ void main() {
       viewportSize: const Size(390, 760),
     );
     await tester.tap(find.text('编辑'));
-    await settleRouteTransition(tester);
+    await tester.pumpAndSettle();
     await tester.enterText(find.widgetWithText(AppTextField, '正文'), '修改正文');
     await tester.tap(find.text('保存'));
     await tester.pump();
     expect(find.textContaining('保存失败测试'), findsOneWidget);
     expect(find.text('修改正文'), findsOneWidget);
     await tester.tap(find.text('取消'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.text('放弃未保存的修改？'), findsOneWidget);
     await tester.tap(find.widgetWithText(TextButton, '取消').last);
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.text('修改正文'), findsOneWidget);
     await tester.tap(find.text('取消'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('放弃修改'));
-    await settleRouteTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.text('编辑'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

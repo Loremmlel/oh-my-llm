@@ -10,7 +10,6 @@ import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
 import 'package:oh_my_llm/features/favorites/data/sqlite_favorites_repository.dart';
 import 'package:oh_my_llm/features/favorites/domain/models/favorite.dart';
 
-import '../../../../helpers/async/widget_test_animation.dart';
 import 'chat_screen_test_helpers.dart';
 
 /// 直接经 repository 按 assistant 内容定位收藏；与收藏身份判定同通道，
@@ -23,7 +22,7 @@ Favorite? _findFavorite(ProviderContainer container, String assistantContent) {
 /// 打开 assistant 回复的收藏对话框。
 Future<void> _openAddDialog(WidgetTester tester) async {
   await tester.tap(find.byTooltip('收藏回复'));
-  await settleOverlayTransition(tester);
+  await tester.pumpAndSettle();
 }
 
 void registerChatScreenFavoritesTests() {
@@ -72,7 +71,7 @@ void registerChatScreenFavoritesTests() {
     // 先经"新建收藏夹"路径归入新夹：成功归类会记录最近目标。
     await _openAddDialog(tester);
     await tester.tap(find.text('新建收藏夹'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await tester.enterText(
       find.descendant(
         of: find.byType(AlertDialog),
@@ -81,7 +80,7 @@ void registerChatScreenFavoritesTests() {
       '我的新收藏夹',
     );
     await tester.tap(find.widgetWithText(FilledButton, '创建'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     // 创建后仅选中：仍需再次确认才真正收藏。
     expect(find.text('收藏到'), findsOneWidget);
     expect(_findFavorite(container, '预选上次归类测试'), isNull);
@@ -92,7 +91,7 @@ void registerChatScreenFavoritesTests() {
         matching: find.widgetWithText(FilledButton, '收藏'),
       ),
     );
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
 
     final newCollectionId = _findFavorite(container, '预选上次归类测试')!.collectionId;
     expect(
@@ -113,7 +112,7 @@ void registerChatScreenFavoritesTests() {
         matching: find.widgetWithText(FilledButton, '收藏'),
       ),
     );
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
 
     expect(_findFavorite(container, '预选上次归类测试'), isNotNull);
     expect(_findFavorite(container, '预选上次归类测试')!.collectionId, newCollectionId);
@@ -137,7 +136,7 @@ void registerChatScreenFavoritesTests() {
 
     await _openAddDialog(tester);
     await tester.tap(find.text('新建收藏夹'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await tester.enterText(
       find.descendant(
         of: find.byType(AlertDialog),
@@ -146,7 +145,7 @@ void registerChatScreenFavoritesTests() {
       AppReservedEntities.uncategorizedFavoriteCollectionName,
     );
     await tester.tap(find.widgetWithText(FilledButton, '创建'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
 
     // 对话框保持打开并内联报错，收藏与收藏夹均未创建。
     expect(find.text('该名称被系统收藏夹保留'), findsOneWidget);
@@ -177,7 +176,7 @@ void registerChatScreenFavoritesTests() {
     expect(find.text('收藏到'), findsOneWidget);
     expect(find.text('未分类'), findsOneWidget);
     await tester.tap(find.widgetWithText(TextButton, '取消'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(_findFavorite(container, '撤销路径测试回复'), isNull);
     expect(find.byTooltip('收藏回复'), findsOneWidget);
     expect(find.byTooltip('已收藏'), findsNothing);
@@ -190,7 +189,7 @@ void registerChatScreenFavoritesTests() {
         matching: find.widgetWithText(FilledButton, '收藏'),
       ),
     );
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
 
     final before = _findFavorite(container, '撤销路径测试回复');
     expect(before, isNotNull);
@@ -204,7 +203,7 @@ void registerChatScreenFavoritesTests() {
 
     // 再次点击已收藏消息：直接移除并弹出带撤销按钮的通知气泡。
     await tester.tap(find.byTooltip('已收藏'));
-    await settleAnimatedWidgetTransition(tester);
+    await tester.pumpAndSettle();
     expect(_findFavorite(container, '撤销路径测试回复'), isNull);
     expect(find.byTooltip('收藏回复'), findsOneWidget);
     expect(find.byTooltip('已收藏'), findsNothing);
@@ -213,7 +212,7 @@ void registerChatScreenFavoritesTests() {
 
     // 点击撤销：按移除前捕获的 draft 恢复落库（原 collectionId 与来源元数据）。
     await tester.tap(find.widgetWithText(TextButton, '撤销'));
-    await settleAnimatedWidgetTransition(tester);
+    await tester.pumpAndSettle();
 
     final restored = _findFavorite(container, '撤销路径测试回复');
     expect(restored, isNotNull);

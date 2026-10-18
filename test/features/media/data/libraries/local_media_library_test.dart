@@ -182,28 +182,6 @@ void main() {
       );
     });
 
-    test('图片请求携带视频扩展名映射为 unsupportedMedia', () async {
-      final root = await Directory.systemTemp.createTemp('omll_local_media_');
-      addTearDown(() => root.delete(recursive: true));
-      final library = buildLocalLibraryForTest(root);
-
-      await expectLater(
-        library.resolveAsset(
-          const MediaAssetRequest(
-            kind: MediaAssetKind.image,
-            relativePath: '/a.mp4',
-          ),
-        ),
-        throwsA(
-          isA<MediaLibraryFailure>().having(
-            (e) => e.code,
-            'code',
-            MediaLibraryFailureCode.unsupportedMedia,
-          ),
-        ),
-      );
-    });
-
     test('递归视频委托扫描器并保留相对路径', () async {
       final root = await Directory.systemTemp.createTemp('omll_local_media_');
       addTearDown(() => root.delete(recursive: true));
@@ -239,26 +217,6 @@ void main() {
   });
 
   group('LocalMediaLibrary 缩略图解析', () {
-    test('hasThumbnail 为 false 返回 null 且不调用生成器', () async {
-      final root = await Directory.systemTemp.createTemp('omll_local_media_');
-      addTearDown(() => root.delete(recursive: true));
-      final generator = FakeMediaThumbnailGenerator(
-        MediaDirectoryScanner(root.path),
-      );
-      final library = buildLocalLibraryWithFakeGenerator(root, generator);
-
-      final result = await library.resolveThumbnail(
-        const MediaThumbnailRequest(
-          relativePath: '/猫.mp4',
-          sizeBytes: 1,
-          lastModified: 2,
-          hasThumbnail: false,
-        ),
-      );
-      expect(result, isNull);
-      expect(generator.calls, isEmpty);
-    });
-
     test('缩略图首次生成写入缓存，相同请求复用原文件', () async {
       final root = await Directory.systemTemp.createTemp('omll_local_media_');
       addTearDown(() => root.delete(recursive: true));

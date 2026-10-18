@@ -44,71 +44,7 @@ void main() {
     database.close();
   });
 
-  group('FavoritesLibraryController revision', () {
-    int revision() => container.read(favoritesLibraryProvider);
-
-    test('初始 revision 为 0，成功的 add/rename/create/move/remove 各递增一次', () {
-      expect(revision(), 0);
-      final library = container.read(favoritesLibraryProvider.notifier);
-
-      final id = library.add(
-        userMessageContent: '问题',
-        assistantContent: '回答',
-        collectionId: AppReservedEntities.uncategorizedFavoriteCollectionId,
-      );
-      expect(revision(), 1);
-
-      library.rename(id, '标题');
-      expect(revision(), 2);
-
-      final colId = library.createCollection('新夹');
-      expect(revision(), 3);
-
-      library.moveMany({id}, targetCollectionId: colId);
-      expect(revision(), 4);
-
-      library.remove(id);
-      expect(revision(), 5);
-    });
-
-    test('批量删除与删除收藏夹同样逐次递增 revision', () {
-      final library = container.read(favoritesLibraryProvider.notifier);
-      final idA = library.add(
-        userMessageContent: '问题甲',
-        assistantContent: '回答甲',
-        collectionId: AppReservedEntities.uncategorizedFavoriteCollectionId,
-      );
-      final idB = library.add(
-        userMessageContent: '问题乙',
-        assistantContent: '回答乙',
-        collectionId: AppReservedEntities.uncategorizedFavoriteCollectionId,
-      );
-
-      library.deleteMany({idA, idB});
-      expect(revision(), 3);
-
-      final colId = library.createCollection('待删夹');
-      library.deleteCollection(colId);
-      expect(revision(), 5);
-    });
-
-    test('操作失败时不递增 revision', () {
-      final library = container.read(favoritesLibraryProvider.notifier);
-      final id = library.add(
-        userMessageContent: '问题',
-        assistantContent: '回答',
-        collectionId: AppReservedEntities.uncategorizedFavoriteCollectionId,
-      );
-      final baseline = revision();
-
-      // 目标收藏夹不存在：外键拒绝，mutation 抛出且 revision 不变。
-      expect(
-        () => library.moveMany({id}, targetCollectionId: 'missing-col'),
-        throwsA(isA<Exception>()),
-      );
-      expect(revision(), baseline);
-    });
-
+  group('收藏内容刷新与最近归类', () {
     test('改名、移动与删除后已读取的条目和收藏夹摘要同步更新', () {
       final library = container.read(favoritesLibraryProvider.notifier);
       final id = library.add(

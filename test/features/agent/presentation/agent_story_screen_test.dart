@@ -12,7 +12,6 @@ import 'package:oh_my_llm/features/agent/domain/agent_models.dart';
 import 'package:oh_my_llm/features/agent/domain/agent_story_state.dart';
 import 'package:oh_my_llm/features/agent/presentation/agent_screen.dart';
 
-import '../../../helpers/async/widget_test_animation.dart';
 import '../../../helpers/fixtures.dart';
 import '../../../helpers/test_harness.dart';
 import '../agent_test_helpers.dart';
@@ -88,7 +87,7 @@ void main() {
     await tester.pump();
     expect(find.text('地点：图书馆'), findsOneWidget);
     await tester.tap(find.widgetWithText(ExpansionTile, '正文'));
-    await settleAnimatedWidgetTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.textContaining('甲把秘密留在心里。', findRichText: true), findsWidgets);
     await tester.tap(find.byTooltip('返回执行流'));
     await tester.pump();

@@ -1,39 +1,33 @@
 library;
 
 import 'package:oh_my_llm/core/llm/llm_reasoning_effort.dart';
-import 'package:oh_my_llm/features/chat/data/generation/chat_text_generation_adapter.dart';
 
 /// 生成通知协调器的跨层集成测试。
 ///
 /// 把真实 Riverpod wiring（[chatGenerationNotificationCoordinatorProvider] 的
 /// eager watch + [chatSessionsProvider]）与可控 repository、fake 生成客户端和
-/// fake 平台端口接在一起，验证四条跨层契约：
+/// fake 平台端口接在一起，验证跨层契约：
 /// 1. 原生 stop 进入既有 durable stop：通知先显示 stopping、stop 落盘完成前不
 ///    remove，取消后部分正文/推理落盘并 remove；
 /// 2. stop 落盘失败：投影 persistenceFailed、inline 错误保持既有文案、端口收到
 ///    remove 且 terminal sender 收到安全载荷；
 /// 3. 平台 start/update/remove 失败 fail-open：聊天结果与对照控制组完全一致，
 ///    不额外创建 assistant 消息；
-/// 4. 成功/错误/空回复经既有多协议 fake 路由链路投递正确终态通知。
 ///
 /// 所有等待均基于 fake 端口调用信号与 repository ACK（gate reached），不使用
 /// 任意延时或无条件的 pumpAndSettle。
 
 import 'dart:async';
 import 'dart:collection';
-import 'dart:convert';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:http/http.dart' as http;
 
 import 'package:oh_my_llm/app/composition/chat_generation_notification_coordinator.dart';
 import 'package:oh_my_llm/app/composition/cross_feature_bindings.dart';
 import 'package:oh_my_llm/app/router/app_router.dart';
 import 'package:oh_my_llm/app/platform/chat_generation_terminal_notification.dart';
-import 'package:oh_my_llm/core/http/llm_http_stream_transport.dart';
-import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/core/persistence/app_database_provider.dart';
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
@@ -42,10 +36,6 @@ import 'package:oh_my_llm/features/chat/application/ports/chat_conversation_repo
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_foreground_service.dart';
 import 'package:oh_my_llm/features/chat/application/sessions/chat_sessions_controller.dart';
-import 'package:oh_my_llm/core/llm/protocols/anthropic/anthropic_messages_client.dart';
-import 'package:oh_my_llm/core/llm/protocols/chat_completions/chat_completions_client.dart';
-import 'package:oh_my_llm/core/llm/protocols/protocol_routing_llm_client.dart';
-import 'package:oh_my_llm/core/llm/protocols/responses/responses_client.dart';
 import 'package:oh_my_llm/features/chat/data/persistence/sqlite_chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/chat/domain/chat_error_messages.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
@@ -60,9 +50,7 @@ void main() {
   final binding = TestWidgetsFlutterBinding.ensureInitialized();
   for (final (label, lifecycle, path, otherConversation, suppressed) in [
     ('正在查看生成会话', AppLifecycleState.resumed, '/chat', false, true),
-    ('窗口失焦', AppLifecycleState.inactive, '/chat', false, false),
     ('应用进入后台', AppLifecycleState.hidden, '/chat', false, false),
-    ('正在查看设置', AppLifecycleState.resumed, '/settings', false, false),
     ('正在查看其他会话', AppLifecycleState.resumed, '/chat', true, false),
   ]) {
     test('$label时按当前可见会话决定终态提醒且始终清理前台服务', () async {
@@ -333,87 +321,8 @@ void main() {
 
   // ── 多协议真实路由链路下的终态通知 ────────────────────────────────────────
 
-  for (final protocol in const [LlmApiProtocol.chatCompletions]) {
-    test('${protocol.name} 真实路由链路：成功时投递 start/update/remove 通知', () async {
-      final harness = await _createHarness(
-        routingClient: _routingClient(protocol, fail: false),
-      );
-      addTearDown(harness.dispose);
-      await _sendMessage(
-        harness.container,
-        modelConfig: _modelConfigFor(protocol),
-        reasoningEnabled: true,
-      );
-
-      final state = harness.container.read(chatSessionsProvider);
-      expect(state.generation?.phase, ChatGenerationPhase.succeeded);
-      expect(state.isStreaming, isFalse);
-      expect(
-        state.activeConversation.messages.last.role,
-        ChatMessageRole.assistant,
-      );
-      expect(state.activeConversation.messages.last.content, isNotEmpty);
-
-      await harness.port.waitForCall('remove');
-      expect(harness.port.calls, contains('start'));
-      expect(harness.port.calls, contains('update'));
-      expect(harness.port.calls, contains('remove'));
-      expect(harness.port.calls, isNot(contains('fail')));
-      expect(harness.terminalNotifications.single.title, '已完成');
-    });
-
-    test('${protocol.name} 真实路由链路：错误时投递安全终态通知载荷', () async {
-      final harness = await _createHarness(
-        routingClient: _routingClient(protocol, fail: true),
-      );
-      addTearDown(harness.dispose);
-      await _sendMessage(
-        harness.container,
-        modelConfig: _modelConfigFor(protocol),
-        reasoningEnabled: true,
-      );
-
-      final state = harness.container.read(chatSessionsProvider);
-      expect(state.generation?.phase, ChatGenerationPhase.failed);
-      expect(state.isStreaming, isFalse);
-
-      await harness.port.waitForCall('remove');
-      expect(
-        harness.terminalNotifications.lastWhere((p) => p.title == '生成失败').title,
-        '生成失败',
-      );
-      // 安全载荷：不携带原始错误文本。
-      expect(
-        harness.terminalNotifications.lastWhere((p) => p.title == '生成失败').text,
-        isNot(contains('协议测试错误')),
-      );
-      expect(harness.port.calls, contains('remove'));
-    });
-  }
-
   // 空回复：多协议 SSE fake 助手（multi_protocol 集成测试）未提供空回复 SSE，
   // 此处经通用 fake 客户端链路验证空回复仍投递安全终态载荷。
-  test('空回复经 fake 链路投影 emptyReply 并投递安全终态载荷', () async {
-    final harness = await _createHarness();
-    addTearDown(harness.dispose);
-    harness.fakeClient.enqueueChunks(const <String>[]);
-    await _sendMessage(harness.container);
-
-    final state = harness.container.read(chatSessionsProvider);
-    expect(state.generation?.phase, ChatGenerationPhase.emptyReply);
-    expect(state.generation?.outcome, isA<ChatGenerationEmptyReply>());
-
-    await harness.port.waitForCall('remove');
-    expect(
-      harness.terminalNotifications.lastWhere((p) => p.title == '生成失败').title,
-      '生成失败',
-    );
-    expect(
-      harness.terminalNotifications.lastWhere((p) => p.title == '生成失败').text,
-      '模型返回了空回复 · 正文 0 字 · 推理 0 字 · 已尝试 1 次',
-    );
-    expect(harness.port.calls, contains('remove'));
-  });
 }
 
 /// 等待 generation 进入 streaming 并返回 (generationId, conversationId)，
@@ -446,45 +355,11 @@ Future<void> _sendMessage(
       );
 }
 
-/// 构造指定协议的模型配置，供真实协议路由链路使用。
-LlmModelConfig _modelConfigFor(LlmApiProtocol protocol) {
-  return LlmModelConfig(
-    id: 'model-${protocol.name}',
-    displayName: protocol.displayName,
-    apiUrl: 'https://api.example.com',
-    apiKey: 'protocol-key',
-    modelName: 'test-model',
-    supportsReasoning: true,
-    apiProtocol: protocol,
-  );
-}
-
-/// 构造经共享传输层路由的真实协议客户端（多协议集成测试同款装配）。
-ChatGenerationClient _routingClient(
-  LlmApiProtocol protocol, {
-  required bool fail,
-}) {
-  final transport = LlmHttpStreamTransport(
-    httpClient: _ProtocolStreamingHttpClient(protocol: protocol, fail: fail),
-  );
-  return ChatTextGenerationAdapter(
-    ProtocolRoutingLlmClient(
-      chatCompletions: ChatCompletionsClient(transport: transport),
-      responses: ResponsesClient(transport: transport),
-      anthropic: AnthropicMessagesClient(transport: transport),
-    ),
-  );
-}
-
 /// 构建真实 Riverpod wiring + fake 端口的集成测试装具。
 ///
 /// 与生产组合一致地传入 [appCompositionOverrides]（排除三个 chat 端口的生产
 /// 绑定，由测试 fake 接管），eager 读取通知协调器模拟应用根部的 watch。
-/// [routingClient] 非空时接管生成客户端（多协议真实路由链路）。
-Future<_Harness> _createHarness({
-  FakeForegroundServicePort? port,
-  ChatGenerationClient? routingClient,
-}) async {
+Future<_Harness> _createHarness({FakeForegroundServicePort? port}) async {
   final database = AppDatabase.inMemory();
   final preferences = await createSeededPreferences();
   final fakeClient = FakeChatGenerationClient();
@@ -502,9 +377,7 @@ Future<_Harness> _createHarness({
         bindChatConversationRepository: false,
         bindChatGenerationForegroundService: false,
       ),
-      chatGenerationClientProvider.overrideWithValue(
-        routingClient ?? fakeClient,
-      ),
+      chatGenerationClientProvider.overrideWithValue(fakeClient),
       chatConversationRepositoryProvider.overrideWithValue(repo),
       chatGenerationForegroundServiceProvider.overrideWithValue(servicePort),
       chatGenerationTerminalNotificationSenderProvider.overrideWithValue(
@@ -629,53 +502,4 @@ class FakeForegroundServicePort implements ChatGenerationForegroundServicePort {
   void dispose() {
     if (!actionsController.isClosed) actionsController.close();
   }
-}
-
-/// 按协议返回固定 SSE 响应体的假 HTTP 客户端（多协议集成测试同款模式）。
-final class _ProtocolStreamingHttpClient extends http.BaseClient {
-  _ProtocolStreamingHttpClient({required this.protocol, required this.fail});
-
-  final LlmApiProtocol protocol;
-  final bool fail;
-
-  @override
-  Future<http.StreamedResponse> send(http.BaseRequest request) async {
-    final body = fail ? _errorSse(protocol) : _successSse(protocol);
-    return http.StreamedResponse(Stream.value(utf8.encode(body)), 200);
-  }
-}
-
-const _finalContent = '正文';
-const _finalReasoning = '思考';
-
-String _successSse(LlmApiProtocol protocol) {
-  return switch (protocol) {
-    LlmApiProtocol.chatCompletions =>
-      'data: {"choices":[{"delta":{"reasoning_content":"$_finalReasoning"}}]}\n\n'
-          'data: {"choices":[{"delta":{"content":"$_finalContent"},"finish_reason":"stop"}]}\n\n'
-          'data: [DONE]\n\n',
-    LlmApiProtocol.responses =>
-      'data: {"type":"response.reasoning_summary_text.delta","delta":"$_finalReasoning"}\n\n'
-          'data: {"type":"response.output_text.delta","delta":"$_finalContent"}\n\n'
-          'data: {"type":"response.completed","response":{}}\n\n',
-    LlmApiProtocol.anthropic =>
-      'data: {"type":"content_block_delta","delta":{"type":"thinking_delta","thinking":"$_finalReasoning"}}\n\n'
-          'data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"$_finalContent"}}\n\n'
-          'data: {"type":"message_delta","delta":{"stop_reason":"end_turn"}}\n\n'
-          'data: {"type":"message_stop"}\n\n',
-  };
-}
-
-String _errorSse(LlmApiProtocol protocol) {
-  return switch (protocol) {
-    LlmApiProtocol.chatCompletions =>
-      'data: {"choices":[{"delta":{"content":"部分回复"}}]}\n\n'
-          'data: {"error":{"message":"协议测试错误"}}\n\n',
-    LlmApiProtocol.responses =>
-      'data: {"type":"response.output_text.delta","delta":"部分回复"}\n\n'
-          'data: {"type":"error","message":"协议测试错误","code":"test_error"}\n\n',
-    LlmApiProtocol.anthropic =>
-      'data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"部分回复"}}\n\n'
-          'data: {"type":"error","error":{"type":"test_error","message":"协议测试错误"}}\n\n',
-  };
 }

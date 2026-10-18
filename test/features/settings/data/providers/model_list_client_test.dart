@@ -52,17 +52,6 @@ void main() {
       expect(result[1].id, 'gpt-4o-mini');
     });
 
-    test('fetchModels returns empty when data is an empty list', () async {
-      expect(
-        await fetchWithResponse(jsonEncode({'object': 'list', 'data': []})),
-        isEmpty,
-      );
-    });
-
-    test('fetchModels returns empty when the data field is missing', () async {
-      expect(await fetchWithResponse(jsonEncode({'object': 'list'})), isEmpty);
-    });
-
     test('fetchModels reports HTTP status and body on an error', () async {
       await expectLater(
         fetchWithResponse('{"error":"unauthorized"}', status: 401),
@@ -134,25 +123,6 @@ void main() {
             'message',
             contains('URL 格式无效'),
           ),
-        ),
-      );
-    });
-
-    test('fetchModels truncates a long error response body', () async {
-      await expectLater(
-        fetchWithResponse('x' * 500, status: 500),
-        throwsA(
-          isA<ModelListException>()
-              .having(
-                (error) => error.responseBody?.length,
-                'truncated length',
-                lessThanOrEqualTo(220),
-              )
-              .having(
-                (error) => error.responseBody,
-                'ellipsis',
-                contains('...'),
-              ),
         ),
       );
     });

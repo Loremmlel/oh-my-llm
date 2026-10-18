@@ -102,9 +102,9 @@ void main() {
     await tester.pump();
     await tester.enterText(chatMessageComposerFinder, '继续写作');
     await tester.tap(find.byTooltip('更多对话操作'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('查看当前上下文'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.text('请求预览 · 包含未发送草稿'), findsOneWidget);
     expect(find.text('简洁：继续写作'), findsOneWidget);
     expect(client.requestHistory, isEmpty);
@@ -124,7 +124,7 @@ void main() {
     expect(await copied.future, contains('简洁：继续写作'));
     await tester.pump();
     await tester.tap(find.byTooltip('返回对话'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.text('继续写作'), findsOneWidget);
     await sendMessage(tester, '继续写作');
     await waitForChatGeneration(

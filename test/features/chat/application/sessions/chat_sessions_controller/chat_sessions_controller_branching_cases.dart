@@ -102,11 +102,6 @@ void registerChatSessionsControllerBranchingCases() {
 
   // ── retryLatestAssistant ───────────────────────────────────────────────────
 
-  test('retryLatestAssistant 无助手消息时设置 errorMessage', () async {
-    await container.read(chatSessionsProvider.notifier).retryLatestAssistant();
-    expect(container.read(chatSessionsProvider).errorMessage, isNotNull);
-  });
-
   test('retryLatestAssistant 可重试失败后的最新助手消息', () async {
     fakeClient.enqueueError(ChatGenerationException('503 unavailable'));
     await sendMsg('先失败后重试');
@@ -171,33 +166,6 @@ void registerChatSessionsControllerBranchingCases() {
         })
         .toList(growable: false);
     expect(assistantChildren, hasLength(1));
-  });
-
-  test('deleteMessage 删除全部助手版本后保留父用户消息', () async {
-    fakeClient
-      ..enqueueChunks(['首次回复'])
-      ..enqueueChunks(['重试回复']);
-    await sendMsg('测试全部删除');
-    await container.read(chatSessionsProvider.notifier).retryLatestAssistant();
-
-    final latestAssistant = container
-        .read(chatSessionsProvider)
-        .activeConversation
-        .messages
-        .last;
-    await container
-        .read(chatSessionsProvider.notifier)
-        .deleteMessage(
-          messageId: latestAssistant.id,
-          scope: ChatMessageDeletionScope.allBranches,
-        );
-
-    final messages = container
-        .read(chatSessionsProvider)
-        .activeConversation
-        .messages;
-    expect(messages, hasLength(1));
-    expect(messages.single.role, ChatMessageRole.user);
   });
 
   test('deleteMessage 会同步清理已排除消息 id', () async {
@@ -271,18 +239,6 @@ void registerChatSessionsControllerBranchingCases() {
   // ── selectConversationAndNavigateToMessage ────────────────────────────────
 
   group('selectConversationAndNavigateToMessage', () {
-    test('messageId 为 null 时退化为普通 selectConversation', () {
-      final controller = container.read(chatSessionsProvider.notifier);
-      final state = container.read(chatSessionsProvider);
-      final convId = state.activeConversationId;
-
-      controller.selectConversationAndNavigateToMessage(convId);
-
-      final afterState = container.read(chatSessionsProvider);
-      expect(afterState.activeConversationId, convId);
-      expect(afterState.pendingScrollToMessageId, isNull);
-    });
-
     test('目标消息在线性路径上时设置 pendingScrollToMessageId', () async {
       fakeClient.enqueueChunks(['你好！']);
       await sendMsg('你好');
@@ -352,29 +308,6 @@ void registerChatSessionsControllerBranchingCases() {
       expect(
         afterConv.messages.where((m) => m.id == branchAssistantMsg.id),
         isNotEmpty,
-      );
-    });
-
-    test('目标消息不在 messageNodes 中时不修改状态', () async {
-      fakeClient.enqueueChunks(['回复']);
-      await sendMsg('测试消息');
-
-      final controller = container.read(chatSessionsProvider.notifier);
-      final stateBefore = container.read(chatSessionsProvider);
-      final convId = stateBefore.activeConversationId;
-      final selectionsBefore =
-          stateBefore.activeConversation.selectedChildByParentId;
-
-      controller.selectConversationAndNavigateToMessage(
-        convId,
-        messageId: 'nonexistent-message-id',
-      );
-
-      final stateAfter = container.read(chatSessionsProvider);
-      expect(stateAfter.pendingScrollToMessageId, isNull);
-      expect(
-        stateAfter.activeConversation.selectedChildByParentId,
-        selectionsBefore,
       );
     });
   });

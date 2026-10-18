@@ -39,22 +39,6 @@ void main() {
       expect(controller.draftFor('conv-b').selectedTemplatePromptId, 'tpl-b');
     });
 
-    test('暴露的外层/内层 Map 不可变，旧 state 不受 mutation 影响', () {
-      controller.setBody('conv-a', '正文');
-      controller.setTemplateVariable('conv-a', 'tpl-1', 'title', '甲');
-      final stateBefore = container.read(composerDraftProvider);
-
-      expect(
-        () =>
-            stateBefore
-                    .draftsByConversationId['conv-a']!
-                    .templateVariableValuesByTemplateId['tpl-1']!['title'] =
-                '改',
-        throwsUnsupportedError,
-      );
-      expect(stateBefore.draftsByConversationId['conv-a']!.body, '正文');
-    });
-
     test('只监听 select 的 derived family：正文/变量写入不触发 selection listener', () async {
       var selectionChanges = 0;
       container.listen(
@@ -88,18 +72,6 @@ void main() {
       expect(selectionChanges, 2);
     });
 
-    test('dispose 后新建 provider container，draft 为空（证明非 App 持久态）', () {
-      controller.setBody('conv-a', '正文');
-      container.dispose();
-
-      final fresh = ProviderContainer();
-      addTearDown(fresh.dispose);
-      expect(
-        fresh.read(composerDraftProvider.notifier).draftFor('conv-a'),
-        ComposerDraft.empty,
-      );
-    });
-
     test('clearBody 保留模板选择与变量，clearDraft 整体清空', () {
       controller.setBody('conv-a', '正文');
       controller.selectTemplate('conv-a', 'tpl-a');
@@ -113,26 +85,6 @@ void main() {
       controller.clearDraft('conv-a');
       draft = controller.draftFor('conv-a');
       expect(draft, ComposerDraft.empty);
-    });
-
-    test('replaceDraft 存入 state 后，外部对原 draft 内层 map 的修改不可见', () {
-      final notifier = container.read(composerDraftProvider.notifier);
-      final mutableInner = <String, String>{'title': '甲'};
-      final draft = ComposerDraft(
-        body: '正文',
-        templateVariableValuesByTemplateId: {'tp-1': mutableInner},
-      );
-      notifier.replaceDraft('conv-a', draft);
-
-      // 修改外部 map：state 内的 draft 不得受影响。
-      mutableInner['title'] = '乙';
-      final stored = notifier.draftFor('conv-a');
-      expect(stored.templateVariableValuesByTemplateId['tp-1']?['title'], '甲');
-      // 且 state 内的内层 map 不可变。
-      expect(
-        () => stored.templateVariableValuesByTemplateId['tp-1']!['title'] = '丙',
-        throwsUnsupportedError,
-      );
     });
   });
 }

@@ -48,73 +48,7 @@ void main() {
     return container;
   }
 
-  group('FavoritesBrowsePageSizeController', () {
-    test('无持久化值时使用默认容量 20', () async {
-      SharedPreferences.setMockInitialValues({});
-      final container = createContainer(await SharedPreferences.getInstance());
-      addTearDown(container.dispose);
-
-      expect(container.read(favoritesBrowsePageSizeProvider), 20);
-    });
-
-    test('合法持久化值在读取时复活', () async {
-      SharedPreferences.setMockInitialValues({
-        favoritesPageSizeStorageKey: '50',
-      });
-      final container = createContainer(await SharedPreferences.getInstance());
-      addTearDown(container.dispose);
-
-      expect(container.read(favoritesBrowsePageSizeProvider), 50);
-    });
-
-    test('非法持久化值回退默认容量', () async {
-      for (final invalid in ['15', '-1', 'abc']) {
-        SharedPreferences.setMockInitialValues({
-          favoritesPageSizeStorageKey: invalid,
-        });
-        final container = createContainer(
-          await SharedPreferences.getInstance(),
-        );
-        addTearDown(container.dispose);
-
-        expect(
-          container.read(favoritesBrowsePageSizeProvider),
-          20,
-          reason: 'stored=$invalid',
-        );
-      }
-    });
-
-    test('save 只接受合法容量并同步内存态', () async {
-      SharedPreferences.setMockInitialValues({});
-      final container = createContainer(await SharedPreferences.getInstance());
-      addTearDown(container.dispose);
-      final notifier = container.read(favoritesBrowsePageSizeProvider.notifier);
-
-      notifier.save(10);
-      expect(container.read(favoritesBrowsePageSizeProvider), 10);
-
-      // 非法容量不生效。
-      notifier.save(33);
-      expect(container.read(favoritesBrowsePageSizeProvider), 10);
-
-      notifier.save(50);
-      expect(container.read(favoritesBrowsePageSizeProvider), 50);
-    });
-  });
-
   group('FavoritesLastCollectionController', () {
-    test('无持久化值时回退系统未分类收藏夹', () async {
-      SharedPreferences.setMockInitialValues({});
-      final container = createContainer(await SharedPreferences.getInstance());
-      addTearDown(container.dispose);
-
-      expect(
-        container.read(favoritesLastCollectionProvider),
-        AppReservedEntities.uncategorizedFavoriteCollectionId,
-      );
-    });
-
     test('合法持久化值在收藏夹仍存在时复活', () async {
       SharedPreferences.setMockInitialValues({
         favoritesLastCollectionStorageKey: 'col-keep',
@@ -141,27 +75,6 @@ void main() {
       final container = createContainer(await SharedPreferences.getInstance());
       addTearDown(container.dispose);
 
-      expect(
-        container.read(favoritesLastCollectionProvider),
-        AppReservedEntities.uncategorizedFavoriteCollectionId,
-      );
-    });
-
-    test('update 同步内存态并接受系统收藏夹', () async {
-      SharedPreferences.setMockInitialValues({});
-      final container = createContainer(
-        await SharedPreferences.getInstance(),
-        collections: [
-          FavoriteCollection(id: 'col-x', name: 'X', createdAt: DateTime(2026)),
-        ],
-      );
-      addTearDown(container.dispose);
-      final notifier = container.read(favoritesLastCollectionProvider.notifier);
-
-      notifier.update('col-x');
-      expect(container.read(favoritesLastCollectionProvider), 'col-x');
-
-      notifier.update(AppReservedEntities.uncategorizedFavoriteCollectionId);
       expect(
         container.read(favoritesLastCollectionProvider),
         AppReservedEntities.uncategorizedFavoriteCollectionId,

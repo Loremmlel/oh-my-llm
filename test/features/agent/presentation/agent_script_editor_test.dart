@@ -10,7 +10,6 @@ import 'package:oh_my_llm/features/agent/presentation/agent_screen.dart';
 
 import '../../../helpers/fixtures.dart';
 import '../../../helpers/test_harness.dart';
-import '../../../helpers/async/widget_test_animation.dart';
 
 void main() {
   testWidgets('窄屏创建剧本格式错误保留输入，可修正保存并在键盘弹出时改名查看备忘', (tester) async {
@@ -27,16 +26,16 @@ void main() {
       child: const AgentScreen(),
     );
     showAgentDocumentEditor(tester.element(find.byType(AgentScreen)));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await tester.tap(find.byType(DropdownButtonFormField<AgentDocumentKind>));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('剧本').last);
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('新建文档说明'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.textContaining(agentScriptExample), findsOneWidget);
     await tester.tap(find.text('关闭'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     final body = find.widgetWithText(AppTextField, '正文');
     await tester.enterText(body, '保留这份未写完的剧本');
     await tester.tap(find.text('保存'));
@@ -47,22 +46,22 @@ void main() {
     await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     final saved = store.readDocument('novel', '秋季校园风波')!;
     expect(saved.content, agentScriptExample);
     showAgentDocumentEditor(
       tester.element(find.byType(AgentScreen)),
       document: saved,
     );
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('剧本备忘'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.textContaining('当前内容尚无备忘'), findsOneWidget);
     await tester.tap(find.text('关闭'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     tester.view.viewInsets = const FakeViewPadding(bottom: 280);
     addTearDown(tester.view.resetViewInsets);
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.text('保存').hitTestable(), findsOneWidget);
     expect(body.hitTestable(), findsOneWidget);
     await tester.enterText(
@@ -70,7 +69,7 @@ void main() {
       agentScriptExample.replaceFirst('name: 秋季校园风波', 'name: 校园来信'),
     );
     await tester.tap(find.text('保存'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(store.readDocument('novel', '校园来信')!.id, saved.id);
     expect(store.readDocument('novel', '秋季校园风波'), isNull);
     expect(tester.takeException(), isNull);

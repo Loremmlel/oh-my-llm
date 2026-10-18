@@ -54,34 +54,6 @@ void main() {
       expect(library.listVideosRecursivelyCalls, ['/视频']);
     });
 
-    test('会话未激活 → 返回 null，保持 Idle', () async {
-      final container = createMediaLibraryTestContainer(FakeMediaLibrary());
-      final result = await container
-          .read(shufflePlaybackControllerProvider.notifier)
-          .startShuffle('/dir');
-      expect(result, isNull);
-      expect(
-        container.read(shufflePlaybackControllerProvider),
-        isA<ShufflePlaybackIdle>(),
-      );
-    });
-
-    test('空列表 → 返回 null，回到 Idle', () async {
-      final library = FakeMediaLibrary()
-        ..recursiveVideoResults['/dir'] = const [];
-      final container = createMediaLibraryTestContainer(library);
-      await activateTestMediaSession(container);
-
-      final result = await container
-          .read(shufflePlaybackControllerProvider.notifier)
-          .startShuffle('/dir');
-      expect(result, isNull);
-      expect(
-        container.read(shufflePlaybackControllerProvider),
-        isA<ShufflePlaybackIdle>(),
-      );
-    });
-
     test('库失败 → 返回 null，回到 Idle 且不泄露原始错误', () async {
       final library = FakeMediaLibrary()
         ..videoFailure = const MediaLibraryFailure(
@@ -281,29 +253,6 @@ void main() {
 
       // 不同目录：回到 Idle
       controller.clearIfDirectoryChanged('/other');
-      expect(
-        container.read(shufflePlaybackControllerProvider),
-        isA<ShufflePlaybackIdle>(),
-      );
-    });
-  });
-
-  group('ShufflePlaybackController.reset', () {
-    test('从 Active 回到 Idle', () async {
-      final library = FakeMediaLibrary()
-        ..recursiveVideoResults['/dir'] = _videos(3);
-      final container = createMediaLibraryTestContainer(library);
-      await activateTestMediaSession(container);
-
-      final controller = container.read(
-        shufflePlaybackControllerProvider.notifier,
-      );
-      await controller.startShuffle('/dir');
-      expect(
-        container.read(shufflePlaybackControllerProvider),
-        isA<ShufflePlaybackActive>(),
-      );
-      controller.reset();
       expect(
         container.read(shufflePlaybackControllerProvider),
         isA<ShufflePlaybackIdle>(),

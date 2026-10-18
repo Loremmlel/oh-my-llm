@@ -16,10 +16,8 @@ import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client
 import 'package:oh_my_llm/features/chat/application/sessions/chat_sessions_controller.dart';
 import 'package:oh_my_llm/features/chat/data/generation/chat_text_generation_adapter.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
-import 'package:oh_my_llm/features/settings/data/prompts/preset_prompt_repository.dart';
 import 'package:oh_my_llm/features/settings/data/providers/llm_model_config_repository.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/memory_prompt.dart';
-import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/providers/llm_model_config.dart';
 import 'package:oh_my_llm/features/settings/domain/models/providers/llm_provider_config.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -80,35 +78,6 @@ class ControllerTestHarness {
     });
     preferences = await SharedPreferences.getInstance();
     database = AppDatabase.inMemory();
-    // 通过 Repository API 将预设提示词写入 SQLite
-    await presetPromptRepository.saveAll(database, [
-      PresetPrompt(
-        id: 'prompt-1',
-        name: '模板一',
-        messages: const [
-          PromptMessage(
-            id: 'prompt-1-message-1',
-            role: PromptMessageRole.user,
-            content: '模板一前置',
-            placement: PromptMessagePlacement.before,
-          ),
-        ],
-        updatedAt: DateTime(2026, 4, 30),
-      ),
-      PresetPrompt(
-        id: 'prompt-2',
-        name: '模板二',
-        messages: const [
-          PromptMessage(
-            id: 'prompt-2-message-1',
-            role: PromptMessageRole.user,
-            content: '模板二前置',
-            placement: PromptMessagePlacement.before,
-          ),
-        ],
-        updatedAt: DateTime(2026, 4, 30, 0, 1),
-      ),
-    ]);
     fakeClient = FakeChatGenerationClient();
     container = ProviderContainer(
       overrides: [

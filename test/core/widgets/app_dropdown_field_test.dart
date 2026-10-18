@@ -3,8 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/core/widgets/app_dropdown_field.dart';
 import 'package:oh_my_llm/core/widgets/app_field_group.dart';
 
-import '../../helpers/async/widget_test_animation.dart';
-
 void main() {
   testWidgets('统一下拉箭头仍保留字段帮助与选项选择入口', (tester) async {
     var helpOpened = false;
@@ -42,9 +40,9 @@ void main() {
     await tester.tap(find.byTooltip('项目说明'));
     expect(helpOpened, isTrue);
     await tester.tap(find.byType(DropdownButtonFormField<String>));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('第二个').last);
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(selected, 'second');
     expect(tester.takeException(), isNull);
   });
@@ -97,9 +95,9 @@ void main() {
     await tester.pump();
     expect(find.text('请选择服务商'), findsOneWidget);
     await tester.tap(find.byType(DropdownButtonFormField<String>));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('第二服务商').last);
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(selected, 'second');
     expect(find.byTooltip('第二服务商').hitTestable(), findsOneWidget);
     expect(formKey.currentState!.validate(), isTrue);
@@ -167,9 +165,9 @@ void main() {
       ),
     );
     await tester.tap(find.byType(DropdownButtonFormField<String>));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('第二个').last);
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(formKey.currentState!.validate(), isTrue);
     update(() => includeSecond = false);
     await tester.pump();

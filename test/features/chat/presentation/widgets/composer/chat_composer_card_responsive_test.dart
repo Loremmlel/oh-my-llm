@@ -11,8 +11,6 @@ import 'package:oh_my_llm/features/chat/presentation/widgets/composer/controls/t
 import 'package:oh_my_llm/features/chat/presentation/widgets/composer/controls/composer_send_button.dart';
 import 'package:oh_my_llm/features/chat/presentation/widgets/workspace/chat_workspace_bindings.dart';
 
-import '../../../../../helpers/async/widget_test_animation.dart';
-
 ChatWorkspaceComposerState _composerState({
   double? cacheHitRate,
   bool isCollapsed = false,
@@ -173,7 +171,7 @@ void main() {
       ),
     );
     await tester.tap(find.byTooltip('更多设置 · 思考关 · 重试关'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.text('思考强度'), findsNothing);
     await tester.tap(find.widgetWithText(ThinkingToggle, '深度思考').last);
     await tester.pump();
@@ -183,7 +181,7 @@ void main() {
     final filter = find.widgetWithText(ListTile, '上下文过滤');
     await tester.ensureVisible(filter);
     await tester.tap(filter);
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(filterOpened, isTrue);
   });
 

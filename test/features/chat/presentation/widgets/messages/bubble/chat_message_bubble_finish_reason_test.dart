@@ -43,28 +43,18 @@ Future<void> _pumpBubble(
 
 void main() {
   group('结束原因', () {
-    testWidgets('finishReason 为 null 时不显示 chip', (tester) async {
-      await _pumpBubble(tester, _assistantMessage(finishReason: null));
-      expect(find.text('stop'), findsNothing);
-      expect(find.text('length'), findsNothing);
-    });
-
     testWidgets('正常停止不显示标记，异常结束原因原位可见', (tester) async {
       await _pumpBubble(tester, _assistantMessage(finishReason: 'stop'));
       expect(find.text('stop'), findsNothing);
 
-      await _pumpBubble(tester, _assistantMessage(finishReason: 'length'));
-      expect(find.text('length'), findsOneWidget);
-    });
-
-    testWidgets('isStreaming 为 true 时不显示 chip（即使 finishReason 非 null）', (
-      tester,
-    ) async {
       await _pumpBubble(
         tester,
-        _assistantMessage(finishReason: 'stop', isStreaming: true),
+        _assistantMessage(finishReason: 'length', isStreaming: true),
       );
-      expect(find.text('stop'), findsNothing);
+      expect(find.text('length'), findsNothing);
+
+      await _pumpBubble(tester, _assistantMessage(finishReason: 'length'));
+      expect(find.text('length'), findsOneWidget);
     });
   });
 

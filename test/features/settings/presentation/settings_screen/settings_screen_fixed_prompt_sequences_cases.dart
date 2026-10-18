@@ -3,7 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/features/settings/data/prompts/sqlite_fixed_prompt_sequence_repository.dart';
 
-import '../../../../helpers/async/widget_test_animation.dart';
 import 'settings_screen_test_helpers.dart';
 
 void registerSettingsScreenFixedPromptSequencesTests() {
@@ -15,7 +14,7 @@ void registerSettingsScreenFixedPromptSequencesTests() {
     );
 
     await tester.tap(find.text('新增序列'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
 
     await tester.enterText(fixedPromptSequenceNameField(), '插入测试流程');
     await tester.enterText(fixedStepTitleField(), '标题1');
@@ -40,7 +39,7 @@ void registerSettingsScreenFixedPromptSequencesTests() {
     await tester.enterText(fixedStepTitleField(), '标题1.5');
     await tester.enterText(fixedStepContentField(), '内容1.5');
     await tester.tap(find.text('保存'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
 
     final savedSteps = fixedPromptSequenceRepository
         .loadAll(database)

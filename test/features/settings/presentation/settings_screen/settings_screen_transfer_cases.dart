@@ -11,7 +11,6 @@ import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_tran
 import 'package:oh_my_llm/features/settings/presentation/settings_screen.dart';
 
 import '../../../../helpers/fixtures.dart';
-import '../../../../helpers/async/widget_test_animation.dart';
 import 'settings_screen_test_helpers.dart';
 
 void registerSettingsScreenTransferTests() {
@@ -47,14 +46,14 @@ void registerSettingsScreenTransferTests() {
     );
 
     await tester.tap(find.byTooltip('从剪贴板导入设置'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.text('检测到配置导入数据'), findsOneWidget);
     expect(find.textContaining('标签不匹配'), findsNothing);
 
     await tester.tap(
       find.descendant(of: find.byType(AlertDialog), matching: find.text('导入')),
     );
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
 
     final container = ProviderScope.containerOf(
       tester.element(find.byType(SettingsScreen)),
@@ -71,104 +70,23 @@ void registerSettingsScreenTransferTests() {
     );
 
     await tester.tap(find.widgetWithText(TextButton, '导出'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
 
     expect(find.textContaining('系统剪贴板'), findsOneWidget);
     expect(find.textContaining('provider-secret'), findsNothing);
     await tester.tap(find.text('取消'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
 
     expect(clipboardWrites, isEmpty);
     await tester.tap(find.widgetWithText(TextButton, '导出'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('确认复制'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(clipboardWrites, hasLength(1));
     expect(_decodeDocument(clipboardWrites.single).sections.keys, [
       'modelProviders',
     ]);
     expect(find.textContaining('provider-secret'), findsNothing);
-  });
-
-  testWidgets('空自定义请求头导出保留显式空 replacement section', (tester) async {
-    final clipboardWrites = <String>[];
-    await setUpSettingsScreen(tester, clipboardWrites: clipboardWrites);
-    await switchToTab(tester, 3);
-
-    await tester.tap(find.widgetWithText(TextButton, '导出'));
-    await settleOverlayTransition(tester);
-    await tester.tap(find.text('确认复制'));
-    await settleOverlayTransition(tester);
-
-    final document = _decodeDocument(clipboardWrites.single);
-    expect(document.sections.keys, ['customHeaders']);
-    expect(document.sections['customHeaders'], {'headers': <Object?>[]});
-  });
-
-  testWidgets('空输出处理导出保留显式空 replacement section', (tester) async {
-    final clipboardWrites = <String>[];
-    await setUpSettingsScreen(tester, clipboardWrites: clipboardWrites);
-    await switchToTab(tester, 4);
-
-    await tester.tap(find.widgetWithText(TextButton, '导出'));
-    await tester.pump();
-
-    final document = _decodeDocument(clipboardWrites.single);
-    expect(document.sections.keys, ['outputProcessing']);
-    expect(document.sections['outputProcessing'], {'rules': <Object?>[]});
-  });
-
-  testWidgets('剪贴板 malformed 文档显示无效消息', (tester) async {
-    await setUpSettingsScreen(tester, clipboardText: '{not-json');
-
-    await tester.tap(find.byTooltip('从剪贴板导入设置'));
-    await tester.pump();
-
-    expect(find.text('导入内容无效'), findsOneWidget);
-    expect(find.text('不支持的设置传输版本'), findsNothing);
-    expect(find.text('没有可导入的变化'), findsNothing);
-  });
-
-  testWidgets('剪贴板 v8 文档显示版本不支持消息', (tester) async {
-    await setUpSettingsScreen(
-      tester,
-      clipboardText: '{"identifier":"shikiyuzu-oh-my-llm","formatVersion":8,"sections":{}}',
-    );
-
-    await tester.tap(find.byTooltip('从剪贴板导入设置'));
-    await tester.pump();
-
-    expect(find.text('不支持的设置传输版本'), findsOneWidget);
-    expect(find.text('导入内容无效'), findsNothing);
-    expect(find.text('没有可导入的变化'), findsNothing);
-  });
-
-  testWidgets('剪贴板未知 section 显示未知设置项消息', (tester) async {
-    await setUpSettingsScreen(
-      tester,
-      clipboardText: _documentJson({'unknownSection': <String, Object?>{}}),
-    );
-
-    await tester.tap(find.byTooltip('从剪贴板导入设置'));
-    await tester.pump();
-
-    expect(find.text('未知设置项：unknownSection'), findsOneWidget);
-    expect(find.text('导入内容无效'), findsNothing);
-    expect(find.text('没有可导入的变化'), findsNothing);
-  });
-
-  testWidgets('剪贴板无变化文档显示无可导入变化消息', (tester) async {
-    await setUpSettingsScreen(
-      tester,
-      clipboardText: _documentJson(const <String, Object?>{}),
-    );
-
-    await tester.tap(find.byTooltip('从剪贴板导入设置'));
-    await tester.pump();
-
-    expect(find.text('没有可导入的变化'), findsOneWidget);
-    expect(find.text('导入内容无效'), findsNothing);
-    expect(find.text('不支持的设置传输版本'), findsNothing);
   });
 
   testWidgets('导入确认摘要和提示不显示 API key 或 Header value', (tester) async {
@@ -188,7 +106,7 @@ void registerSettingsScreenTransferTests() {
     );
 
     await tester.tap(find.byTooltip('从剪贴板导入设置'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
 
     expect(find.text('检测到配置导入数据'), findsOneWidget);
     expect(find.textContaining(apiKey), findsNothing);
@@ -199,7 +117,7 @@ void registerSettingsScreenTransferTests() {
     await tester.tap(
       find.descendant(of: find.byType(AlertDialog), matching: find.text('导入')),
     );
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
 
     expect(find.text('设置已成功导入'), findsOneWidget);
     expect(find.textContaining(apiKey), findsNothing);

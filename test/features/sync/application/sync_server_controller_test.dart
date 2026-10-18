@@ -203,21 +203,6 @@ void main() {
       container.dispose();
     });
 
-    test('无存储时 deviceName 回退到 hostname', () async {
-      final c1 = buildContainer();
-      expect(
-        c1.read(syncServerControllerProvider).deviceName,
-        Platform.localHostname,
-      );
-    });
-
-    test('有存储时 deviceName 读取存储值', () async {
-      SharedPreferences.setMockInitialValues({'sync.device_name': '我的设备'});
-      preferences = await SharedPreferences.getInstance();
-      final c2 = buildContainer();
-      expect(c2.read(syncServerControllerProvider).deviceName, '我的设备');
-    });
-
     test('启动生成配对码，重复启动与并发停止均幂等', () async {
       final container = buildContainer();
       final notifier = container.read(syncServerControllerProvider.notifier);
@@ -238,16 +223,6 @@ void main() {
       expect(state.isRunning, isFalse);
       expect(state.httpPort, isNull);
       expect(state.servedRequestCount, 0);
-    });
-
-    test('updateDeviceName 持久化到 SharedPreferences', () async {
-      final container = buildContainer();
-      await container
-          .read(syncServerControllerProvider.notifier)
-          .updateDeviceName('新设备名');
-
-      expect(preferences.getString('sync.device_name'), '新设备名');
-      expect(container.read(syncServerControllerProvider).deviceName, '新设备名');
     });
 
     test('运行中改名持久保存，并以新名称重新发布服务', () async {

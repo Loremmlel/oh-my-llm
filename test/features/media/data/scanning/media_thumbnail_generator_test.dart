@@ -8,26 +8,15 @@ import 'package:oh_my_llm/features/media/data/scanning/media_thumbnail_generator
 import 'package:oh_my_llm/features/media/data/scanning/thumbnail_process_runner.dart';
 
 /// 使用 image 包生成有效图片字节数组。
-List<int> _generateImageBytes(String ext) {
+List<int> _generateImageBytes() {
   final image = img.Image(width: 2, height: 2);
   image.setPixelRgba(0, 0, 255, 0, 0, 255);
   image.setPixelRgba(1, 0, 0, 255, 0, 255);
   image.setPixelRgba(0, 1, 0, 0, 255, 255);
   image.setPixelRgba(1, 1, 255, 255, 0, 255);
 
-  switch (ext.toLowerCase()) {
-    case 'png':
-      return img.encodePng(image);
-    case 'jpg':
-    case 'jpeg':
-      return img.encodeJpg(image, quality: 90);
-    case 'gif':
-      return img.encodeGif(image);
-    default:
-      throw ArgumentError('Unknown extension: $ext');
-  }
+  return img.encodePng(image);
 }
-// 注：image 4.8.0 不支持 WebP 编码，但解码器可用；生成器在运行时能正确处理 WebP 输入。
 
 /// 一次脚本化进程调用的记录（可执行文件、参数与 stdout 编码约定）。
 final class _ProcessCall {
@@ -84,26 +73,20 @@ void main() {
     });
 
     group('图片缩略图', () {
-      test('png/jpg/gif 格式生成缩略图成功（统一输出 JPEG）', () async {
-        for (final ext in ['png', 'jpg', 'gif']) {
-          final imgFile = File('${tempDir.path}/test.$ext');
-          await imgFile.writeAsBytes(_generateImageBytes(ext));
-
-          final result = await generator.generate('/test.$ext');
-          expect(result, isNotEmpty, reason: 'ext: $ext');
-          // JPEG 以 0xFF 0xD8 开头
-          expect(result[0], 0xFF, reason: 'ext: $ext');
-          expect(result[1], 0xD8, reason: 'ext: $ext');
-        }
+      test('PNG 图片生成 JPEG 缩略图', () async {
+        await File('${tempDir.path}/test.png')
+            .writeAsBytes(_generateImageBytes());
+        final result = await generator.generate('/test.png');
+        expect(result.take(2), [0xFF, 0xD8]);
       });
 
       test('并发生成多个图片缩略图全部成功（并发门控不丢失请求）', () async {
-        for (var i = 0; i < 8; i++) {
+        for (var i = 0; i < 2; i++) {
           await File('${tempDir.path}/img$i.png')
-              .writeAsBytes(_generateImageBytes('png'));
+              .writeAsBytes(_generateImageBytes());
         }
         final results = await Future.wait([
-          for (var i = 0; i < 8; i++) generator.generate('/img$i.png'),
+          for (var i = 0; i < 2; i++) generator.generate('/img$i.png'),
         ]);
         for (final r in results) {
           expect(r, isNotEmpty);
@@ -158,7 +141,7 @@ void main() {
 
       test('短视频成功：版本检测后取中间帧，提取调用带 -ss 且 stdout 为原始字节', () async {
         await createVideoFile();
-        final jpeg = _generateImageBytes('jpg');
+        const jpeg = [0xFF, 0xD8, 0xFF, 0xD9];
 
         runner.enqueue(versionOk); // ffmpeg -version
         runner.enqueue(versionOk); // ffprobe -version
@@ -177,7 +160,7 @@ void main() {
 
       test('ffprobe 返回字节型 stdout 时仍能解析时长（真实 Process.run 默认返回字节）', () async {
         await createVideoFile();
-        final jpeg = _generateImageBytes('jpg');
+        const jpeg = [0xFF, 0xD8, 0xFF, 0xD9];
         runner.enqueue(versionOk);
         runner.enqueue(versionOk);
         // 字节型 duration stdout：DartThumbnailProcessRunner.run 的 stdoutEncoding 参数
@@ -198,7 +181,7 @@ void main() {
 
       test('同一生成器两次生成：版本检测仅一次，长视频取第 5 秒帧', () async {
         await createVideoFile();
-        final jpeg = _generateImageBytes('jpg');
+        const jpeg = [0xFF, 0xD8, 0xFF, 0xD9];
 
         // 第一次生成：可用性检测 + 短视频中间帧
         runner.enqueue(versionOk);

@@ -14,7 +14,6 @@ import '../../../../helpers/async/async_test_signals.dart';
 import '../../../../helpers/chat/fake_chat_generation_client.dart';
 import '../../../../helpers/fixtures.dart';
 import '../../../../helpers/test_harness.dart';
-import '../../../../helpers/async/widget_test_animation.dart';
 
 export '../../../../helpers/chat/fake_chat_generation_client.dart';
 
@@ -171,5 +170,5 @@ Future<void> waitForChatGeneration(
     matches: matches,
     description: description,
   );
-  await settleAnimatedWidgetTransition(tester);
+  await tester.pumpAndSettle();
 }

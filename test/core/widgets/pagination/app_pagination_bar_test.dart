@@ -5,8 +5,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/core/widgets/pagination/app_pagination_bar.dart';
 import 'package:oh_my_llm/core/widgets/pagination/app_pagination_state.dart';
 
-import '../../../helpers/async/widget_test_animation.dart';
-
 /// 用固定父级宽度挂载分页栏，避免整窗平台标签影响宽/窄模式判定。
 Future<void> _pumpBar(
   WidgetTester tester, {
@@ -93,9 +91,9 @@ void main() {
       );
 
       await tester.tap(find.byType(DropdownButtonFormField<int>));
-      await settleOverlayTransition(tester);
+      await tester.pumpAndSettle();
       await tester.tap(find.text('50'));
-      await settleOverlayTransition(tester);
+      await tester.pumpAndSettle();
 
       expect(changedSize, 50);
     });

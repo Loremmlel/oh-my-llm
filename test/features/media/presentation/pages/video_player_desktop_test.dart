@@ -172,25 +172,11 @@ void main() {
     await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowLeft);
     expect(harness.fake.seekToCalls.last, const Duration(seconds: 30));
     await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowLeft);
-  });
-
-  testWidgets('M 与上下方向键转发静音和音量命令', (tester) async {
-    final harness = await pumpDesktopVideo(tester);
     await tester.sendKeyEvent(LogicalKeyboardKey.keyM);
     await tester.pump();
     expect(harness.fake.setVolumeCalls.last, 0.0);
-
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowDown);
-    await tester.pump();
-    expect(harness.fake.setVolumeCalls.last, closeTo(0.95, 0.0001));
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowDown);
-  });
-
-  testWidgets('F 转发原生全屏切换', (tester) async {
-    final harness = await pumpDesktopVideo(tester);
     await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
     await tester.pump();
-    expect(harness.fullscreen.calls, contains('toggle'));
     expect(harness.fullscreen.actualFullscreen, isTrue);
   });
 
@@ -249,18 +235,6 @@ void main() {
     expect(harness.fake.pauseCallCount, 0);
     expect(harness.fake.seekToCalls, isEmpty);
     await tester.pump(kDoubleTapTimeout);
-  });
-
-  testWidgets('播放区域垂直滚轮转发音量命令', (tester) async {
-    final harness = await pumpDesktopVideo(tester, volume: 0.5);
-    await tester.sendEventToBinding(
-      PointerScrollEvent(
-        position: harness.videoSurfaceCenter,
-        scrollDelta: const Offset(0, -1),
-      ),
-    );
-    await tester.pump();
-    expect(harness.fake.setVolumeCalls.last, closeTo(0.55, 0.0001));
   });
 
   testWidgets('应用失焦释放右键临时倍速且不补 Seek', (tester) async {

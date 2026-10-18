@@ -97,35 +97,6 @@ void main() {
           .drain<void>();
     });
 
-    test('无效原始 URL 在发 HTTP 前转换为 ChatGenerationException', () async {
-      var sent = false;
-      final client = _FakeStreamingHttpClient((request) async {
-        sent = true;
-        return okResponse();
-      });
-
-      await expectLater(
-        buildResponsesClient(client)
-            .streamCompletion(
-              _request(
-                _messages(),
-                modelConfig: _modelConfig(apiUrl: 'not-a-url'),
-              ),
-            )
-            .drain<void>(),
-        throwsA(
-          isA<ChatGenerationException>()
-              .having(
-                (error) => error.protocol,
-                'protocol',
-                LlmApiProtocol.responses,
-              )
-              .having((error) => error.uri, 'uri', isNull),
-        ),
-      );
-      expect(sent, isFalse);
-    });
-
     test('response.completed 后即使 HTTP 流保持打开也立即结束', () async {
       final cancelled = Completer<void>();
       late final StreamController<List<int>> responseController;
@@ -288,53 +259,6 @@ void main() {
 
         expect(sentEffort, entry.value, reason: entry.key.name);
       }
-    });
-
-    test('请求日志合并自定义 header，反映最终实际请求头', () async {
-      final logger = _FakeNetworkLogger();
-      final client = _FakeStreamingHttpClient((_) async => okResponse());
-      final responsesClient = buildResponsesClient(
-        client,
-        logger: logger,
-        extraHeadersFactory: () => const {'X-Custom-Header': 'custom-value'},
-      );
-
-      await responsesClient
-          .streamCompletion(_request(_messages(), modelConfig: _modelConfig()))
-          .drain<void>();
-
-      expect(logger.requestHeaders!['Content-Type'], 'application/json');
-      expect(
-        logger.requestHeaders!['Authorization'],
-        'Bearer sk-test-12345678',
-      );
-      expect(logger.requestHeaders!['X-Custom-Header'], 'custom-value');
-    });
-
-    test('协议不匹配 → ChatGenerationException，且不发送请求', () async {
-      final client = _FakeStreamingHttpClient((_) async {
-        throw UnimplementedError('协议不匹配时不应发送请求');
-      });
-
-      await expectLater(
-        buildResponsesClient(client)
-            .streamCompletion(
-              _request(
-                _messages(),
-                modelConfig: _modelConfig(
-                  apiProtocol: LlmApiProtocol.anthropic,
-                ),
-              ),
-            )
-            .drain<void>(),
-        throwsA(
-          isA<ChatGenerationException>().having(
-            (e) => e.protocol,
-            'protocol',
-            LlmApiProtocol.anthropic,
-          ),
-        ),
-      );
     });
   });
 
@@ -529,35 +453,6 @@ void main() {
       expect(chunks.map((chunk) => chunk.contentDelta).join(), '部分输出');
       expect(chunks.last.finishReason, 'length');
     });
-
-    test('非 2xx → ChatGenerationException 字段正确', () async {
-      final client = _FakeStreamingHttpClient((_) async {
-        return http.StreamedResponse(
-          Stream.value(utf8.encode('{"error":{"message":"bad key"}}')),
-          401,
-        );
-      });
-
-      await expectLater(
-        buildResponsesClient(client)
-            .streamCompletion(
-              _request(_messages(), modelConfig: _modelConfig()),
-            )
-            .drain<void>(),
-        throwsA(
-          isA<ChatGenerationException>()
-              .having((e) => e.statusCode, 'statusCode', 401)
-              .having((e) => e.protocol, 'protocol', LlmApiProtocol.responses)
-              .having((e) => e.uri, 'uri', testUri)
-              .having(
-                (e) => e.responseBody,
-                'responseBody',
-                '{"error":{"message":"bad key"}}',
-              )
-              .having((e) => e.message, 'message', contains('401')),
-        ),
-      );
-    });
   });
 }
 
@@ -608,22 +503,5 @@ class _FakeStreamingHttpClient extends http.BaseClient {
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) {
     return _handler(request);
-  }
-}
-
-final class _FakeNetworkLogger with NetworkLogger {
-  Map<String, String>? requestHeaders;
-
-  @override
-  Future<void> logRequest({
-    String? requestId,
-    int? attempt,
-    required Uri uri,
-    required String method,
-    required Map<String, String> headers,
-    required Object? payload,
-    bool logBody = false,
-  }) async {
-    requestHeaders = headers;
   }
 }

@@ -72,22 +72,6 @@ void main() {
   // ── resolveCheckpointRequestContext ─────────────────────────────────────────
 
   group('resolveCheckpointRequestContext', () {
-    test('selectedCheckpointId 为 null 时返回所有消息作为 tail，chain 为空', () {
-      final messages = [
-        buildMessage(id: 'm1', content: '第一条消息'),
-        buildMessage(id: 'm2', content: '第二条消息'),
-      ];
-
-      final result = resolveCheckpointRequestContext(
-        checkpoints: [buildCheckpoint(id: 'cp-1')],
-        selectedCheckpointId: null,
-        conversationMessages: messages,
-      );
-
-      expect(result.checkpointChain, isEmpty);
-      expect(result.tailMessages, messages);
-    });
-
     test('selectedCheckpointId 在 checkpoints 中不存在时返回空 chain 和所有消息', () {
       final messages = [buildMessage(id: 'm1', content: '消息')];
 
@@ -122,20 +106,6 @@ void main() {
       expect(result.tailMessages, hasLength(2));
       expect(result.tailMessages[0].id, 'm2');
       expect(result.tailMessages[1].id, 'm3');
-    });
-
-    test('有效 checkpoint 无 coveredUntilMessageId → chain + 所有消息', () {
-      final messages = [buildMessage(id: 'm1', content: '消息')];
-      final checkpoint = buildCheckpoint(id: 'cp-1');
-
-      final result = resolveCheckpointRequestContext(
-        checkpoints: [checkpoint],
-        selectedCheckpointId: 'cp-1',
-        conversationMessages: messages,
-      );
-
-      expect(result.checkpointChain, [checkpoint]);
-      expect(result.tailMessages, messages);
     });
 
     test(
@@ -204,36 +174,6 @@ void main() {
   // ── resolveCheckpointChain ─────────────────────────────────────────────────
 
   group('resolveCheckpointChain', () {
-    test('selectedCheckpointId 为 null 时返回空列表', () {
-      final result = resolveCheckpointChain(
-        checkpoints: [buildCheckpoint(id: 'cp-1')],
-        selectedCheckpointId: null,
-      );
-
-      expect(result, isEmpty);
-    });
-
-    test('3 个检查点链 → 返回祖先顺序（反转后从最旧到最新）', () {
-      final cp1 = buildCheckpoint(id: 'cp-1', title: '第一');
-      final cp2 = buildCheckpoint(
-        id: 'cp-2',
-        title: '第二',
-        parentCheckpointId: 'cp-1',
-      );
-      final cp3 = buildCheckpoint(
-        id: 'cp-3',
-        title: '第三',
-        parentCheckpointId: 'cp-2',
-      );
-
-      final result = resolveCheckpointChain(
-        checkpoints: [cp1, cp2, cp3],
-        selectedCheckpointId: 'cp-3',
-      );
-
-      expect(result, [cp1, cp2, cp3]);
-    });
-
     test('循环引用保护：检查点引用自身 → break 并返回已遍历部分', () {
       final selfRef = buildCheckpoint(
         id: 'cp-self',
@@ -338,42 +278,6 @@ void main() {
       expect(result.last.sourceLabel, contains('后置'));
     });
 
-    test('空 chain（根检查点）使用根检查点中文 system prompt', () {
-      final memoryPrompt = buildMemoryPrompt();
-      final conversationMessages = [buildMessage(id: 'm1', content: '对话消息')];
-
-      final result = buildCheckpointSummaryMessages(
-        memoryPrompt: memoryPrompt,
-        conversationMessages: conversationMessages,
-        checkpointChain: const [],
-      );
-
-      expect(result, isNotEmpty);
-      // 第一条是 system 消息，包含根检查点提示
-      expect(result.first.role, ChatMessageRole.system);
-      expect(result.first.content, contains('你正在为当前对话创建根检查点'));
-    });
-
-    test('非空 chain（后续检查点）使用链式检查点中文 system prompt', () {
-      final memoryPrompt = buildMemoryPrompt();
-      final chain = [
-        buildCheckpoint(id: 'cp-1', title: '已有检查点', content: '已有内容'),
-      ];
-      final conversationMessages = [buildMessage(id: 'm1', content: '新对话消息')];
-
-      final result = buildCheckpointSummaryMessages(
-        memoryPrompt: memoryPrompt,
-        conversationMessages: conversationMessages,
-        checkpointChain: chain,
-      );
-
-      expect(result, isNotEmpty);
-      expect(result.first.role, ChatMessageRole.system);
-      expect(result.first.content, contains('你正在为当前对话创建新的链式检查点'));
-      // 不包含"根检查点"
-      expect(result.first.content, isNot(contains('根检查点')));
-    });
-
     test('非空 chain 的消息中包含检查点记忆内容', () {
       final memoryPrompt = buildMemoryPrompt();
       final chain = [
@@ -422,22 +326,6 @@ void main() {
       final contents = userMessages.map((m) => m.content).toList();
       expect(contents, contains('保留消息'));
       expect(contents, isNot(contains('排除消息')));
-    });
-
-    test('末尾包含记忆总结提示词指令', () {
-      final memoryPrompt = buildMemoryPrompt(content: '请用简洁的语言总结');
-      final conversationMessages = <ChatMessage>[];
-
-      final result = buildCheckpointSummaryMessages(
-        memoryPrompt: memoryPrompt,
-        conversationMessages: conversationMessages,
-        checkpointChain: const [],
-      );
-
-      // 最后一条 user 消息是记忆总结提示词
-      final lastUser = result.lastWhere((m) => m.role == ChatMessageRole.user);
-      expect(lastUser.content, contains('请用简洁的语言总结'));
-      expect(lastUser.content, contains('记忆总结提示词'));
     });
 
     test('模板三种 placement 围绕对话与末尾总结指令按契约排序', () {

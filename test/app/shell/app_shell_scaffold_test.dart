@@ -7,7 +7,6 @@ import 'package:oh_my_llm/app/shell/app_shell_scaffold.dart';
 import 'package:oh_my_llm/core/widgets/app_adaptive_actions.dart';
 
 import '../../helpers/responsive_viewport_cases.dart';
-import '../../helpers/async/widget_test_animation.dart';
 
 /// 各顶层目的地页面的可见正文：对话页用「聊天页面」与 label「对话」区分，
 /// 其余沿用既有约定的「{label}页面」。
@@ -99,7 +98,7 @@ void main() {
       } else {
         await tester.tap(find.byTooltip(target.label));
       }
-      await settleRouteTransition(tester);
+      await tester.pumpAndSettle();
 
       expect(find.text('${target.label}页面'), findsOneWidget);
       expect(tester.takeException(), isNull);
@@ -116,14 +115,14 @@ void main() {
       );
 
       await tester.tap(find.byTooltip('打开侧边内容'));
-      await settleOverlayTransition(tester);
+      await tester.pumpAndSettle();
 
       expect(find.text('侧边内容').hitTestable(), findsOneWidget);
 
       // 抽屉打开时会向路由注册 LocalHistoryEntry，系统返回只弹出它关闭
       // 抽屉，不会退出对话页。
       await tester.binding.handlePopRoute();
-      await settleOverlayTransition(tester);
+      await tester.pumpAndSettle();
 
       expect(find.text('侧边内容').hitTestable(), findsNothing);
       expect(find.text('聊天页面'), findsOneWidget);
@@ -145,7 +144,7 @@ void main() {
         Offset(viewport.size.width - 1, viewport.size.height / 2),
         const Offset(-240, 0),
       );
-      await settleOverlayTransition(tester);
+      await tester.pumpAndSettle();
 
       expect(find.text('侧边内容'), findsNothing);
     });
@@ -161,15 +160,15 @@ void main() {
 
     await tester.ensureVisible(find.byTooltip('收藏'));
     await tester.tap(find.byTooltip('收藏'));
-    await settleRouteTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.text('收藏页面'), findsOneWidget);
 
     await tester.tap(find.byTooltip('同步'));
-    await settleRouteTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.text('同步页面'), findsOneWidget);
 
     await tester.tap(find.byTooltip('设置'));
-    await settleRouteTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.text('设置页面'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -180,7 +179,7 @@ void main() {
 
     expect(find.text('设置页面'), findsOneWidget);
     await tester.binding.handlePopRoute();
-    await settleRouteTransition(tester);
+    await tester.pumpAndSettle();
 
     expect(router.routeInformationProvider.value.uri.path, '/chat');
     expect(find.text('聊天页面'), findsOneWidget);
@@ -192,7 +191,7 @@ void main() {
 
     expect(find.text('聊天页面'), findsOneWidget);
     await tester.binding.handlePopRoute();
-    await settleRouteTransition(tester);
+    await tester.pumpAndSettle();
 
     // chat 根没有 local target 时交系统退出，AppShell 不得改写为其他路由。
     expect(router.routeInformationProvider.value.uri.path, '/chat');
@@ -212,7 +211,7 @@ void main() {
 
     expect(find.text('聊天页面'), findsOneWidget);
     await tester.binding.handlePopRoute();
-    await settleRouteTransition(tester);
+    await tester.pumpAndSettle();
 
     // 本地返回目标优先：只调用一次 onLocalBack，路由不被改写。
     expect(onLocalBackCalls, 1);
@@ -247,7 +246,7 @@ void main() {
       findsOneWidget,
     );
     await tester.tap(find.byTooltip(AppDestination.history.label));
-    await settleRouteTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.text('${AppDestination.history.label}页面'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

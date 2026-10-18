@@ -11,13 +11,12 @@ import 'package:oh_my_llm/features/chat/application/composer/composer_draft_cont
 import 'package:oh_my_llm/features/settings/application/prompts/preset_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/application/worldbooks/world_books_controller.dart';
 
-import '../../../helpers/async/widget_test_animation.dart';
 import '../../../helpers/fixtures.dart';
 import 'chat_screen/chat_screen_test_helpers.dart';
 
 Future<void> _openDrawer(WidgetTester tester) async {
   await tester.tap(find.byTooltip('打开侧边内容'));
-  await settleOverlayTransition(tester);
+  await tester.pumpAndSettle();
 }
 
 void main() {
@@ -72,7 +71,7 @@ void main() {
     drafts.setBody('b', '甲\r\n乙');
     container.read(chatSessionsProvider.notifier).selectConversation('b');
     await tester.pump();
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     final field = tester.widget<TextField>(chatMessageComposerFinder);
     expect(field.controller!.text, '甲\n乙');
     expect(field.controller!.selection.extentOffset, 3);
@@ -114,16 +113,16 @@ void main() {
     await tester.enterText(chatMessageComposerFinder, '未发送草稿');
     await _openDrawer(tester);
     await tester.tap(find.widgetWithText(ListTile, '夜间笔记'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.text('夜间笔记 的首条用户消息'), findsOneWidget);
     expect(find.byTooltip('关闭侧栏'), findsNothing);
     await _openDrawer(tester);
     await tester.tap(find.widgetWithText(ListTile, '晨间计划'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.text('未发送草稿'), findsOneWidget);
     await _openDrawer(tester);
     await tester.tap(find.widgetWithText(TextButton, '新建对话'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.byTooltip('关闭侧栏'), findsNothing);
     expect(find.text('未命名对话'), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -158,9 +157,9 @@ void main() {
     await tester.tap(
       find.widgetWithText(AppDropdownField<String>, '预设 Prompt').hitTestable(),
     );
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('写作规则').last);
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     final container = ProviderScope.containerOf(
       tester.element(find.byType(ChatScreen)),
     );
@@ -172,20 +171,20 @@ void main() {
     await container.read(worldBooksProvider.notifier).upsert(book);
     await tester.pump();
     await tester.tap(find.byTooltip('世界书说明'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.textContaining('当前选择仅用于本对话'), findsOneWidget);
     expect(
       container.read(activeChatConversationProvider).selectedWorldBookId,
       isNull,
     );
     await tester.tap(find.text('关闭'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await tester.tap(
       find.widgetWithText(AppDropdownField<String>, '世界书').hitTestable(),
     );
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('群岛世界书').last);
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(
       container.read(activeChatConversationProvider).selectedWorldBookId,
       book.id,
@@ -223,7 +222,7 @@ void main() {
     await tester.pump();
     expect(target.hitTestable(), findsOneWidget);
     await tester.tap(find.byTooltip('关闭侧栏'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await _openDrawer(tester);
     expect(target.hitTestable(), findsOneWidget);
     expect(tester.takeException(), isNull);

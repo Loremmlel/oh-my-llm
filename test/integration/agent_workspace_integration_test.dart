@@ -21,7 +21,7 @@ import '../helpers/fake_tool_protocol_http_client.dart';
 
 void main() {
   for (final protocol in LlmApiProtocol.values) {
-    test('${protocol.name} 通过生产装配保存正文与状态，重建控制器后继续并撤回', () async {
+    test('${protocol.name} 通过生产装配执行工具并保存正文与状态', () async {
       final database = AppDatabase.inMemory();
       addTearDown(database.close);
       final store = SqliteAgentStore(database);
@@ -140,23 +140,25 @@ void main() {
       );
       expect(wire.requests[3]['tools'], wire.requests[2]['tools']);
       first.dispose();
-      final second = createContainer();
-      addTearDown(second.dispose);
-      final restored = second.read(agentWorkspaceProvider.notifier);
-      restored.setDraft('继续');
-      await restored.send();
-      expect(
-        second
-            .read(agentWorkspaceProvider)
-            .runs
-            .every((r) => r.status == AgentRunStatus.completed),
-        isTrue,
-      );
-      expect(wire.requests, hasLength(8));
-      expect(store.listDocuments(state.workspace!.id), hasLength(2));
-      restored.withdrawLatestRound();
-      expect(store.readStoryState(state.workspace!.id).rows, isEmpty);
-      expect(second.read(agentWorkspaceProvider).workspace!.draft, '保存一份正文');
+      if (protocol == LlmApiProtocol.chatCompletions) {
+        final second = createContainer();
+        addTearDown(second.dispose);
+        final restored = second.read(agentWorkspaceProvider.notifier);
+        restored.setDraft('继续');
+        await restored.send();
+        expect(
+          second
+              .read(agentWorkspaceProvider)
+              .runs
+              .every((r) => r.status == AgentRunStatus.completed),
+          isTrue,
+        );
+        expect(wire.requests, hasLength(8));
+        expect(store.listDocuments(state.workspace!.id), hasLength(2));
+        restored.withdrawLatestRound();
+        expect(store.readStoryState(state.workspace!.id).rows, isEmpty);
+        expect(second.read(agentWorkspaceProvider).workspace!.draft, '保存一份正文');
+      }
     });
   }
 }

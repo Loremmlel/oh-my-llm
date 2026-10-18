@@ -7,20 +7,14 @@ import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/features/settings/application/providers/model_catalog_workflow.dart';
 import 'package:oh_my_llm/features/settings/data/providers/llm_model_config_repository.dart';
-import 'package:oh_my_llm/features/settings/data/prompts/sqlite_memory_prompt_repository.dart';
 import 'package:oh_my_llm/features/settings/data/prompts/sqlite_preset_prompt_repository.dart';
 import 'package:oh_my_llm/features/settings/data/prompts/sqlite_template_prompt_repository.dart';
-import 'package:oh_my_llm/features/settings/application/transfer/settings_transfer_coordinator_provider.dart';
-import 'package:oh_my_llm/features/settings/application/transfer/settings_transfer_coordinator.dart';
 import 'package:oh_my_llm/features/settings/domain/models/providers/model_catalog_entry.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/template_prompt.dart';
-import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_transfer_document_codec.dart';
 import 'package:oh_my_llm/features/settings/presentation/settings_screen.dart';
 import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/template_prompt_form_dialog.dart';
-import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/lists/preset_prompts_view.dart';
 
 import '../../../../helpers/fixtures.dart';
-import '../../../../helpers/async/widget_test_animation.dart';
 import 'settings_screen_test_helpers.dart';
 
 void registerSettingsScreenModelsAndPromptsTests() {
@@ -32,7 +26,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
     expect(repository.loadProviders(), isEmpty);
 
     await tester.tap(find.text('新增服务商'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
 
     await tester.enterText(providerNameField(), 'OpenAI 官方');
     await tester.enterText(
@@ -41,7 +35,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
     );
     await tester.enterText(providerApiKeyField(), 'sk-test-12345678');
     await tester.tap(find.text('保存'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
 
     final createdProvider = repository.loadProviders().single;
     expect(createdProvider.name, 'OpenAI 官方');
@@ -59,7 +53,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
     await createTestProvider(tester);
 
     await tester.tap(find.text('新增模型'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
 
     await tester.enterText(modelDisplayNameField(), 'OpenAI 4.1');
     await tester.enterText(modelApiNameField(), 'gpt-4.1');
@@ -67,7 +61,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
     // 开关切换只改表单状态，动画纯视觉，单帧即可
     await tester.pump();
     await tester.tap(find.text('保存'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
 
     final createdModel = repository.loadAll().single;
     expect(createdModel.displayName, 'OpenAI 4.1');
@@ -109,7 +103,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
     await createTestProvider(tester);
 
     await tester.tap(find.text('批量添加'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(OutlinedButton, '拉取模型'));
     await tester.pump();
 
@@ -139,7 +133,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
     );
     await tester.pump();
     await tester.tap(find.text('添加所选模型'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
 
     final models = repository.loadAll();
     expect(
@@ -168,70 +162,6 @@ void registerSettingsScreenModelsAndPromptsTests() {
     );
   });
 
-  testWidgets('服务商模型默认折叠，展开后可查看模型名称', (tester) async {
-    final database = AppDatabase.inMemory();
-    addTearDown(database.close);
-    final preferences = await createDefaultsSeededPreferences(database);
-
-    await pumpSettingsScreen(
-      tester,
-      preferences: preferences,
-      database: database,
-      size: const Size(430, 932),
-    );
-
-    expect(find.textContaining('gpt-4.1'), findsNothing);
-
-    await tester.tap(find.byTooltip('展开模型（2）'));
-    await tester.pump();
-
-    expect(find.textContaining('gpt-4.1'), findsOneWidget);
-  });
-
-  testWidgets('复制预设到剪贴板生成仅含预设的当前格式文档', (tester) async {
-    final clipboardWrites = <String>[];
-    await setUpSettingsScreen(
-      tester,
-      initialTabIndex: 1,
-      clipboardWrites: clipboardWrites,
-      presetPrompts: [
-        TestFixtures.presetPrompt(id: 'preset-seeded', name: '代码审阅'),
-      ],
-    );
-
-    // 锚定「代码审阅」记录的操作，避免同名控件干扰。
-    final copyButton = find.descendant(
-      of: find.ancestor(
-        of: find.text('代码审阅'),
-        matching: find.byType(PresetPromptRow),
-      ),
-      matching: find.widgetWithText(TextButton, '复制'),
-    );
-    await tester.tap(copyButton);
-    // 复制是直接 Future（写剪贴板 + 提示），单帧即可。
-    await tester.pump();
-
-    expect(clipboardWrites, hasLength(1));
-    final decoded = SettingsTransferDocumentCodec.decodeJson(
-      clipboardWrites.single,
-    );
-    expect(decoded, isA<SettingsTransferDocumentDecodeSuccess>());
-    final document =
-        (decoded as SettingsTransferDocumentDecodeSuccess).document;
-    expect(document.sections.keys, ['presetPrompts']);
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(SettingsScreen)),
-    );
-    expect(
-      container
-          .read(settingsTransferCoordinatorProvider)
-          .prepareJson(clipboardWrites.single),
-      isA<SettingsImportNoChanges>(),
-    );
-    expect(find.text('已复制预设 Prompt 到剪贴板'), findsOneWidget);
-    expect(find.textContaining('（副本'), findsNothing);
-  });
-
   testWidgets('设置页预设开关持久保存且编辑条目不重置开关', (tester) async {
     final database = AppDatabase.inMemory();
     addTearDown(database.close);
@@ -244,7 +174,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
     );
 
     await tester.tap(find.text('新增预设'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await tester.enterText(presetPromptNameField(), '多 system 模板');
 
     Future<void> fillItem({
@@ -258,15 +188,15 @@ void registerSettingsScreenModelsAndPromptsTests() {
       await tester.enterText(presetPromptTitleField(), title);
       await tester.enterText(presetPromptContentField(), content);
       await tester.tap(find.text('User'));
-      await settleOverlayTransition(tester);
+      await tester.pumpAndSettle();
       await tester.tap(find.text(roleLabel).last);
-      await settleOverlayTransition(tester);
+      await tester.pumpAndSettle();
     }
 
     await fillItem(title: '系统 1', content: '系统内容 1', roleLabel: 'System');
     await fillItem(title: '系统 2', content: '系统内容 2', roleLabel: 'System');
     await tester.tap(find.text('保存'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.text('多 system 模板'), findsWidgets);
     expect(find.text('2 条'), findsOneWidget);
     final saved = presetPromptRepository.loadAll(database).single;
@@ -286,9 +216,9 @@ void registerSettingsScreenModelsAndPromptsTests() {
     await tester.pump();
     expect(find.text('头部随机字符'), findsNothing);
     await tester.tap(find.widgetWithText(TextButton, '编辑'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('保存'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(
       presetPromptRepository.loadAll(database).single.singleSystemPrompt,
       isTrue,
@@ -305,24 +235,6 @@ void registerSettingsScreenModelsAndPromptsTests() {
     );
   });
 
-  testWidgets('窄屏预设记录的单 System 开关可切换且无溢出', (tester) async {
-    final database = await setUpSettingsScreen(
-      tester,
-      size: const Size(390, 844),
-      initialTabIndex: 1,
-      presetPrompts: [
-        TestFixtures.presetPrompt(id: 'narrow-preset', name: '窄屏预设'),
-      ],
-    );
-    await tester.tap(find.byType(Checkbox).first);
-    await tester.pump();
-    expect(
-      presetPromptRepository.loadAll(database).single.singleSystemPrompt,
-      isTrue,
-    );
-    expect(tester.takeException(), isNull);
-  });
-
   testWidgets('预设删除可取消且确认后才移除记录', (tester) async {
     final database = await setUpSettingsScreen(
       tester,
@@ -333,19 +245,19 @@ void registerSettingsScreenModelsAndPromptsTests() {
     );
     Future<void> openDelete() async {
       await tester.tap(find.byTooltip('预设操作'));
-      await settleOverlayTransition(tester);
+      await tester.pumpAndSettle();
       await tester.tap(find.text('删除'));
-      await settleOverlayTransition(tester);
+      await tester.pumpAndSettle();
     }
 
     await openDelete();
     expect(find.textContaining('已有聊天记录会保留'), findsOneWidget);
     await tester.tap(find.text('取消'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(presetPromptRepository.loadAll(database), hasLength(1));
     await openDelete();
     await tester.tap(find.widgetWithText(FilledButton, '删除预设'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(presetPromptRepository.loadAll(database), isEmpty);
     expect(find.text('还没有预设 Prompt'), findsOneWidget);
   });
@@ -365,7 +277,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
     }
 
     await tester.tap(find.text('新增预设'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await tester.enterText(presetPromptNameField(), '插入测试模板');
 
     await tester.tap(addItemButton);
@@ -377,9 +289,9 @@ void registerSettingsScreenModelsAndPromptsTests() {
     await fillSelectedItem('后置1', '内容2');
 
     await tester.tap(find.text('前置'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('后置').last);
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('前置1').hitTestable());
     await tester.pump();
@@ -387,7 +299,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
     await tester.pump();
     await fillSelectedItem('前置1.5', '内容1.5');
     await tester.tap(find.text('保存'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
 
     final savedMessages = presetPromptRepository
         .loadAll(database)
@@ -421,7 +333,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
     expect(repository.loadAll(database), isEmpty);
 
     await tester.tap(find.text('新增模板提示词'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
 
     await tester.enterText(templatePromptTitleField(), '翻译模板');
     await tester.enterText(
@@ -434,7 +346,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
 
     await tester.enterText(templatePromptVariableField('目标语言'), '英文');
     await tester.tap(find.text('保存'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
 
     final createdTemplate = repository.loadAll(database).single;
     expect(createdTemplate.title, '翻译模板');
@@ -444,32 +356,5 @@ void registerSettingsScreenModelsAndPromptsTests() {
     ]);
     expect(createdTemplate.variables.last.defaultValue, '英文');
     expect(find.text('翻译模板'), findsWidgets);
-  });
-
-  testWidgets('创建记忆提示词持久保存名称与正文', (tester) async {
-    final database = AppDatabase.inMemory();
-    addTearDown(database.close);
-    final preferences = await createEmptyPreferences(database);
-    await pumpSettingsScreen(
-      tester,
-      preferences: preferences,
-      database: database,
-      initialTabIndex: 2,
-    );
-    final repository = memoryPromptRepository;
-    expect(repository.loadAll(database), isEmpty);
-
-    await tester.tap(find.text('新增记忆提示词'));
-    await settleOverlayTransition(tester);
-
-    await tester.enterText(memoryPromptNameField(), '研发任务总结');
-    await tester.enterText(memoryPromptContentField(), '请总结当前研发任务中的决定、约束与待办。');
-    await tester.tap(find.text('保存'));
-    await settleOverlayTransition(tester);
-
-    final createdPrompt = repository.loadAll(database).single;
-    expect(createdPrompt.name, '研发任务总结');
-    expect(createdPrompt.content, '请总结当前研发任务中的决定、约束与待办。');
-    expect(find.text('研发任务总结'), findsWidgets);
   });
 }

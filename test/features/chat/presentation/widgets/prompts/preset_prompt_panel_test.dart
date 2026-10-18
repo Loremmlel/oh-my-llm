@@ -10,7 +10,6 @@ import 'package:oh_my_llm/features/chat/presentation/widgets/prompts/preset_prom
 import 'package:oh_my_llm/features/settings/application/prompts/preset_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.dart';
 
-import '../../../../../helpers/async/widget_test_animation.dart';
 import '../../../../../helpers/fixtures.dart';
 import '../../../../../helpers/test_harness.dart';
 
@@ -63,19 +62,19 @@ void main() {
         await tester.pump();
         if (failBeforeSelection) {
           controller.saveResult.completeError(StateError('保存失败'));
-          await settleAnimatedWidgetTransition(tester);
+          await tester.pumpAndSettle();
           expect(find.text('预设设置保存失败，请重试'), findsOneWidget);
         }
         await tester.tap(
           find.widgetWithText(AppDropdownField<String>, '预设 Prompt'),
         );
-        await settleOverlayTransition(tester);
+        await tester.pumpAndSettle();
         await tester.tap(find.text('预设乙').last);
-        await settleOverlayTransition(tester);
+        await tester.pumpAndSettle();
         expect(selectedId, 'b');
         if (!failBeforeSelection) {
           controller.saveResult.completeError(StateError('保存失败'));
-          await settleAnimatedWidgetTransition(tester);
+          await tester.pumpAndSettle();
         }
         expect(find.text('预设设置保存失败，请重试'), findsNothing);
         expect(tester.takeException(), isNull);

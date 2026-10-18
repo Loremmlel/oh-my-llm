@@ -6,8 +6,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/features/agent/domain/agent_models.dart';
 import 'package:oh_my_llm/features/agent/presentation/agent_transcript.dart';
 
-import '../../../helpers/async/widget_test_animation.dart';
-
 AgentRunRecord _runningRecord({int extraLines = 0}) => AgentRunRecord(
   id: 'run',
   workspaceId: 'workspace',
@@ -64,7 +62,7 @@ void main() {
       await tester.pump();
       final collapsedOffset = position.pixels;
       await tester.tap(find.textContaining('read_document'));
-      await settleAnimatedWidgetTransition(tester);
+      await tester.pumpAndSettle();
       expect(position.pixels, closeTo(collapsedOffset, 0.01));
       record.value = record.value.copyWith(
         usage: const AgentRunUsage(modelCalls: 1),

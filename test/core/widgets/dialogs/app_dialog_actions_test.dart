@@ -4,8 +4,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/core/widgets/dialogs/app_confirm_dialog.dart';
 import 'package:oh_my_llm/core/widgets/dialogs/app_dialog_actions.dart';
 
-import '../../../helpers/async/widget_test_animation.dart';
-
 Future<void> _pressSubmit(
   WidgetTester tester, [
   LogicalKeyboardKey key = LogicalKeyboardKey.enter,
@@ -34,7 +32,7 @@ Future<void> _openDialog(WidgetTester tester, WidgetBuilder builder) async {
     ),
   );
   await tester.tap(find.text('打开弹窗'));
-  await settleOverlayTransition(tester);
+  await tester.pumpAndSettle();
 }
 
 void main() {
@@ -128,12 +126,12 @@ void main() {
       ),
     );
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.text('处理中'), findsOneWidget);
     setDialogState!(() => busy = false);
     await tester.pump();
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.text('处理中'), findsNothing);
   });
 
@@ -155,9 +153,9 @@ void main() {
       ),
     );
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.text('放弃修改？'), findsNothing);
     expect(find.text('父弹窗'), findsOneWidget);
     await _pressSubmit(tester);

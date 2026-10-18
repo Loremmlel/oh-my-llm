@@ -17,7 +17,6 @@ import '../../features/history/history_screen/history_screen_test_helpers.dart';
 import '../../features/media/helpers/fake_video_player_platform_bindings.dart';
 import '../../helpers/fixtures.dart';
 import '../../helpers/test_harness.dart';
-import '../../helpers/async/widget_test_animation.dart';
 
 Future<SharedPreferences> _testPrefs(AppDatabase db) async {
   return createEmptyPreferences(db);
@@ -109,7 +108,7 @@ void main() {
       videoPlayerBindingsFactory: _mobileTestBindings,
     );
     await pumpTestApp(tester, preferences: prefs, database: db, router: router);
-    await settleRouteTransition(tester);
+    await tester.pumpAndSettle();
 
     expect(
       router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
@@ -136,7 +135,7 @@ void main() {
       AppRouteName.mediaImage,
       queryParameters: {AppRouteParameter.mediaPath: '/相册/猫.jpg'},
     );
-    await settleRouteTransition(tester);
+    await tester.pumpAndSettle();
 
     expect(
       router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
@@ -151,7 +150,7 @@ void main() {
     expect(find.text('媒体会话已失效'), findsOneWidget);
 
     router.pop();
-    await settleRouteTransition(tester);
+    await tester.pumpAndSettle();
     expect(
       router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
       '/sync',

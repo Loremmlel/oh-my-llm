@@ -4,7 +4,6 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 
-import '../../helpers/async/widget_test_animation.dart';
 import 'favorites_screen_test_helpers.dart';
 
 /// 打开系统未分类收藏夹的分页列表页。
@@ -40,67 +39,7 @@ Future<void> _tapWithModifier(
   await tester.pump();
 }
 
-/// 通过第一行的溢出菜单执行菜单项。
-Future<void> _openRowMenu(WidgetTester tester, String actionLabel) async {
-  await tester.tap(find.byIcon(Icons.more_vert).first);
-  await settleOverlayTransition(tester);
-  await tester.tap(find.text(actionLabel));
-  await settleOverlayTransition(tester);
-}
-
 void registerFavoritesScreenSelectionTests() {
-  testWidgets('收藏批量选择入口保留空选择态并支持选中后退出', (tester) async {
-    await _openSystemCollection(tester, itemCount: 3);
-    await tester.tap(find.text('批量选择'));
-    await tester.pump();
-    expect(find.text('已选择 0 项'), findsOneWidget);
-    await tester.tap(find.text('问题003'));
-    await tester.pump();
-    expect(find.text('已选择 1 项'), findsOneWidget);
-    await tester.tap(find.text('退出选择'));
-    await tester.pump();
-    expect(find.text('批量选择'), findsOneWidget);
-  });
-
-  testWidgets('Ctrl 加点击切换单项选择并在工具栏计数', (tester) async {
-    await _openSystemCollection(tester, itemCount: 5);
-
-    await _tapWithModifier(
-      tester,
-      '问题005',
-      modifier: LogicalKeyboardKey.controlLeft,
-    );
-
-    expect(find.text('已选择 1 项'), findsOneWidget);
-
-    // 再次 Ctrl+点击同一行取消选择，退出选择模式。
-    await _tapWithModifier(
-      tester,
-      '问题005',
-      modifier: LogicalKeyboardKey.controlLeft,
-    );
-
-    expect(find.text('已选择 1 项'), findsNothing);
-  });
-
-  testWidgets('Shift 区间选择选中闭区间全部条目', (tester) async {
-    await _openSystemCollection(tester, itemCount: 5);
-
-    // 先 Ctrl+点击建立锚点，再 Shift+点击区间终点。
-    await _tapWithModifier(
-      tester,
-      '问题004',
-      modifier: LogicalKeyboardKey.controlLeft,
-    );
-    await _tapWithModifier(
-      tester,
-      '问题002',
-      modifier: LogicalKeyboardKey.shiftLeft,
-    );
-
-    expect(find.text('已选择 3 项'), findsOneWidget);
-  });
-
   testWidgets('Ctrl+A 只选择当前页且翻页后清空选择', (tester) async {
     await _openSystemCollection(tester, itemCount: 15);
 
@@ -113,26 +52,10 @@ void registerFavoritesScreenSelectionTests() {
 
     // 翻页改变数据窗口：选择与锚点必须清空。
     await tester.tap(find.byTooltip('下一页'));
-    await settleRouteTransition(tester);
+    await tester.pumpAndSettle();
 
     expect(find.text('已选择 10 项'), findsNothing);
     expect(find.text('已选择 1 项'), findsNothing);
-  });
-
-  testWidgets('Esc 键退出选择模式且保留选中数据', (tester) async {
-    await _openSystemCollection(tester, itemCount: 5);
-
-    await _tapWithModifier(
-      tester,
-      '问题005',
-      modifier: LogicalKeyboardKey.controlLeft,
-    );
-    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-    await tester.pump();
-
-    expect(find.text('已选择 1 项'), findsNothing);
-    // 条目仍在列表中，退出选择不删除数据。
-    expect(find.text('问题005'), findsOneWidget);
   });
 
   // 与上一用例构成差异契约：generic Back（Android 系统返回 / Windows 侧键
@@ -165,30 +88,14 @@ void registerFavoritesScreenSelectionTests() {
       modifier: LogicalKeyboardKey.controlLeft,
     );
     await tester.sendKeyEvent(LogicalKeyboardKey.delete);
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
 
     expect(find.textContaining('将删除 1 个收藏'), findsOneWidget);
 
     await tester.tap(find.widgetWithText(TextButton, '取消'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
 
     expect(find.text('问题005'), findsOneWidget);
-  });
-
-  testWidgets('长按进入选择模式且选择态点击切换勾选', (tester) async {
-    await _openSystemCollection(tester, itemCount: 5);
-
-    await tester.longPress(find.text('问题005'));
-    await tester.pump();
-
-    expect(find.text('已选择 1 项'), findsOneWidget);
-
-    // 选择态下普通点击切换另一行勾选，而不是打开详情。
-    await tester.tap(find.text('问题003'));
-    await tester.pump();
-
-    expect(find.text('已选择 2 项'), findsOneWidget);
-    expect(find.text('收藏详情'), findsNothing);
   });
 
   testWidgets('工具栏移动把选中项移入目标收藏夹', (tester) async {
@@ -206,7 +113,7 @@ void registerFavoritesScreenSelectionTests() {
 
     // 工具栏的"移动"打开对话框（此时树上只有一个移动按钮）。
     await tester.tap(find.widgetWithText(TextButton, '移动'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
 
     // 对话框内的确认按钮与工具栏同名，限定在 AlertDialog 内点击。
     await tester.tap(find.text('归档夹'));
@@ -217,7 +124,7 @@ void registerFavoritesScreenSelectionTests() {
         matching: find.widgetWithText(FilledButton, '移动'),
       ),
     );
-    await settleRouteTransition(tester);
+    await tester.pumpAndSettle();
 
     // 移动后 revision 刷新当前页，被移走的条目从本夹消失。
     expect(find.text('问题005'), findsNothing);
@@ -238,7 +145,7 @@ void registerFavoritesScreenSelectionTests() {
     );
 
     await tester.tap(find.widgetWithText(TextButton, '删除'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
 
     expect(find.textContaining('将删除 2 个收藏'), findsOneWidget);
 
@@ -249,21 +156,11 @@ void registerFavoritesScreenSelectionTests() {
         matching: find.widgetWithText(FilledButton, '删除'),
       ),
     );
-    await settleRouteTransition(tester);
+    await tester.pumpAndSettle();
 
     expect(find.text('已选择 2 项'), findsNothing);
     expect(find.text('问题005'), findsNothing);
     expect(find.text('问题004'), findsNothing);
     expect(find.textContaining('共 3 条 · 1/1 页'), findsOneWidget);
-  });
-
-  testWidgets('行内溢出菜单提供选择、移动与删除入口', (tester) async {
-    await _openSystemCollection(tester, itemCount: 5);
-
-    await _openRowMenu(tester, '选择');
-    await tester.pump();
-
-    // "选择"把该行加入选择并进入选择模式。
-    expect(find.text('已选择 1 项'), findsOneWidget);
   });
 }

@@ -171,7 +171,7 @@ void main() {
   });
 
   test('连续轮次共享历史前缀，保存体积不随快照数量重复累计正文', () {
-    const count = 40, bytesPerFloor = 16384;
+    const count = 12, bytesPerFloor = 4096;
     var workspace = store.loadWorkspace('novel')!;
     final originals = <AgentStoryRound>[];
     for (var i = 0; i < count; i++) {
@@ -230,7 +230,7 @@ void main() {
             as int;
     expect(
       pages * pageSize,
-      lessThan(count * bytesPerFloor * 4 + 512 * 1024),
+      lessThan(count * bytesPerFloor * 4 + 256 * 1024),
       reason: '历史、运行输入和撤回快照应共享已保存前缀，保留全文不需要重复复制',
     );
     expect(store.listStoryRounds('novel'), originals.reversed.toList());

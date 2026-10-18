@@ -24,17 +24,21 @@ flutter run -d windows
 .\scripts\run-tests.ps1
 .\scripts\run-tests.ps1 -TestPath test/core/http/sse_event_decoder_test.dart -LogName sse.log
 .\scripts\run-tests.ps1 -TestPath test/core/http/sse_event_decoder_test.dart -PlainName '单个完整事件：data 与 rawData 分离' -LogName sse-one.log
-.\scripts\run-tests.ps1 -FlutterArgs @('--exclude-tags=udp', '--coverage')
+.\scripts\run-tests.ps1 -FlutterArgs @('--coverage') # 仅诊断覆盖率时手动运行
 ```
 
 脚本从任意工作目录均在仓库根目录执行，默认 compact reporter；单个 Dart 文件硬超时 60 秒，目录、多文件与全量 240 秒。到点只终止本次进程树，返回 `EXIT=124` 并保留部分日志。诊断时可用 `-TimeoutSeconds` 显式调整超时；日常使用默认值。per-test timeout 不覆盖编译、启动、setup/teardown、DLL 锁或进程退出，工具返回 session ID 也不代表已设置超时，不得以无超时后台任务替代脚本。
 
 - 默认日志 `logs/fltest.log`，`-LogName` 只接受文件名且始终落在仓库 `logs/` 下；脚本显示最后 150 行和 `EXIT`，返回 Flutter 的真实退出码，`EXIT=0` 才表示通过。非零时查看完整日志，不能只凭 tail 判断失败原因；详情用 `Select-String -Pattern "关键词" -Path logs/fltest.log -Context 0,30`。
-- 不直接输出全量测试或使用 `tee`。测试、分析、构建和诊断日志统一放在 ignored 的 `logs/`；全量测试用 `logs/fltest.log`，回归证据用 `logs/<任务>-red.log` / `logs/<任务>-green.log`。
+- 不直接输出全量测试或使用 `tee`。测试、分析、构建和诊断日志统一放在 ignored 的 `logs/`；用 `-LogName` 区分需要保留的记录，不强制成对红绿日志。
 - 超时或测试启动卡住时，先排查残留 Dart / `flutter_tester` 对 `build/native_assets/windows/sqlite3.dll` 的锁；确认是本仓库残留进程后运行 `.\scripts\kill-stale-test-processes.ps1`，再诊断重跑。该脚本是异常退出后的缓解措施，会结束非 IDE 的 Dart 测试进程，不在正常测试前例行运行。
 - `logs/` 可覆盖或清理。CI runner 的根目录 `fltest.log` 上传流程和应用 AppData 的 `network.log` 不受本地日志规则影响。
 
 维护测试入口时，在 Windows 执行 `.\scripts\verify-test-runner.ps1`；它使用本地假 Flutter 验证参数/中文日志、stderr、退出码和挂起子进程清理，不替代真实 Flutter 测试。运行时生成的 fixture 和日志全部在 ignored 的 `logs/`。
+
+日常运行受影响的现有测试，全量集中在广泛影响或最终整体验收。普通修复可复用相关测试或针对性手工检查；低风险修改允许不加测试。测试清理通常记录一次基线和一次最终对照，仅失败或波动影响结论时补测，验证完成后停止。默认 CI 不采集覆盖率；需要时手动运行 `--coverage`，并可用现有 `scripts/coverage-report.sh` 诊断。
+
+根测试入口只发现 `test/`。Android Kotlin 用 `android/` 下的 `./gradlew testDebugUnitTest`，`third_party/scrollable_positioned_list` 在子包目录运行 `flutter test`，长文诊断用 `./tool/long_text_benchmark/run.ps1 -Stage test -TimeoutMs 60000`；这些独立入口不进入日常根 CI。
 
 ## 构建与版本
 
@@ -66,7 +70,7 @@ git commit -m "fix(chat): 修复具体行为" -m "说明触发条件与修复结
 
 复杂消息可先存入 PowerShell here-string 变量，再传给 `git commit -m $Message`；不要把 here-string 交给 Bash 解释。
 
-每次提交前，对本次所有改动的 Dart 文件执行 `dart format`；暂存后以 `dart format --output=none --set-exit-if-changed <暂存的 Dart 文件列表>` 再检查，非零不得提交。通过静态分析、导入门禁及相关测试；纯文档变更只需检查 diff、链接和文档一致性，并如实说明免测原因。提交后检查最终 HEAD、变更文件与工作区，确保 hook 的版本变化已并入。
+每次提交前，对本次所有改动的 Dart 文件执行 `dart format`；暂存后以 `dart format --output=none --set-exit-if-changed <暂存的 Dart 文件列表>` 再检查，非零不得提交。通过静态分析、导入门禁，并按变更价值完成相关测试或针对性检查；不为提交补齐无关测试或扩大矩阵。纯文档变更只需检查 diff、链接和文档一致性，并如实说明免测原因。提交后检查最终 HEAD、变更文件与工作区，确保 hook 的版本变化已并入。
 
 PR 保持单一目标、规模可审查，正文使用 [三段模板](.github/pull_request_template.md)：为什么改、改了什么、改后效果。简短变更每段一句即可，不复制 commit 列表。标题为 `type(scope): 简短结果`，scope 可省略，不以句号结尾，前缀与分支及核心提交语义一致。
 

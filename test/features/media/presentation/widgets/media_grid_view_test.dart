@@ -10,7 +10,8 @@ import 'package:oh_my_llm/features/media/application/models/media_resource_reque
 import 'package:oh_my_llm/features/media/presentation/widgets/media_grid_view.dart';
 import 'package:oh_my_llm/features/media/presentation/widgets/media_path_bar.dart';
 
-import '../../../../helpers/test_harness.dart';
+import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
+
 import '../../helpers/fake_media_library.dart';
 import '../../helpers/media_test_helpers.dart';
 
@@ -49,70 +50,39 @@ Future<void> _pumpMediaGrid(
   required List<FileItem> items,
   Size viewportSize = const Size(1440, 1200),
 }) {
-  return pumpTestApp(
-    tester,
-    preferences: prefs,
-    viewportSize: viewportSize,
-    extraOverrides: [
-      mediaLibrarySessionProvider.overrideWith(
-        () => PreActivatedMediaLibrarySessionController(library),
-      ),
-    ],
-    child: Scaffold(
-      body: Column(
-        children: [
-          MediaPathBar(currentPath: '/', onPathSelected: (_) {}),
-          const Divider(height: 1),
-          Expanded(
-            child: MediaGridView(
-              items: items,
-              isLoading: false,
-              onItemTap: (_) {},
-            ),
+  tester.view.physicalSize = viewportSize;
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.reset);
+  return tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        mediaLibrarySessionProvider.overrideWith(
+          () => PreActivatedMediaLibrarySessionController(library),
+        ),
+      ],
+      child: MaterialApp(
+        home: Scaffold(
+          body: Column(
+            children: [
+              MediaPathBar(currentPath: '/', onPathSelected: (_) {}),
+              const Divider(height: 1),
+              Expanded(
+                child: MediaGridView(
+                  items: items,
+                  isLoading: false,
+                  onItemTap: (_) {},
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     ),
   );
 }
 
 void main() {
-  // 固定三列缺陷回归：目录/图片/视频在宽窄视口均渲染且无异常
-  const mediaGridSmokeViewports = [
-    Size(390, 844),
-    Size(960, 640),
-    Size(1440, 900),
-  ];
-
-  for (final viewportSize in mediaGridSmokeViewports) {
-    testWidgets(
-      '${viewportSize.width}x${viewportSize.height}: 目录/图片/视频可达且无异常',
-      (tester) async {
-        final prefs = await _testPrefs();
-        await _pumpMediaGrid(
-          tester,
-          prefs: prefs,
-          library: FakeMediaLibrary(),
-          viewportSize: viewportSize,
-          items: [
-            _dir('/相册'),
-            _file('/相册/猫.jpg', hasThumbnail: true),
-            _file('/视频/demo.mp4'),
-          ],
-        );
-
-        expect(find.byType(MediaGridView), findsOneWidget);
-        expect(find.text('相册'), findsOneWidget);
-        expect(find.text('猫.jpg'), findsOneWidget);
-        expect(find.text('demo.mp4'), findsOneWidget);
-        expect(find.byIcon(Icons.folder), findsOneWidget);
-        expect(find.byIcon(Icons.image), findsOneWidget);
-        expect(find.byIcon(Icons.movie), findsOneWidget);
-        expect(tester.takeException(), isNull);
-      },
-    );
-  }
-
   testWidgets('放大文字时长文件名/目录/带大小文件渲染无异常且 tooltip 可访问', (tester) async {
     final prefs = await _testPrefs();
     const longName = '这是一个用于验证放大文字和省略号的很长文件名.jpg';

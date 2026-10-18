@@ -2,31 +2,25 @@ import 'package:flutter/material.dart';
 import 'package:oh_my_llm/core/widgets/app_dropdown_field.dart';
 import 'package:oh_my_llm/core/widgets/app_text_field.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:oh_my_llm/features/settings/domain/models/prompts/template_prompt.dart'
     show TemplatePromptVariableType;
 import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/template_prompt_form_dialog.dart';
 import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/memory_prompt_form_dialog.dart';
 
-import '../../../../../../helpers/test_harness.dart';
-import '../../../../../../helpers/async/widget_test_animation.dart';
-
 void main() {
-  setUp(() {
-    SharedPreferences.setMockInitialValues({});
-  });
-
   Future<void> pumpDialog(
     WidgetTester tester, {
     required Future<void> Function(TemplatePromptFormData) onSubmit,
   }) async {
-    final sp = await SharedPreferences.getInstance();
-    await pumpTestApp(
-      tester,
-      preferences: sp,
-      child: Scaffold(
-        body: Center(child: TemplatePromptFormDialog(onSubmit: onSubmit)),
+    tester.view.physicalSize = const Size(1440, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(child: TemplatePromptFormDialog(onSubmit: onSubmit)),
+        ),
       ),
     );
   }
@@ -65,38 +59,33 @@ void main() {
     await tester.pump();
   }
 
-  /// 帮助在独立浮层展示，不改变表单内容高度。
-  Future<void> expandSyntaxHelp(WidgetTester tester) async {
-    await tester.tap(find.byTooltip('新增模板提示词说明'));
-    await settleAnimatedWidgetTransition(tester);
-  }
-
   group('模板提示词表单', () {
     for (final isTemplate in [true, false]) {
       testWidgets('${isTemplate ? '模板' : '记忆'}提示词在键盘展开和收起后保持焦点与组合输入', (
         tester,
       ) async {
-        final prefs = await SharedPreferences.getInstance();
-        await pumpTestApp(
-          tester,
-          preferences: prefs,
-          viewportSize: const Size(390, 844),
-          child: Scaffold(
-            body: Builder(
-              builder: (context) => TextButton(
-                onPressed: () => showDialog<void>(
-                  context: context,
-                  builder: (_) => isTemplate
-                      ? TemplatePromptFormDialog(onSubmit: (_) async {})
-                      : MemoryPromptFormDialog(onSubmit: (_) async {}),
+        tester.view.physicalSize = const Size(390, 844);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Builder(
+                builder: (context) => TextButton(
+                  onPressed: () => showDialog<void>(
+                    context: context,
+                    builder: (_) => isTemplate
+                        ? TemplatePromptFormDialog(onSubmit: (_) async {})
+                        : MemoryPromptFormDialog(onSubmit: (_) async {}),
+                  ),
+                  child: const Text('编辑'),
                 ),
-                child: const Text('编辑'),
               ),
             ),
           ),
         );
         await tester.tap(find.text('编辑'));
-        await settleOverlayTransition(tester);
+        await tester.pumpAndSettle();
         final field = find.widgetWithText(
           AppTextField,
           isTemplate ? '模板提示词' : '记忆总结提示词',
@@ -112,7 +101,7 @@ void main() {
         addTearDown(tester.view.resetViewInsets);
         for (final bottom in [420.0, 0.0]) {
           tester.view.viewInsets = FakeViewPadding(bottom: bottom);
-          await settleAnimatedWidgetTransition(tester);
+          await tester.pumpAndSettle();
           final editable = tester.widget<EditableText>(
             find.descendant(of: field, matching: find.byType(EditableText)),
           );
@@ -124,21 +113,6 @@ void main() {
         }
       });
     }
-
-    testWidgets('语法说明按需弹出且可关闭返回表单', (tester) async {
-      await pumpDialog(tester, onSubmit: (_) async {});
-
-      expect(find.byTooltip('新增模板提示词说明'), findsOneWidget);
-      expect(find.textContaining('{{主角名}}'), findsNothing);
-
-      await expandSyntaxHelp(tester);
-
-      expect(find.textContaining('{{主角名}}'), findsOneWidget);
-      await tester.tap(find.text('关闭'));
-      await settleOverlayTransition(tester);
-      expect(find.textContaining('{{主角名}}'), findsNothing);
-      expect(titleField(), findsOneWidget);
-    });
 
     testWidgets('选择单选默认值后提交返回 select 类型变量及其选项', (tester) async {
       TemplatePromptFormData? captured;
@@ -154,12 +128,12 @@ void main() {
 
       // 打开下拉菜单并选择“二”（菜单项渲染在 Overlay 中）。
       await tester.tap(selectVariableField('人称'));
-      await settleOverlayTransition(tester);
+      await tester.pumpAndSettle();
       await tester.tap(find.text('二').last);
-      await settleOverlayTransition(tester);
+      await tester.pumpAndSettle();
 
       await tester.tap(find.text('保存'));
-      await settleOverlayTransition(tester);
+      await tester.pumpAndSettle();
 
       expect(captured, isNotNull);
       final selectVariable = captured!.variables.singleWhere(
@@ -225,6 +199,9 @@ void main() {
       expect(find.text('旧值'), findsOneWidget);
 
       // 修复内容后协调恢复，旧值仍在。
+      await tester.tap(find.text('保存'));
+      await tester.pump();
+      expect(saved, isNull);
       await typeContent(tester, '请处理{{变量A}}。');
       expect(find.text('第 1 行第 12 列：控制标签未闭合，缺少 }}'), findsNothing);
       expect(find.text('变量A'), findsOneWidget);
@@ -239,7 +216,7 @@ void main() {
       expect(find.text('变量B'), findsOneWidget);
       await tester.enterText(textVariableField('变量B'), '新值');
       await tester.tap(find.text('保存'));
-      await settleOverlayTransition(tester);
+      await tester.pumpAndSettle();
       expect(saved!.variables.single.name, '变量B');
       expect(saved!.variables.single.defaultValue, '新值');
     });

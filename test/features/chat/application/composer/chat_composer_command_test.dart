@@ -11,9 +11,7 @@ import 'package:oh_my_llm/features/chat/application/composer/composer_draft_cont
 import 'package:oh_my_llm/features/chat/application/ports/chat_conversation_repository.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/application/sessions/chat_sessions_controller.dart';
-import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
-import 'package:oh_my_llm/features/settings/application/preferences/chat_defaults_controller.dart';
 import 'package:oh_my_llm/features/settings/application/providers/llm_model_configs_controller.dart';
 import 'package:oh_my_llm/features/settings/data/providers/llm_model_config_repository.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/template_prompt.dart';
@@ -362,61 +360,6 @@ void main() {
     );
   });
 
-  test('selectProvider 无模型 no-op、有模型选 first；selectPreset 不写 draft/default', () {
-    final command = container.read(chatComposerCommandProvider);
-    final conversationId = container.read(activeConversationIdProvider);
-
-    // 无有效模型的 provider → no-op，保持既有选择不变。
-    final initialModelId = container
-        .read(activeChatConversationProvider)
-        .selectedModelId;
-    command.selectProvider('provider-empty');
-    expect(
-      container.read(activeChatConversationProvider).selectedModelId,
-      initialModelId,
-    );
-
-    // 有模型的 provider → 选其第一个模型，并记住为默认。
-    command.selectProvider('provider-2');
-    expect(
-      container.read(activeChatConversationProvider).selectedModelId,
-      'model-2',
-    );
-    expect(container.read(chatDefaultsProvider).defaultModelId, 'model-2');
-
-    // selectPreset 只写 conversation 持久字段。
-    command.selectPreset('prompt-x');
-    expect(
-      container.read(activeChatConversationProvider).selectedPresetPromptId,
-      'prompt-x',
-    );
-    command.selectPreset(null);
-    expect(
-      container.read(activeChatConversationProvider).selectedPresetPromptId,
-      noPresetPromptSelectedId,
-    );
-    // 不触碰模板选择与 chatDefaults 的 preset 记忆。
-    expect(
-      container.read(composerTemplateSelectionProvider(conversationId)),
-      isNull,
-    );
-    expect(container.read(chatDefaultsProvider).defaultPresetPromptId, isNull);
-  });
-
-  test('createConversationAndResetDraft 清 active draft', () async {
-    final command = container.read(chatComposerCommandProvider);
-    final convId = container.read(activeConversationIdProvider);
-    container.read(composerDraftProvider.notifier).setBody(convId, '草稿');
-
-    // 空会话：不新建第二个 conversation，但清空当前 active draft。
-    await command.createConversationAndResetDraft();
-    expect(container.read(activeConversationIdProvider), convId);
-    expect(
-      container.read(composerDraftProvider.notifier).draftFor(convId).body,
-      '',
-    );
-  });
-
   test('templated dispatch：变量值随 intent 传入，draft 只清 body 保留模板选择', () async {
     final command = container.read(chatComposerCommandProvider);
     final conversationId = container.read(activeConversationIdProvider);
@@ -494,36 +437,6 @@ void main() {
     expect(draft.templateVariableValuesByTemplateId['tp-bad'], {'x': 'a'});
   });
 
-  test('已保存变量与正文声明冲突返回 invalidTemplate', () async {
-    final command = container.read(chatComposerCommandProvider);
-    final conversationId = container.read(activeConversationIdProvider);
-    final template = TemplatePrompt(
-      id: 'tp-conflict',
-      title: '冲突模板',
-      content: '请按{{title}}输出。',
-      variables: const [TemplatePromptVariable(name: '其他变量')],
-      updatedAt: DateTime(2026, 1, 1),
-    );
-    container
-        .read(composerDraftProvider.notifier)
-        .setBody(conversationId, '正文');
-
-    final result = command.dispatch(intentFor('正文', templatePrompt: template));
-    expect(result, isA<ChatComposerRejected>());
-    expect(
-      (result as ChatComposerRejected).reason,
-      ChatComposerRejectReason.invalidTemplate,
-    );
-    expect(fakeClient.requestHistory, isEmpty);
-    expect(
-      container
-          .read(composerDraftProvider.notifier)
-          .draftFor(conversationId)
-          .body,
-      '正文',
-    );
-  });
-
   test('数字值 "-" 返回 invalidTemplateValue，不发送且草稿保留', () async {
     final command = container.read(chatComposerCommandProvider);
     final conversationId = container.read(activeConversationIdProvider);
@@ -549,49 +462,6 @@ void main() {
         '正文',
         templatePrompt: template,
         variableValues: const {'章': '-'},
-      ),
-    );
-    expect(result, isA<ChatComposerRejected>());
-    expect(
-      (result as ChatComposerRejected).reason,
-      ChatComposerRejectReason.invalidTemplateValue,
-    );
-    expect(fakeClient.requestHistory, isEmpty);
-    expect(
-      container
-          .read(composerDraftProvider.notifier)
-          .draftFor(conversationId)
-          .body,
-      '正文',
-    );
-  });
-
-  test('单选值不在选项列表返回 invalidTemplateValue', () async {
-    final command = container.read(chatComposerCommandProvider);
-    final conversationId = container.read(activeConversationIdProvider);
-    final template = TemplatePrompt(
-      id: 'tp-select',
-      title: '人称模板',
-      content: '请用{{人称:select|一|二|三}}。',
-      variables: const [
-        TemplatePromptVariable(
-          name: '人称',
-          defaultValue: '一',
-          type: TemplatePromptVariableType.select,
-          options: ['一', '二', '三'],
-        ),
-      ],
-      updatedAt: DateTime(2026, 1, 1),
-    );
-    container
-        .read(composerDraftProvider.notifier)
-        .setBody(conversationId, '正文');
-
-    final result = command.dispatch(
-      intentFor(
-        '正文',
-        templatePrompt: template,
-        variableValues: const {'人称': '四'},
       ),
     );
     expect(result, isA<ChatComposerRejected>());

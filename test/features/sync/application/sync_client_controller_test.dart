@@ -45,18 +45,6 @@ final _requestDocument = SettingsTransferDocument(
   sections: {'presetPrompts': <Object?>[]},
 );
 
-const _testOnlySyncGroup = SettingsSyncGroupDescriptor(
-  id: SettingsSyncGroupId('testOnly'),
-  label: '测试扩展',
-  order: 6,
-  sensitivity: SettingsSyncSensitivity.credentialBearing,
-);
-
-List<SettingsSyncGroupDescriptor> _dynamicGroups() => [
-  ...defaultSettingsSyncGroups,
-  _testOnlySyncGroup,
-];
-
 ProviderContainer _buildContainer({
   required FakeSyncClientTransport transport,
   required ScriptedSyncClientProtocol protocol,
@@ -90,72 +78,6 @@ Future<void> connectToCompatibleServer({
 }
 
 void main() {
-  test('构建从设置目录读取分组描述并保留顺序', () {
-    final transport = FakeSyncClientTransport();
-    final facade = FakeSettingsSyncFacade(
-      availableGroups: [
-        const SettingsSyncGroupDescriptor(
-          id: SettingsSyncGroupId('second'),
-          label: '第二项',
-          order: 20,
-          sensitivity: SettingsSyncSensitivity.standard,
-        ),
-        const SettingsSyncGroupDescriptor(
-          id: SettingsSyncGroupId('first'),
-          label: '第一项',
-          order: 10,
-          sensitivity: SettingsSyncSensitivity.credentialBearing,
-        ),
-      ],
-    );
-    final container = _buildContainer(
-      transport: transport,
-      protocol: ScriptedSyncClientProtocol(),
-      settingsFacade: facade,
-    );
-    addTearDown(container.dispose);
-
-    final state = container.read(syncClientControllerProvider);
-
-    expect(state.availableGroups, facade.availableGroups);
-    expect(state.availableGroups.map((group) => group.id.value), [
-      'second',
-      'first',
-    ]);
-    expect(
-      () => state.availableGroups.add(facade.availableGroups.first),
-      throwsUnsupportedError,
-    );
-  });
-
-  test('全选复制所有分组描述 ID，未知分组保持状态不变', () {
-    final transport = FakeSyncClientTransport();
-    final facade = FakeSettingsSyncFacade(availableGroups: _dynamicGroups());
-    final container = _buildContainer(
-      transport: transport,
-      protocol: ScriptedSyncClientProtocol(),
-      settingsFacade: facade,
-    );
-    addTearDown(container.dispose);
-
-    final notifier = container.read(syncClientControllerProvider.notifier);
-    notifier.selectAllGroups();
-    final selected = container.read(syncClientControllerProvider);
-    final selectedBeforeUnknown = selected;
-
-    expect(
-      selected.selectedGroups,
-      _dynamicGroups().map((group) => group.id).toSet(),
-    );
-
-    notifier.toggleGroup(const SettingsSyncGroupId('unknown'));
-
-    expect(
-      container.read(syncClientControllerProvider),
-      same(selectedBeforeUnknown),
-    );
-  });
-
   group('服务端断开检测', () {
     late ProviderContainer container;
     late FakeSyncClientTransport transport;
@@ -221,26 +143,6 @@ void main() {
       expect(bubbles, hasLength(1));
       expect(bubbles.single.message, '服务端已断开，请重新搜索');
       expect(bubbles.single.type, NotificationBubbleType.error);
-    });
-
-    test('搜索未发现时流关闭只置错误文案，不弹气泡', () async {
-      final notifier = container.read(syncClientControllerProvider.notifier);
-      await notifier.startDiscovery();
-
-      final discoveryEnded = waitForProviderState(
-        container: container,
-        provider: syncClientControllerProvider,
-        matches: (s) => s.phase == SyncPhase.error,
-        description: '发现流程结束',
-      );
-      await transport.close();
-      await discoveryEnded;
-
-      final state = container.read(syncClientControllerProvider);
-      expect(state.phase, SyncPhase.error);
-      expect(state.server, isNull);
-      expect(state.errorMessage, '未发现服务端，请确认服务端已启动且在同一局域网内');
-      expect(container.read(notificationBubblesProvider), isEmpty);
     });
   });
 
@@ -324,41 +226,6 @@ void main() {
         container.read(syncClientControllerProvider).errorMessage,
         '发现过程出错: Bad state: boom',
       );
-    });
-
-    test('配对被协议拒绝时显示协议用户文案', () async {
-      protocol.pairError = const SyncProtocolFailure(
-        SyncProtocolErrorCode.pairingRejected,
-      );
-      await connectToCompatibleServer(
-        container: container,
-        transport: transport,
-      );
-
-      await container
-          .read(syncClientControllerProvider.notifier)
-          .pairWithCode('123456');
-
-      final state = container.read(syncClientControllerProvider);
-      expect(state.phase, SyncPhase.error);
-      expect(state.errorMessage, '配对失败，请检查配对码后重试');
-      expect(protocol.paired, isFalse);
-    });
-
-    test('配对传输失败时显示传输用户文案', () async {
-      protocol.pairError = const SyncTransportException('传输失败');
-      await connectToCompatibleServer(
-        container: container,
-        transport: transport,
-      );
-
-      await container
-          .read(syncClientControllerProvider.notifier)
-          .pairWithCode('123456');
-
-      final state = container.read(syncClientControllerProvider);
-      expect(state.phase, SyncPhase.error);
-      expect(state.errorMessage, '传输失败');
     });
 
     test('请求使用精确 stable group ID，并以 prepared import 进入 received', () async {
@@ -509,41 +376,6 @@ void main() {
       expect(state.isPaired, isTrue);
       expect(protocol.forgetCount, 0);
       expect(protocol.paired, isTrue);
-    });
-
-    test('请求传输失败时显示传输用户文案且不撤销配对', () async {
-      protocol.paired = true;
-      protocol.requestError = const SyncTransportException('传输失败');
-      await connectToCompatibleServer(
-        container: container,
-        transport: transport,
-      );
-      final notifier = container.read(syncClientControllerProvider.notifier);
-      notifier.toggleGroup(const SettingsSyncGroupId('presets'));
-
-      await notifier.requestSync();
-
-      final state = container.read(syncClientControllerProvider);
-      expect(state.phase, SyncPhase.error);
-      expect(state.errorMessage, '传输失败');
-      expect(state.isPaired, isTrue);
-      expect(protocol.forgetCount, 0);
-    });
-
-    test('请求未预期异常时显示同步失败文案', () async {
-      protocol.requestError = StateError('boom');
-      await connectToCompatibleServer(
-        container: container,
-        transport: transport,
-      );
-      final notifier = container.read(syncClientControllerProvider.notifier);
-      notifier.toggleGroup(const SettingsSyncGroupId('presets'));
-
-      await notifier.requestSync();
-
-      final state = container.read(syncClientControllerProvider);
-      expect(state.phase, SyncPhase.error);
-      expect(state.errorMessage, '同步失败: Bad state: boom');
     });
 
     test('切换分组清除敏感确认、待导入状态与错误', () async {

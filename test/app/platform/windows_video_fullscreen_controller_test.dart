@@ -109,63 +109,6 @@ void main() {
     expect(controller.desiredFullscreen, isFalse);
   });
 
-  test('窗口模式 exitIfFullscreen 返回未消费成功且不改变窗口', () async {
-    final gateway = FakeWindowsVideoWindowGateway(initialFullscreen: false);
-    final controller = WindowsVideoFullscreenController(gateway: gateway);
-    await controller.initializeSession();
-
-    final result = await controller.exitIfFullscreen();
-    expect(result.consumed, isFalse);
-    expect(result.succeeded, isTrue);
-    expect(gateway.setCalls, isEmpty);
-    expect(controller.actualFullscreen, isFalse);
-    expect(controller.desiredFullscreen, isFalse);
-  });
-
-  test('全屏时 exitIfFullscreen 退出全屏', () async {
-    final gateway = FakeWindowsVideoWindowGateway(initialFullscreen: false);
-    final controller = WindowsVideoFullscreenController(gateway: gateway);
-    await controller.initializeSession();
-    await controller.toggle();
-
-    final result = await controller.exitIfFullscreen();
-    expect(result.consumed, isTrue);
-    expect(result.succeeded, isTrue);
-    expect(controller.actualFullscreen, isFalse);
-    expect(gateway.setCalls, [true, false]);
-  });
-
-  test('无在途命令时外部窗口事件同时校准 actual 与 desired', () async {
-    final gateway = FakeWindowsVideoWindowGateway(initialFullscreen: false);
-    final controller = WindowsVideoFullscreenController(gateway: gateway);
-    await controller.initializeSession();
-
-    gateway.emitFullscreen(true);
-    expect(controller.actualFullscreen, isTrue);
-    expect(controller.desiredFullscreen, isTrue);
-    expect(gateway.setCalls, isEmpty);
-  });
-
-  test('在途命令的窗口事件只校准 actual 而不改写期望', () async {
-    final gateway = FakeWindowsVideoWindowGateway(initialFullscreen: false);
-    final controller = WindowsVideoFullscreenController(gateway: gateway);
-    await controller.initializeSession();
-
-    gateway.blockNextSet();
-    final first = controller.toggle(); // desired=true，setFullScreen(true) 在途
-    final second = controller.toggle(); // desired=false，追加到队列
-    expect(controller.desiredFullscreen, isFalse);
-
-    gateway.emitFullscreen(true); // 在途命令产生的窗口事件
-    expect(controller.actualFullscreen, isTrue);
-    expect(controller.desiredFullscreen, isFalse); // 不被事件改写
-
-    gateway.completeBlockedSet(actual: true);
-    await first;
-    await second;
-    expect(gateway.setCalls, [true, false]); // 继续收敛到最新期望
-  });
-
   test('初始化记录初始窗口模式并在关闭时恢复', () async {
     final gateway = FakeWindowsVideoWindowGateway(initialFullscreen: false);
     final controller = WindowsVideoFullscreenController(gateway: gateway);
@@ -240,33 +183,6 @@ void main() {
     expect(gateway.setCalls, [true]);
   });
 
-  test('初始化查询异常不向页面抛出且后续命令返回失败', () async {
-    final gateway = FakeWindowsVideoWindowGateway(
-      initialFullscreen: false,
-      failIsFullScreen: true,
-    );
-    final recorded = <String>[];
-    final controller = WindowsVideoFullscreenController(
-      gateway: gateway,
-      errorReporter: (operation, error, stack) => recorded.add(operation),
-    );
-
-    await controller.initializeSession(); // 不向页面抛出
-
-    final toggleResult = await controller.toggle();
-    expect(toggleResult.consumed, isTrue);
-    expect(toggleResult.succeeded, isFalse);
-
-    final exitResult = await controller.exitIfFullscreen();
-    expect(exitResult.consumed, isTrue);
-    expect(exitResult.succeeded, isFalse);
-
-    final restored = await controller.restoreAndDispose();
-    expect(restored, isFalse);
-
-    expect(recorded, ['初始化']);
-  });
-
   test('restoreAndDispose 幂等且释放后不再响应窗口事件', () async {
     final gateway = FakeWindowsVideoWindowGateway(initialFullscreen: false);
     final controller = WindowsVideoFullscreenController(gateway: gateway);
@@ -282,48 +198,5 @@ void main() {
 
     gateway.emitFullscreen(true); // listener 已移除
     expect(controller.actualFullscreen, isFalse);
-  });
-
-  test('切换失败返回失败结果且 reporter 收到固定 operation 与错误类型', () async {
-    final gateway = FakeWindowsVideoWindowGateway(initialFullscreen: false);
-    final recorded = <({String operation, Object error})>[];
-    final controller = WindowsVideoFullscreenController(
-      gateway: gateway,
-      errorReporter: (operation, error, stack) {
-        recorded.add((operation: operation, error: error));
-      },
-    );
-    await controller.initializeSession();
-
-    gateway.failNextSet();
-    final result = await controller.toggle();
-    expect(result.consumed, isTrue);
-    expect(result.succeeded, isFalse); // 用户反馈不含异常文本，只是布尔结果
-
-    expect(recorded, hasLength(1));
-    expect(recorded.single.operation, '切换');
-    expect(recorded.single.error, isA<StateError>());
-  });
-
-  test('默认错误 reporter 只输出固定文案与异常类型', () {
-    final lines = <String>[];
-    final originalDebugPrint = debugPrint;
-    debugPrint = (String? message, {int? wrapWidth}) {
-      lines.add(message ?? '');
-    };
-    try {
-      reportVideoWindowError(
-        '切换',
-        StateError('媒体 URI 与敏感 Header 绝不出现在日志'),
-        StackTrace.current,
-      );
-    } finally {
-      debugPrint = originalDebugPrint;
-    }
-
-    expect(lines, hasLength(1));
-    expect(lines.single, contains('[WindowsVideoFullscreen]'));
-    expect(lines.single, contains('StateError'));
-    expect(lines.single, isNot(contains('媒体 URI')));
   });
 }

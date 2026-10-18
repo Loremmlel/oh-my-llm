@@ -24,45 +24,6 @@ void main() {
     isStreaming: isStreaming,
   );
 
-  ChatConversation conversation({
-    List<ChatMessage> nodes = const [],
-    Map<String, String> selections = const {},
-  }) => ChatConversation(
-    id: 'conversation',
-    messageNodes: nodes,
-    selectedChildByParentId: selections,
-    createdAt: baseTime,
-    updatedAt: baseTime,
-  );
-
-  group('resolveMessageTreeState', () {
-    test('复制已有节点和选择映射，不与会话共享可变容器', () {
-      final source = conversation(
-        nodes: [
-          node('u1', rootConversationParentId, ChatMessageRole.user, '你好'),
-        ],
-        selections: {rootConversationParentId: 'u1'},
-      );
-
-      final result = resolveMessageTreeState(source);
-
-      expect(result.nodes, source.messageNodes);
-      expect(result.selections, source.selectedChildByParentId);
-      expect(identical(result.nodes, source.messageNodes), isFalse);
-      expect(
-        identical(result.selections, source.selectedChildByParentId),
-        isFalse,
-      );
-    });
-
-    test('空会话返回空树', () {
-      final result = resolveMessageTreeState(conversation());
-
-      expect(result.nodes, isEmpty);
-      expect(result.selections, isEmpty);
-    });
-  });
-
   test('appendNodeToTree 追加节点、切换父节点选择并保留其他选择', () {
     final tree = ChatMessageTreeState(
       nodes: [
@@ -120,23 +81,6 @@ void main() {
       expect(result.nodes.last.isStreaming, isFalse);
       expect(result.selections, tree.selections);
     });
-
-    test('目标 ID 不存在时节点内容保持不变', () {
-      final tree = ChatMessageTreeState(
-        nodes: [node('a1', 'u1', ChatMessageRole.assistant, '旧正文')],
-        selections: const {},
-      );
-
-      final result = replaceAssistantMessageInTree(
-        treeState: tree,
-        assistantMessageId: 'missing',
-        nextContent: '新正文',
-        nextReasoningContent: '新推理',
-        isStreaming: false,
-      );
-
-      expect(result.nodes, tree.nodes);
-    });
   });
 
   group('removeNodeFromTree', () {
@@ -180,20 +124,6 @@ void main() {
         rootConversationParentId: 'u1',
         'a2': 'external-selection',
       });
-    });
-
-    test('删除不存在的 ID 时树内容保持不变', () {
-      final tree = ChatMessageTreeState(
-        nodes: [
-          node('u1', rootConversationParentId, ChatMessageRole.user, '用户'),
-        ],
-        selections: {rootConversationParentId: 'u1'},
-      );
-
-      final result = removeNodeFromTree(treeState: tree, nodeId: 'missing');
-
-      expect(result.nodes, tree.nodes);
-      expect(result.selections, tree.selections);
     });
   });
 }

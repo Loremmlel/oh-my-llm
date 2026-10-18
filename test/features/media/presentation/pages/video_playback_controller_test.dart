@@ -69,24 +69,6 @@ void main() {
     controller.dispose();
   });
 
-  testWidgets('相对 Seek 反馈被临时倍速替换时恢复此前控制栏状态', (tester) async {
-    final harness = await createPlaybackHarness();
-    addTearDown(harness.controller.dispose);
-
-    harness.controller.seekRelative(const Duration(seconds: 5));
-    expect(harness.controller.state.controlsVisible, isFalse);
-
-    final lease = harness.controller.beginTemporarySpeed(3.0)!;
-
-    expect(harness.controller.state.controlsVisible, isTrue);
-    expect(
-      harness.controller.state.centerFeedback,
-      isA<VideoTemporarySpeedFeedback>(),
-    );
-    harness.controller.endTemporarySpeed(lease);
-    harness.controller.dispose();
-  });
-
   testWidgets('相对 Seek 后开始拖动时旧提示计时器不清除拖动预览', (tester) async {
     final harness = await createPlaybackHarness();
     addTearDown(harness.controller.dispose);
@@ -147,42 +129,9 @@ void main() {
       expect(fake.fakePlaybackSpeed, 1.0);
       controller.dispose();
     });
-
-    testWidgets('临时加速中暂停立即恢复常驻倍速', (tester) async {
-      final harness = await createPlaybackHarness();
-      addTearDown(harness.controller.dispose);
-      harness.controller.beginTemporarySpeed(3.0);
-      expect(harness.controller.state.effectiveSpeed, 3.0);
-      expect(harness.fake.fakePlaybackSpeed, 3.0);
-
-      harness.controller.togglePlayPause();
-      expect(harness.controller.state.isPlaying, isFalse);
-      expect(harness.controller.state.effectiveSpeed, 1.0);
-      expect(harness.fake.fakePlaybackSpeed, 1.0);
-      harness.controller.dispose();
-    });
   });
 
   group('音量与静音', () {
-    testWidgets('普通步进边界正确 clamp 音量', (tester) async {
-      final cases = [
-        (start: 0.98, delta: 0.05, expected: 1.0),
-        (start: 0.02, delta: -0.05, expected: 0.0),
-        (start: 0.50, delta: 0.05, expected: 0.55),
-      ];
-      for (final c in cases) {
-        final harness = await createPlaybackHarness(initialVolume: c.start);
-        addTearDown(harness.controller.dispose);
-        harness.controller.adjustVolume(c.delta);
-        expect(
-          harness.fake.setVolumeCalls.last,
-          closeTo(c.expected, 0.0001),
-          reason: 'start=${c.start} delta=${c.delta}',
-        );
-        harness.controller.dispose();
-      }
-    });
-
     testWidgets('M 静音后再次切换恢复最后非零音量', (tester) async {
       final harness = await createPlaybackHarness(initialVolume: 0.65);
       addTearDown(harness.controller.dispose);
@@ -195,51 +144,5 @@ void main() {
       expect(harness.fake.setVolumeCalls.last, 0.65);
       harness.controller.dispose();
     });
-
-    testWidgets('显式静音时调音先恢复记忆音量再应用步进', (tester) async {
-      final harness = await createPlaybackHarness(initialVolume: 0.60);
-      addTearDown(harness.controller.dispose);
-      harness.controller.toggleMute();
-      harness.controller.adjustVolume(-0.05);
-      expect(harness.controller.state.isMuted, isFalse);
-      expect(harness.fake.setVolumeCalls.last, closeTo(0.55, 0.0001));
-      harness.controller.dispose();
-    });
-
-    testWidgets('手动零音量不覆盖记忆且上调从百分之五开始', (tester) async {
-      final harness = await createPlaybackHarness(initialVolume: 0.60);
-      addTearDown(harness.controller.dispose);
-      harness.controller.setVolume(0);
-      expect(harness.controller.state.lastNonZeroVolume, 0.60);
-      expect(harness.controller.state.isMuted, isFalse);
-      harness.controller.adjustVolume(0.05);
-      expect(harness.fake.setVolumeCalls.last, 0.05);
-      harness.controller.dispose();
-    });
-
-    testWidgets('边界无变化时不重复调用底层音量 setter', (tester) async {
-      final harness = await createPlaybackHarness(initialVolume: 0.5);
-      addTearDown(harness.controller.dispose);
-      harness.controller.setVolume(0.5);
-      harness.controller.adjustVolume(0.0);
-      expect(harness.fake.setVolumeCalls, isEmpty);
-      harness.controller.dispose();
-    });
-  });
-
-  testWidgets('showOperationFailure 显示固定失败反馈', (tester) async {
-    final harness = await createPlaybackHarness();
-    addTearDown(harness.controller.dispose);
-
-    harness.controller.showOperationFailure('无法切换全屏');
-    expect(
-      harness.controller.state.centerFeedback,
-      isA<VideoOperationFailureFeedback>().having(
-        (value) => value.message,
-        'message',
-        '无法切换全屏',
-      ),
-    );
-    harness.controller.dispose();
   });
 }

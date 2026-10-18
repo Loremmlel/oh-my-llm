@@ -19,7 +19,6 @@ import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
 import 'package:oh_my_llm/features/chat/presentation/widgets/composer/fields/composer_message_field.dart';
 
 import '../../../helpers/async/async_test_signals.dart';
-import '../../../helpers/async/widget_test_animation.dart';
 import '../../../helpers/chat/fake_chat_generation_client.dart';
 import '../../../helpers/chat/test_chat_images.dart';
 import '../../../helpers/fixtures.dart';
@@ -141,11 +140,11 @@ void main() {
     await tester.pump();
     expect(find.byIcon(Icons.zoom_in), findsOneWidget);
     await tester.tap(find.byTooltip('预览图片：测试图片.png'));
-    await settleAnimatedWidgetTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.text('图片预览'), findsOneWidget);
     await tester.tap(find.byTooltip('放大图片'));
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-    await settleAnimatedWidgetTransition(tester);
+    await tester.pumpAndSettle();
     await mouse.removePointer();
     await tester.tap(find.byTooltip('移除图片：测试图片.png'));
     await tester.pump();
@@ -219,7 +218,7 @@ void main() {
       ),
     );
     await tester.pump();
-    await settleAnimatedWidgetTransition(tester);
+    await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('编辑消息'));
     await tester.pump();
     await tester.tap(find.byTooltip('移除图片：测试图片.png'));
@@ -247,12 +246,12 @@ void main() {
       ),
     );
     await tester.pump();
-    await settleAnimatedWidgetTransition(tester);
+    await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('编辑消息'));
     await tester.pump();
     final selected = Completer<List<SelectedChatImage>>();
     source.pick = () => selected.future;
-    await settleAnimatedWidgetTransition(tester);
+    await tester.pumpAndSettle();
     await tester.ensureVisible(find.byTooltip('添加图片'));
     await tester.tap(find.byTooltip('添加图片'));
     await tester.pump();
@@ -262,7 +261,7 @@ void main() {
     await tester.pump();
     expect(find.byTooltip('预览图片：测试图片.png'), findsNothing);
     source.pick = () => Future.error(const FormatException('图片过大，请缩小后重试'));
-    await settleAnimatedWidgetTransition(tester);
+    await tester.pumpAndSettle();
     await tester.ensureVisible(find.byTooltip('添加图片'));
     await tester.tap(find.byTooltip('添加图片'));
     await tester.pump();

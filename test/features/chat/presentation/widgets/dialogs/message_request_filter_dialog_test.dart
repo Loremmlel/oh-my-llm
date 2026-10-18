@@ -3,7 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/features/chat/presentation/widgets/dialogs/message_request_filter_dialog.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../../../../helpers/async/widget_test_animation.dart';
 import '../../../../../helpers/test_harness.dart';
 
 void main() {
@@ -24,13 +23,13 @@ void main() {
       ),
     );
     await tester.tap(find.text('打开过滤'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
     await tester.drag(find.text('当前分支还没有消息。').first, const Offset(0, -120));
-    await settleScrollMotion(tester);
+    await tester.pumpAndSettle();
     expect(find.text('关闭').hitTestable(), findsOneWidget);
     await tester.tap(find.text('关闭'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.text('上下文过滤'), findsNothing);
   });
 }

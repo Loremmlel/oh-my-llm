@@ -11,7 +11,6 @@ import 'package:oh_my_llm/features/favorites/domain/models/collection.dart';
 import 'package:oh_my_llm/features/favorites/domain/models/collection_delete_request.dart';
 import 'package:oh_my_llm/features/favorites/domain/models/favorite_collection_summary.dart';
 
-import '../../helpers/async/widget_test_animation.dart';
 import 'favorites_screen_test_helpers.dart';
 
 /// 按需抛出删除失败的收藏夹仓库装饰器，用于模拟事务故障。
@@ -66,7 +65,7 @@ Future<void> _openCollection(
 /// 从 AppBar 打开"删除收藏夹"对话框。
 Future<void> _openDeleteDialog(WidgetTester tester) async {
   await tester.tap(find.byTooltip('删除收藏夹'));
-  await settleOverlayTransition(tester);
+  await tester.pumpAndSettle();
 }
 
 void registerFavoritesScreenCollectionDeleteTests() {
@@ -89,7 +88,7 @@ void registerFavoritesScreenCollectionDeleteTests() {
     await tester.pump();
     expect(find.text('取消').hitTestable(), findsOneWidget);
     await tester.tap(find.text('取消'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(
       find.descendant(of: find.byType(AppBar), matching: find.text('待删夹')),
       findsOneWidget,
@@ -104,7 +103,7 @@ void registerFavoritesScreenCollectionDeleteTests() {
     expect(find.text('移入其他收藏夹'), findsOneWidget);
     expect(find.textContaining('中有 2 项收藏'), findsOneWidget);
     await tester.tap(find.widgetWithText(FilledButton, '删除收藏夹'));
-    await settleRouteTransition(tester);
+    await tester.pumpAndSettle();
 
     // 收藏夹消失后回退系统未分类，两条收藏仍在（归属系统夹）。
     expect(find.text('待删夹'), findsNothing);
@@ -127,15 +126,15 @@ void registerFavoritesScreenCollectionDeleteTests() {
     await tester.tap(find.text('备用夹'));
     await tester.pump();
     await tester.tap(find.widgetWithText(FilledButton, '删除收藏夹'));
-    await settleRouteTransition(tester);
+    await tester.pumpAndSettle();
 
     expect(find.text('待删夹'), findsNothing);
     // 去总览验证收藏已进入备用夹——通过备用夹页面验证更直接。
     final router = GoRouter.of(tester.element(find.byType(AppBar)));
     router.go('/favorites');
-    await settleRouteTransition(tester);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('备用夹'));
-    await settleRouteTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.textContaining('问题001'), findsOneWidget);
   });
 
@@ -147,7 +146,7 @@ void registerFavoritesScreenCollectionDeleteTests() {
     await tester.tap(find.textContaining('及其中'));
     await tester.pump();
     await tester.tap(find.widgetWithText(FilledButton, '删除收藏夹'));
-    await settleRouteTransition(tester);
+    await tester.pumpAndSettle();
 
     expect(find.text('待删夹'), findsNothing);
     expect(find.textContaining('共 0 条 · 0/0 页'), findsNothing);
@@ -160,7 +159,7 @@ void registerFavoritesScreenCollectionDeleteTests() {
     await _openDeleteDialog(tester);
 
     await tester.tap(find.text('新建收藏夹作为去向'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     // 分页栏的页码输入框也是 TextField，限定在对话框内输入。
     await tester.enterText(
       find.descendant(
@@ -170,13 +169,13 @@ void registerFavoritesScreenCollectionDeleteTests() {
       '新建去向',
     );
     await tester.tap(find.widgetWithText(FilledButton, '创建'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
 
     // 新夹被选中但删除尚未提交：确认按钮仍在等待最终确认。
     expect(find.text('新建去向'), findsOneWidget);
     expect(find.widgetWithText(FilledButton, '删除收藏夹'), findsOneWidget);
     await tester.tap(find.widgetWithText(FilledButton, '删除收藏夹'));
-    await settleRouteTransition(tester);
+    await tester.pumpAndSettle();
 
     expect(find.text('待删夹'), findsNothing);
   });
@@ -207,7 +206,7 @@ void registerFavoritesScreenCollectionDeleteTests() {
 
     flaky.failDelete = true;
     await tester.tap(find.byTooltip('删除收藏夹'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, '删除收藏夹'));
     await tester.pump();
 
@@ -217,7 +216,7 @@ void registerFavoritesScreenCollectionDeleteTests() {
 
     flaky.failDelete = false;
     await tester.tap(find.widgetWithText(FilledButton, '删除收藏夹'));
-    await settleRouteTransition(tester);
+    await tester.pumpAndSettle();
 
     // 重试成功后当前收藏夹被删除，路由规范化到系统未分类；默认移动
     // 处置保留原收藏，因此系统夹直接展示迁入条目。

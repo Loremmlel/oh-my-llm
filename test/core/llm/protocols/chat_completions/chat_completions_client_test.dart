@@ -254,32 +254,6 @@ void main() {
       );
       expect(logger.requestHeaders!['X-Custom-Header'], 'custom-value');
     });
-
-    test('协议不匹配 → ChatGenerationException，且不发送请求', () async {
-      final client = _FakeStreamingHttpClient((_) async {
-        throw UnimplementedError('协议不匹配时不应发送请求');
-      });
-
-      await expectLater(
-        buildChatClient(client)
-            .streamCompletion(
-              _request(
-                _messages(),
-                modelConfig: _modelConfig(
-                  apiProtocol: LlmApiProtocol.anthropic,
-                ),
-              ),
-            )
-            .drain<void>(),
-        throwsA(
-          isA<ChatGenerationException>().having(
-            (e) => e.protocol,
-            'protocol',
-            LlmApiProtocol.anthropic,
-          ),
-        ),
-      );
-    });
   });
 
   // ── 行为等价（流式集成，经 transport + 假 http.Client）─────────

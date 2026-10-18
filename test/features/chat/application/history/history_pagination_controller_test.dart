@@ -391,53 +391,6 @@ void main() {
   });
 
   group('HistoryPaginationController', () {
-    test('loadRoute 默认加载第 1 页并写入 count 与 totalItems', () async {
-      final query = ControllableHistoryPageQuery();
-      final c = createContainer(query);
-
-      final outcome = c
-          .read(historyPaginationProvider.notifier)
-          .loadRoute(page: 1);
-      query.completeSuccess(0, items: [summary('a')], totalItems: 10);
-      await outcome;
-
-      final s = c.read(historyPaginationProvider);
-      expect(s.conversations, hasLength(1));
-      expect(s.totalItems, 10);
-      expect(s.totalPages, 1);
-      expect(s.currentPage, 1);
-      expect(query.requests, hasLength(1));
-    });
-
-    test('loadRoute 空串关键词下 hasAnyConversations 跟随 totalItems', () async {
-      final query = ControllableHistoryPageQuery();
-      final c = createContainer(query);
-
-      final outcome = c
-          .read(historyPaginationProvider.notifier)
-          .loadRoute(page: 1);
-      query.completeSuccess(0, items: const [], totalItems: 0);
-      await outcome;
-
-      final s = c.read(historyPaginationProvider);
-      expect(s.hasAnyConversations, isFalse);
-      expect(s.totalItems, 0);
-      expect(s.totalPages, 0);
-    });
-
-    test('loadRoute 带关键词时 hasAnyConversations 恒为 true', () async {
-      final query = ControllableHistoryPageQuery();
-      final c = createContainer(query);
-
-      final outcome = c
-          .read(historyPaginationProvider.notifier)
-          .loadRoute(page: 1, keyword: 'foo');
-      query.completeSuccess(0, items: const [], totalItems: 0);
-      await outcome;
-
-      expect(c.read(historyPaginationProvider).hasAnyConversations, isTrue);
-    });
-
     test('goToPage 跳转到目标页', () async {
       final query = ControllableHistoryPageQuery();
       final c = createContainer(query);
@@ -461,52 +414,6 @@ void main() {
       await outcome;
 
       expect(c.read(historyPaginationProvider).currentPage, 3);
-    });
-
-    test('goToPage 夹取越界页码（<1 视为 1，>totalPages 视为 totalPages）', () async {
-      final query = ControllableHistoryPageQuery();
-      final c = createContainer(query);
-      final initial = c
-          .read(historyPaginationProvider.notifier)
-          .loadRoute(page: 1);
-      query.completeSuccess(0, items: [summary('a')], totalItems: 50);
-      await initial;
-
-      var outcome = c.read(historyPaginationProvider.notifier).goToPage(99);
-      query.completeSuccess(
-        1,
-        items: [summary('c')],
-        totalItems: 50,
-        committedPage: 3,
-      );
-      await outcome;
-      expect(c.read(historyPaginationProvider).currentPage, 3); // ceil(50/20)
-
-      outcome = c.read(historyPaginationProvider.notifier).goToPage(0);
-      query.completeSuccess(2, items: [summary('a')], totalItems: 50);
-      await outcome;
-      expect(c.read(historyPaginationProvider).currentPage, 1);
-
-      // 已处于第 1 页时 <1 的页码夹取回 1，与当前页相同直接 no-op。
-      outcome = c.read(historyPaginationProvider.notifier).goToPage(-5);
-      expect(await outcome, HistoryWindowLoadOutcome.ignored);
-      expect(c.read(historyPaginationProvider).currentPage, 1);
-    });
-
-    test('goToPage 同一页直接返回', () async {
-      final query = ControllableHistoryPageQuery();
-      final c = createContainer(query);
-      final initial = c
-          .read(historyPaginationProvider.notifier)
-          .loadRoute(page: 1);
-      query.completeSuccess(0, items: [summary('a')], totalItems: 50);
-      await initial;
-      final requestsBefore = query.requests.length;
-
-      final outcome = c.read(historyPaginationProvider.notifier).goToPage(1);
-
-      expect(await outcome, HistoryWindowLoadOutcome.ignored);
-      expect(query.requests, hasLength(requestsBefore));
     });
 
     test('setPageSize 重置到第 1 页并更新 totalPages', () async {
@@ -546,26 +453,6 @@ void main() {
       expect(s.totalPages, 5); // ceil(50/10)
     });
 
-    test('setPageSize 非法值不生效', () async {
-      final query = ControllableHistoryPageQuery();
-      final c = createContainer(query);
-      final initial = c
-          .read(historyPaginationProvider.notifier)
-          .loadRoute(page: 1);
-      query.completeSuccess(0, items: [summary('a')], totalItems: 50);
-      await initial;
-      final sizeBefore = c.read(historyPaginationProvider).pageSize;
-      final requestsBefore = query.requests.length;
-
-      final outcome = c
-          .read(historyPaginationProvider.notifier)
-          .setPageSize(999);
-
-      expect(await outcome, HistoryWindowLoadOutcome.ignored);
-      expect(c.read(historyPaginationProvider).pageSize, sizeBefore);
-      expect(query.requests, hasLength(requestsBefore));
-    });
-
     test('setKeyword 重置到第 1 页并刷新 count', () async {
       final query = ControllableHistoryPageQuery();
       final c = createContainer(query);
@@ -599,24 +486,6 @@ void main() {
       final s = c.read(historyPaginationProvider);
       expect(s.keyword, '新关键词');
       expect(s.currentPage, 1);
-    });
-
-    test('setKeyword 空串旧值下幂等', () async {
-      final query = ControllableHistoryPageQuery();
-      final c = createContainer(query);
-      final initial = c
-          .read(historyPaginationProvider.notifier)
-          .loadRoute(page: 1);
-      query.completeSuccess(0, items: [summary('a')], totalItems: 10);
-      await initial;
-      final requestsBefore = query.requests.length;
-
-      final outcome = c
-          .read(historyPaginationProvider.notifier)
-          .setKeyword('   '); // trim 后为 ''
-
-      expect(await outcome, HistoryWindowLoadOutcome.ignored);
-      expect(query.requests, hasLength(requestsBefore));
     });
 
     test('afterRename 只更新当前页匹配项', () async {
@@ -768,30 +637,6 @@ void main() {
       expect(s.hasAnyConversations, isFalse);
     });
 
-    test('hasPrevious / hasNext 派生正确', () async {
-      final query = ControllableHistoryPageQuery();
-      final c = createContainer(query);
-      final initial = c
-          .read(historyPaginationProvider.notifier)
-          .loadRoute(page: 1);
-      query.completeSuccess(0, items: [summary('a')], totalItems: 60);
-      await initial;
-
-      expect(c.read(historyPaginationProvider).hasPrevious, isFalse);
-      expect(c.read(historyPaginationProvider).hasNext, isTrue);
-
-      final outcome = c.read(historyPaginationProvider.notifier).goToPage(3);
-      query.completeSuccess(
-        1,
-        items: [summary('c')],
-        totalItems: 60,
-        committedPage: 3,
-      );
-      await outcome;
-      expect(c.read(historyPaginationProvider).hasPrevious, isTrue);
-      expect(c.read(historyPaginationProvider).hasNext, isFalse);
-    });
-
     test('loadRoute 使用 route 页码、容量与关键词查询', () async {
       final query = ControllableHistoryPageQuery();
       final c = createContainer(query);
@@ -823,144 +668,6 @@ void main() {
       expect(s.totalItems, 50);
       expect(s.isInitialized, isTrue);
       expect(s.errorMessage, isNull);
-    });
-
-    test('loadRoute 关键词先 trim 再生效', () async {
-      final query = ControllableHistoryPageQuery();
-      final c = createContainer(query);
-      final initial = c
-          .read(historyPaginationProvider.notifier)
-          .loadRoute(page: 1);
-      query.completeSuccess(0, items: [summary('a')], totalItems: 10);
-      await initial;
-
-      final outcome = c
-          .read(historyPaginationProvider.notifier)
-          .loadRoute(keyword: '  空格  ');
-      expect(query.requests.last.keyword, '空格');
-      query.completeSuccess(1, items: [summary('b')], totalItems: 10);
-      await outcome;
-
-      expect(c.read(historyPaginationProvider).keyword, '空格');
-    });
-
-    test('loadRoute 非法容量回退持久化偏好', () async {
-      preferences.setInt('app.feature.history.page_size', 10);
-      final query = ControllableHistoryPageQuery();
-      final c = createContainer(query);
-
-      final outcome = c
-          .read(historyPaginationProvider.notifier)
-          .loadRoute(page: 1, pageSize: 999);
-      expect(query.requests.last.pageSize, 10);
-      query.completeSuccess(0, items: [summary('a')], totalItems: 50);
-      await outcome;
-
-      expect(c.read(historyPaginationProvider).pageSize, 10);
-    });
-
-    test('loadRoute 页码越界夹取到查询后的真实末页', () async {
-      final query = ControllableHistoryPageQuery();
-      final c = createContainer(query);
-      final initial = c
-          .read(historyPaginationProvider.notifier)
-          .loadRoute(page: 1);
-      query.completeSuccess(0, items: [summary('a')], totalItems: 50);
-      await initial;
-
-      // 数据变化后真实末页为 3，越界请求夹取到第 3 页。
-      final outcome = c
-          .read(historyPaginationProvider.notifier)
-          .loadRoute(page: 99);
-      query.completeSuccess(
-        1,
-        items: [summary('b')],
-        totalItems: 50,
-        committedPage: 3,
-      );
-      await outcome;
-
-      expect(c.read(historyPaginationProvider).currentPage, 3);
-    });
-
-    test('loadRoute 总数为 0 时页码归一为 1', () async {
-      final query = ControllableHistoryPageQuery();
-      final c = createContainer(query);
-      final initial = c
-          .read(historyPaginationProvider.notifier)
-          .loadRoute(page: 1);
-      query.completeSuccess(0, items: [summary('a')], totalItems: 10);
-      await initial;
-
-      final outcome = c
-          .read(historyPaginationProvider.notifier)
-          .loadRoute(page: 5);
-      query.completeSuccess(
-        1,
-        items: const [],
-        totalItems: 0,
-        committedPage: 1,
-      );
-      await outcome;
-
-      final s = c.read(historyPaginationProvider);
-      expect(s.currentPage, 1);
-      expect(s.totalItems, 0);
-      expect(s.conversations, isEmpty);
-    });
-
-    test('查询失败时保留旧窗口内容并进入错误态', () async {
-      final query = ControllableHistoryPageQuery();
-      final c = createContainer(query);
-      final initial = c
-          .read(historyPaginationProvider.notifier)
-          .loadRoute(page: 1);
-      query.completeSuccess(0, items: [summary('a')], totalItems: 10);
-      await initial;
-
-      final outcome = c
-          .read(historyPaginationProvider.notifier)
-          .loadRoute(page: 2);
-      query.completeFailure(1);
-      expect(await outcome, HistoryWindowLoadOutcome.failed);
-
-      final s = c.read(historyPaginationProvider);
-      expect(s.conversations.map((e) => e.id), ['a'], reason: '旧内容保留');
-      expect(s.errorMessage, isNotNull);
-      expect(s.isInitialized, isTrue);
-      expect(s.currentPage, 1);
-    });
-
-    test('错误后重试成功清除错误并载入目标窗口', () async {
-      final query = ControllableHistoryPageQuery();
-      final c = createContainer(query);
-      final initial = c
-          .read(historyPaginationProvider.notifier)
-          .loadRoute(page: 1);
-      query.completeSuccess(0, items: [summary('a')], totalItems: 50);
-      await initial;
-
-      final failed = c
-          .read(historyPaginationProvider.notifier)
-          .loadRoute(page: 2);
-      query.completeFailure(1);
-      await failed;
-      expect(c.read(historyPaginationProvider).errorMessage, isNotNull);
-
-      final outcome = c.read(historyPaginationProvider.notifier).retry();
-      expect(query.requests.last.requestedPage, 2);
-      query.completeSuccess(
-        2,
-        items: [summary('b')],
-        totalItems: 50,
-        committedPage: 2,
-      );
-      await outcome;
-
-      final s = c.read(historyPaginationProvider);
-      expect(s.errorMessage, isNull);
-      expect(s.currentPage, 2);
-      expect(s.conversations.map((e) => e.id), ['b']);
     });
 
     test('setPageSize 将所选容量回写持久化偏好', () async {

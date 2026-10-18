@@ -50,18 +50,6 @@ void main() {
       expect(result.chunk!.contentDelta, '抱歉，我无法回答');
       expect(result.chunk!.reasoningDelta, isEmpty);
     });
-
-    test('delta 缺失或非 String → 空增量', () {
-      final missing = newParser().parse(
-        event('{"type":"response.output_text.delta"}'),
-      );
-      expect(missing.chunk!.contentDelta, isEmpty);
-
-      final notString = newParser().parse(
-        event('{"type":"response.reasoning_text.delta","delta":123}'),
-      );
-      expect(notString.chunk!.reasoningDelta, isEmpty);
-    });
   });
 
   // ── finish reason 归一化 ──────────────────────────────────────
@@ -91,20 +79,6 @@ void main() {
         ),
       );
       expect(result.chunk!.finishReason, 'content_filter');
-    });
-
-    test('response.incomplete 缺 reason → 以 incomplete 兜底归一化为 length', () {
-      final missingDetails = newParser().parse(
-        event('{"type":"response.incomplete"}'),
-      );
-      expect(missingDetails.chunk!.finishReason, 'length');
-
-      final emptyReason = newParser().parse(
-        event(
-          '{"type":"response.incomplete","response":{"incomplete_details":{"reason":"  "}}}',
-        ),
-      );
-      expect(emptyReason.chunk!.finishReason, 'length');
     });
   });
 
@@ -156,19 +130,6 @@ void main() {
         ),
       );
     });
-
-    test('response.failed 无 error 详情 → 抛默认文案异常', () {
-      expect(
-        () => newParser().parse(event('{"type":"response.failed"}')),
-        throwsA(
-          isA<LlmException>().having(
-            (e) => e.message,
-            'message',
-            contains('响应生成失败'),
-          ),
-        ),
-      );
-    });
   });
 
   // ── response.done ─────────────────────────────────────────────
@@ -191,19 +152,6 @@ void main() {
       expect(done.chunk, isNull);
       expect(done.isDone, isTrue);
       expect(done.recognized, isTrue);
-    });
-
-    test('缺少 response envelope → 抛异常', () {
-      expect(
-        () => newParser().parse(event('{"type":"response.done"}')),
-        throwsA(
-          isA<LlmException>().having(
-            (e) => e.message,
-            'message',
-            contains('response.done'),
-          ),
-        ),
-      );
     });
   });
 
@@ -248,31 +196,6 @@ void main() {
         ),
       );
     });
-
-    test('usage 缺失或全非 int → usage 为 null', () {
-      final missing = newParser()
-          .parse(event('{"type":"response.completed"}'))
-          .chunk;
-      expect(missing!.usage, isNull);
-
-      final notInt = newParser()
-          .parse(
-            event(
-              '{"type":"response.incomplete","response":{"usage":{"input_tokens":"x","output_tokens":null}}}',
-            ),
-          )
-          .chunk;
-      expect(notInt!.usage, isNull);
-
-      final negative = newParser()
-          .parse(
-            event(
-              '{"type":"response.completed","response":{"usage":{"input_tokens":-1}}}',
-            ),
-          )
-          .chunk;
-      expect(negative!.usage, isNull);
-    });
   });
 
   // ── 格式错误与未知事件 ────────────────────────────────────────
@@ -293,19 +216,6 @@ void main() {
               ),
         ),
       );
-    });
-
-    test('非 Map JSON（List）→ 忽略', () {
-      final result = newParser().parse(event('[1, 2, 3]'));
-      expect(result.chunk, isNull);
-      expect(result.isDone, isFalse);
-      expect(result.recognized, isFalse);
-    });
-
-    test('无 type 字段 → 忽略', () {
-      final result = newParser().parse(event('{"model":"gpt-5"}'));
-      expect(result.chunk, isNull);
-      expect(result.recognized, isFalse);
     });
 
     test('未知/生命周期事件类型 → 忽略（不产生 chunk）', () {

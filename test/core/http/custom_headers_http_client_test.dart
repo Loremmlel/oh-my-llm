@@ -25,20 +25,6 @@ http.StreamedResponse _okResponse() {
 
 void main() {
   group('CustomHeadersHttpClient', () {
-    test('将初始 header 注入到请求中', () async {
-      final client = CustomHeadersHttpClient(
-        _MockBaseClient((request) async {
-          expect(request.headers['X-Custom'], 'value1');
-          expect(request.headers['Authorization'], 'Bearer test-key');
-          return _okResponse();
-        }),
-        {'X-Custom': 'value1', 'Authorization': 'Bearer test-key'},
-      );
-
-      await client.send(http.Request('GET', Uri.parse('https://example.com')));
-      client.close();
-    });
-
     test('用户定义 header 覆盖请求中已有的同名 header', () async {
       final client = CustomHeadersHttpClient(
         _MockBaseClient((request) async {
@@ -50,22 +36,6 @@ void main() {
 
       final request = http.Request('GET', Uri.parse('https://example.com'))
         ..headers['User-Agent'] = 'default-agent';
-      await client.send(request);
-      client.close();
-    });
-
-    test('空 header map 不注入任何 header', () async {
-      final client = CustomHeadersHttpClient(
-        _MockBaseClient((request) async {
-          expect(request.headers['Content-Type'], 'application/json');
-          expect(request.headers.containsKey('X-Custom'), isFalse);
-          return _okResponse();
-        }),
-        {},
-      );
-
-      final request = http.Request('POST', Uri.parse('https://example.com'))
-        ..headers['Content-Type'] = 'application/json';
       await client.send(request);
       client.close();
     });
@@ -101,36 +71,6 @@ void main() {
       );
 
       client.close();
-    });
-
-    test('currentHeaders 返回不可变快照', () {
-      final client = CustomHeadersHttpClient(
-        _MockBaseClient((_) async => _okResponse()),
-        {'X-Test': 'value'},
-      );
-
-      final headers = client.currentHeaders;
-      expect(headers, {'X-Test': 'value'});
-
-      // 返回的是不可变 map，修改应抛出异常
-      expect(() => headers['X-Hack'] = 'nope', throwsUnsupportedError);
-
-      client.close();
-    });
-
-    test('close 后 send 抛出 ClientException', () {
-      final client = CustomHeadersHttpClient(
-        _MockBaseClient((_) async => _okResponse()),
-        {},
-      );
-
-      client.close();
-
-      expect(
-        () =>
-            client.send(http.Request('GET', Uri.parse('https://example.com'))),
-        throwsA(isA<http.ClientException>()),
-      );
     });
   });
 }

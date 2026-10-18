@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 聚焦 application/data 覆盖率，剔除 presentation（行为清单验证）与 domain（model getter 噪声）。
 # 产出：lcov.filtered.info（application/data 聚焦）+ html/（可视化）+ diff-report.html（变更行）。
-# 由 .github/workflows/ci.yml 在 flutter test --coverage 后调用。
+# 手动 flutter test --coverage 后按需调用，不进入常规 CI。
 set -euo pipefail
 
 # 无 coverage 数据则跳过（如 test 失败未生成 lcov.info）

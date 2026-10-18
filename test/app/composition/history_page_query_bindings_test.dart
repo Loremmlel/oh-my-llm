@@ -25,10 +25,7 @@ void main() {
     addTearDown(database.close);
   });
 
-  ProviderContainer createContainer({
-    bool bindHistoryPageQuery = true,
-    HistoryPageQuery? override,
-  }) {
+  ProviderContainer createContainer() {
     final c = ProviderContainer(
       overrides: [
         appDatabaseProvider.overrideWithValue(database),
@@ -39,11 +36,9 @@ void main() {
           bindMediaLibraryFactory: false,
           bindChatGenerationForegroundService: false,
           bindFavoritesRepositories: false,
-          bindHistoryPageQuery: bindHistoryPageQuery,
+          bindHistoryPageQuery: true,
           hostPlatform: TargetPlatform.windows,
         ),
-        if (override != null)
-          historyPageQueryProvider.overrideWithValue(override),
       ],
     );
     addTearDown(c.dispose);
@@ -85,22 +80,4 @@ void main() {
     expect(result.committedPage, 1);
     await query.dispose();
   });
-
-  test('bindHistoryPageQuery 为 false 时可注入 controllable adapter', () {
-    final query = _StaticHistoryPageQuery();
-    final c = createContainer(bindHistoryPageQuery: false, override: query);
-
-    expect(c.read(historyPageQueryProvider), same(query));
-  });
-}
-
-/// 只用于验证「排除生产绑定后 port 可被外部覆盖」的最小实现。
-class _StaticHistoryPageQuery implements HistoryPageQuery {
-  @override
-  Future<HistoryPageResult> load(HistoryPageRequest request) async {
-    return HistoryPageResult(items: const [], totalItems: 0, committedPage: 1);
-  }
-
-  @override
-  Future<void> dispose() async {}
 }

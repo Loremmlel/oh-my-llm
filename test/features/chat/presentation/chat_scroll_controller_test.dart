@@ -5,8 +5,6 @@ import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_scroll_controller.dart';
 
-import '../../../helpers/async/widget_test_animation.dart';
-
 List<ChatMessage> _messages(int count) {
   return [
     for (var index = 0; index < count; index += 1)
@@ -85,7 +83,7 @@ void main() {
     expect(controller.showScrollToBottom, isTrue);
 
     final scrollFuture = controller.scrollToBottom();
-    await settleScrollMotion(tester);
+    await tester.pumpAndSettle();
     await scrollFuture;
     controller.handleVisibleItemsChanged();
     final bottomPosition = controller.itemPositionsListener.itemPositions.value

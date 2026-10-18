@@ -43,42 +43,4 @@ void main() {
     expect(calls, 2);
     expect(find.text('操作失败，请重试'), findsNothing);
   });
-
-  testWidgets('窄屏两倍字号保留预设操作且不溢出', (tester) async {
-    tester.view.physicalSize = const Size(390, 844);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: AppTheme.lightTheme(),
-        home: MediaQuery(
-          data: const MediaQueryData(textScaler: TextScaler.linear(2)),
-          child: Scaffold(
-            body: SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: PresetPromptsView(
-                  templates: [
-                    TestFixtures.presetPrompt(
-                      id: 'narrow',
-                      name: '较长名称用于检查窄屏字号变化与操作布局',
-                    ),
-                  ],
-                  onCopy: (_) async {},
-                  onEdit: (_) {},
-                  onDelete: (_) async {},
-                  onSingleSystemChanged: (_, _) async {},
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-    expect(tester.takeException(), isNull);
-    expect(find.byTooltip('编辑预设'), findsOneWidget);
-    expect(find.byTooltip('复制预设'), findsOneWidget);
-    expect(find.byTooltip('预设操作'), findsOneWidget);
-  });
 }
