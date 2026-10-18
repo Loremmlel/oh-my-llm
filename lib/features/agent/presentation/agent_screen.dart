@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:oh_my_llm/core/widgets/app_text_tab.dart';
+import 'package:oh_my_llm/core/widgets/llm_usage_widgets.dart';
 import 'package:oh_my_llm/core/widgets/long_text_editing_controller.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -185,11 +186,9 @@ class _AgentScreenState extends ConsumerState<AgentScreen> {
                               '${state.documents.length} 份文档',
                               style: Theme.of(context).textTheme.bodySmall,
                             ),
-                            if (latest != null)
-                              Text(
-                                '本轮全部 Agent 已报告用量 · ${agentTreeUsageLabel(latest, state.runs)}',
-                                style: Theme.of(context).textTheme.bodySmall,
-                              ),
+                            ConversationTokenUsage(
+                              summary: controller.usageSummary,
+                            ),
                             if (state.busy &&
                                 (_view != _WorkspaceView.transcript))
                               TextButton.icon(

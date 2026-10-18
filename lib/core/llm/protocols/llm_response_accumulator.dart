@@ -5,12 +5,19 @@ import '../llm_usage.dart';
 
 /// 每个请求独占累积器，增量显示与完整结果共享一次折叠。
 class LlmResponseAccumulator {
+  LlmResponseAccumulator({this.elapsed});
+
+  final _clock = Stopwatch()..start();
+  final Duration Function()? elapsed;
+  Duration? _firstOutputAt;
+  Duration get _now => elapsed?.call() ?? _clock.elapsed;
   final _content = StringBuffer();
   final _reasoning = StringBuffer();
   String? _finishReason;
   LlmUsage? _usage;
 
   void add(LlmEvent event) {
+    if (!event.isEmpty) _firstOutputAt ??= _now;
     _content.write(event.contentDelta);
     _reasoning.write(event.reasoningDelta);
     _finishReason = event.finishReason ?? _finishReason;
@@ -56,7 +63,9 @@ class LlmResponseAccumulator {
       content: completedText ?? _content.toString(),
       reasoningContent: _reasoning.toString(),
       finishReason: rawFinishReason ?? _finishReason,
-      usage: _usage,
+      usage: _firstOutputAt == null
+          ? _usage
+          : _usage?.merge(LlmUsage(outputDuration: _now - _firstOutputAt!)),
       diagnosticBody: _content.isEmpty && _reasoning.isEmpty
           ? diagnosticBody
           : null,

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 import 'package:oh_my_llm/core/llm/llm_reasoning_effort.dart';
+import 'package:oh_my_llm/core/widgets/llm_usage_widgets.dart';
 import 'package:oh_my_llm/features/chat/application/composer/template_prompt_compilation_provider.dart';
 import 'package:oh_my_llm/features/settings/domain/template_prompt_language/template_prompt_evaluator.dart';
 import 'package:oh_my_llm/features/settings/domain/template_prompt_language/template_prompt_program.dart';
@@ -347,10 +348,6 @@ class ChatComposerCard extends ConsumerWidget {
     );
   }
 
-  String _formatCacheHitRate(double? value) {
-    return value == null ? '暂无数据' : '${(value * 100).toStringAsFixed(1)}%';
-  }
-
   Widget _buildToolbar(
     BuildContext context,
     ThemeData theme,
@@ -507,9 +504,8 @@ class ChatComposerCard extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text('更多设置', style: theme.textTheme.titleMedium),
-                      Text(
-                        '当前会话缓存命中率：${_formatCacheHitRate(state.readModel.cacheHitRate)}',
-                        style: theme.textTheme.bodySmall,
+                      ConversationTokenUsage(
+                        summary: state.readModel.usageSummary,
                       ),
                       const SizedBox(height: 12),
                       // 深度思考与自动重试自适应分布，不独占整行

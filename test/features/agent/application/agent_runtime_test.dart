@@ -215,6 +215,7 @@ void main() {
             inputTokens: 150,
             outputTokens: 10,
             cachedInputTokens: 100,
+            outputDuration: Duration(seconds: 2),
           ),
         ),
       },
@@ -229,6 +230,18 @@ void main() {
     expect(store.listDocuments(workspace.id), hasLength(1));
     expect(result.usage.tokens?.inputTokens, 250);
     expect(result.usage.tokens?.outputTokens, 30);
+    expect(
+      result.steps
+          .where((s) => s.kind == AgentStepKind.model)
+          .last
+          .usage
+          ?.tokensPerSecond,
+      5,
+    );
+    expect(
+      store.loadRun(workspace.id, result.id)?.steps.last.usage?.tokensPerSecond,
+      5,
+    );
     expect(
       client.requests.last.input.take(client.requests.first.input.length),
       client.requests.first.input,

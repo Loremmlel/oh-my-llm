@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 import 'package:oh_my_llm/core/llm/llm_reasoning_effort.dart';
+import 'package:oh_my_llm/core/llm/llm_usage_summary.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/fixed_prompt_sequence.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/template_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/providers/llm_model_config.dart';
@@ -27,7 +28,7 @@ class ChatWorkspaceComposerReadModel extends Equatable {
     required this.isStreaming,
     required this.isAutoRetryWaiting,
     required this.excludedMessageCount,
-    required this.cacheHitRate,
+    required this.usageSummary,
   });
 
   final List<LlmProviderConfig> modelProviders;
@@ -46,7 +47,7 @@ class ChatWorkspaceComposerReadModel extends Equatable {
   final bool isStreaming;
   final bool isAutoRetryWaiting;
   final int excludedMessageCount;
-  final double? cacheHitRate;
+  final LlmUsageSummary usageSummary;
 
   @override
   List<Object?> get props => [
@@ -66,7 +67,7 @@ class ChatWorkspaceComposerReadModel extends Equatable {
     isStreaming,
     isAutoRetryWaiting,
     excludedMessageCount,
-    cacheHitRate,
+    usageSummary,
   ];
 }
 

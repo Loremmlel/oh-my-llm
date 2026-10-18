@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/core/llm/llm_reasoning_effort.dart';
+import 'package:oh_my_llm/core/llm/llm_usage.dart';
+import 'package:oh_my_llm/core/llm/llm_usage_summary.dart';
 import 'package:oh_my_llm/features/chat/application/workspace/chat_workspace_view_state.dart';
 import 'package:oh_my_llm/features/chat/presentation/widgets/composer/chat_composer_card.dart';
 import 'package:oh_my_llm/features/chat/presentation/widgets/composer/composer_helpers.dart';
@@ -33,7 +35,16 @@ ChatWorkspaceComposerState _composerState({
     isStreaming: false,
     isAutoRetryWaiting: false,
     excludedMessageCount: 0,
-    cacheHitRate: cacheHitRate,
+    usageSummary: LlmUsageSummary(
+      tokens: cacheHitRate == null
+          ? const LlmUsage()
+          : const LlmUsage(
+              inputTokens: 800,
+              cachedInputTokens: 300,
+              outputTokens: 200,
+            ),
+      cacheHitRate: cacheHitRate,
+    ),
   ),
   selectedTemplatePrompt: null,
   isEditingMessage: false,
@@ -209,7 +220,7 @@ void main() {
     });
   }
 
-  testWidgets('工具栏命中率提示保留一位小数，无样本时提示暂无数据', (tester) async {
+  testWidgets('工具栏总 Token 打开包含分项和缓存命中率的详情', (tester) async {
     final controller = TextEditingController();
     final focusNode = FocusNode();
     addTearDown(controller.dispose);
@@ -222,19 +233,16 @@ void main() {
       state: _composerState(cacheHitRate: 0.375),
       bindings: bindings,
     );
-    expect(find.byTooltip('当前会话缓存命中率：37.5%'), findsOneWidget);
+    await tester.tap(find.text('总 Token 1,000'));
+    await tester.pump();
+    expect(find.textContaining('输入未缓存：500'), findsOneWidget);
+    expect(find.textContaining('输入缓存命中：300'), findsOneWidget);
+    expect(find.textContaining('输出：200'), findsOneWidget);
+    expect(find.textContaining('缓存命中率：37.5%'), findsOneWidget);
     expect(tester.takeException(), isNull);
-
-    await _pumpComposer(
-      tester,
-      680,
-      state: _composerState(),
-      bindings: bindings,
-    );
-    expect(find.byTooltip('当前会话缓存命中率：暂无数据'), findsOneWidget);
   });
 
-  testWidgets('收起输入区时隐藏会话命中率', (tester) async {
+  testWidgets('收起输入区时隐藏会话总 Token', (tester) async {
     final controller = TextEditingController();
     final focusNode = FocusNode();
     addTearDown(controller.dispose);
@@ -247,6 +255,6 @@ void main() {
       bindings: _bindings(controller: controller, focusNode: focusNode),
     );
 
-    expect(find.textContaining('当前会话缓存命中率'), findsNothing);
+    expect(find.textContaining('总 Token').hitTestable(), findsNothing);
   });
 }

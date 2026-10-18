@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/widgets/llm_usage_widgets.dart';
 
 import '../../../../application/workspace/chat_workspace_composer_state.dart';
 import '../../workspace/chat_workspace_bindings.dart';
@@ -75,21 +76,7 @@ class ComposerDesktopSettingsRow extends StatelessWidget {
                 icon: const Icon(Icons.filter_alt_outlined),
                 label: Text(messageFilterLabel(state.excludedMessageCount)),
               ),
-              Tooltip(
-                message:
-                    '当前会话缓存命中率：${state.cacheHitRate == null ? '暂无数据' : '${(state.cacheHitRate! * 100).toStringAsFixed(1)}%'}',
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      state.cacheHitRate == null
-                          ? '缓存 —'
-                          : '缓存 ${(state.cacheHitRate! * 100).toStringAsFixed(1)}%',
-                      style: theme.textTheme.bodySmall,
-                    ),
-                  ],
-                ),
-              ),
+              ConversationTokenUsage(summary: state.usageSummary),
             ],
           ),
         ),

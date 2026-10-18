@@ -5,6 +5,7 @@ import 'package:oh_my_llm/core/widgets/app_text_field.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
+import 'package:oh_my_llm/core/llm/llm_usage.dart';
 import 'package:oh_my_llm/features/agent/data/sqlite_agent_store.dart';
 import 'package:oh_my_llm/features/agent/domain/agent_models.dart';
 import 'package:oh_my_llm/features/agent/domain/agent_story_state.dart';
@@ -24,7 +25,17 @@ void main() {
       prompt: '继续写作',
       startedAt: DateTime(2026),
       status: AgentRunStatus.completed,
-      steps: const [AgentStep(label: '撰写正文', content: '中间候选稿')],
+      steps: const [
+        AgentStep(
+          label: '撰写正文',
+          content: '中间候选稿',
+          usage: LlmUsage(
+            inputTokens: 100,
+            outputTokens: 30,
+            outputDuration: Duration(seconds: 2),
+          ),
+        ),
+      ],
     );
     final round = AgentStoryRound(
       id: 'r',
@@ -53,6 +64,7 @@ void main() {
     await tester.tap(find.text('撰写正文'));
     await settleAnimatedWidgetTransition(tester);
     expect(find.text('中间候选稿'), findsOneWidget);
+    expect(find.text('· TPS 15.0'), findsOneWidget);
     expect(find.text('正式采用正文'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

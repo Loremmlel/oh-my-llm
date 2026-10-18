@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 import 'package:oh_my_llm/core/llm/llm_content.dart';
+import 'package:oh_my_llm/core/llm/llm_usage.dart';
 
 import 'agent_configuration.dart';
 import 'agent_context_batch.dart';
@@ -109,6 +110,7 @@ class AgentStep extends Equatable {
     this.kind = AgentStepKind.model,
     this.isRunning = false,
     this.inputItemCount,
+    this.usage,
   });
   final String label;
   final String content;
@@ -117,6 +119,7 @@ class AgentStep extends Equatable {
   final AgentStepKind kind;
   final bool isRunning;
   final int? inputItemCount;
+  final LlmUsage? usage;
   AgentStep copyWith({
     String? content,
     String? reasoning,
@@ -130,6 +133,7 @@ class AgentStep extends Equatable {
     isRunning: isRunning ?? this.isRunning,
     inputItemCount: inputItemCount,
     isError: isError ?? this.isError,
+    usage: usage,
   );
   @override
   List<Object?> get props => [
@@ -140,6 +144,7 @@ class AgentStep extends Equatable {
     kind,
     isRunning,
     inputItemCount,
+    usage,
   ];
 }
 

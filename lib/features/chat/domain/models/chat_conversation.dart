@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:characters/characters.dart';
 import 'package:equatable/equatable.dart';
 import 'package:oh_my_llm/core/llm/llm_reasoning_effort.dart';
+import 'package:oh_my_llm/core/llm/llm_usage_summary.dart';
 
 import '../chat_message_parent.dart';
 import 'chat_checkpoint.dart';
@@ -56,24 +57,12 @@ class ChatConversation extends Equatable {
   /// 会话是否包含任何消息。
   bool get hasMessages => messages.isNotEmpty;
 
-  /// 整棵消息树中可计算用量的加权缓存命中率。
-  double? get cacheHitRate {
-    var inputTokens = 0;
-    var cachedInputTokens = 0;
-    for (final message in messageNodes) {
-      final usage = message.tokenUsage;
-      if (message.role != ChatMessageRole.assistant ||
-          usage?.inputTokens == null ||
-          usage?.cachedInputTokens == null ||
-          usage!.inputTokens! <= 0 ||
-          usage.cachedInputTokens! > usage.inputTokens!) {
-        continue;
-      }
-      inputTokens += usage.inputTokens!;
-      cachedInputTokens += usage.cachedInputTokens!;
-    }
-    return inputTokens == 0 ? null : cachedInputTokens / inputTokens;
-  }
+  /// 累计整棵消息树中的助手用量，切换分支不改变对话统计。
+  LlmUsageSummary get usageSummary => LlmUsageSummary.fromUsages(
+    messageNodes
+        .where((message) => message.role == ChatMessageRole.assistant)
+        .map((message) => message.tokenUsage),
+  );
 
   /// 当前消息是否被排除出后续请求上下文。
   bool isMessageExcluded(String messageId) {

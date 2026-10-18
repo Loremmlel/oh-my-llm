@@ -335,7 +335,7 @@ void registerChatScreenBasicsTests() {
     );
   });
 
-  testWidgets('窄屏更多设置显示命中率并将思考强度同步到摘要', (tester) async {
+  testWidgets('窄屏更多设置可查看对话总量并将思考强度同步到摘要', (tester) async {
     final fakeClient = FakeChatGenerationClient();
 
     await pumpChatScreen(
@@ -346,7 +346,11 @@ void registerChatScreenBasicsTests() {
 
     await tester.tap(find.byIcon(Icons.tune_rounded));
     await settleOverlayTransition(tester);
-    expect(find.text('当前会话缓存命中率：暂无数据'), findsOneWidget);
+    await tester.tap(find.text('总 Token —'));
+    await settleOverlayTransition(tester);
+    expect(find.textContaining('缓存命中率：—'), findsOneWidget);
+    await tester.tap(find.text('关闭'));
+    await settleOverlayTransition(tester);
     expect(find.text('思考强度'), findsNothing);
     await tester.tap(find.text('深度思考'));
     await settleAnimatedWidgetTransition(tester);

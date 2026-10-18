@@ -21,7 +21,7 @@ class AgentRunUsage extends Equatable {
 
   AgentRunUsage addResponse(LlmUsage? reported) => AgentRunUsage(
     modelCalls: modelCalls,
-    tokens: _sumTokens(tokens, reported),
+    tokens: reported == null ? tokens : tokens?.add(reported) ?? reported,
     incomplete:
         incomplete ||
         reported?.inputTokens == null ||
@@ -31,26 +31,12 @@ class AgentRunUsage extends Equatable {
   AgentRunUsage add(AgentRunUsage other, {required bool completed}) =>
       AgentRunUsage(
         modelCalls: modelCalls + other.modelCalls,
-        tokens: _sumTokens(tokens, other.tokens),
+        tokens: other.tokens == null
+            ? tokens
+            : tokens?.add(other.tokens!) ?? other.tokens,
         incomplete: incomplete || other.incomplete || !completed,
       );
 
   @override
   List<Object?> get props => [modelCalls, tokens, incomplete];
-}
-
-LlmUsage? _sumTokens(LlmUsage? a, LlmUsage? b) {
-  if (b == null) return a;
-  int? sum(int? x, int? y) =>
-      x == null && y == null ? null : (x ?? 0) + (y ?? 0);
-  return LlmUsage(
-    inputTokens: sum(a?.inputTokens, b.inputTokens),
-    outputTokens: sum(a?.outputTokens, b.outputTokens),
-    reasoningTokens: sum(a?.reasoningTokens, b.reasoningTokens),
-    cachedInputTokens: sum(a?.cachedInputTokens, b.cachedInputTokens),
-    cacheWriteInputTokens: sum(
-      a?.cacheWriteInputTokens,
-      b.cacheWriteInputTokens,
-    ),
-  );
 }

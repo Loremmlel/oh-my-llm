@@ -7,7 +7,6 @@ import 'package:oh_my_llm/core/http/llm_http_stream_transport.dart';
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/core/llm/llm_reasoning_effort.dart';
 import 'package:oh_my_llm/core/llm/llm_request.dart';
-import 'package:oh_my_llm/core/llm/llm_usage.dart';
 import 'package:oh_my_llm/core/llm/protocols/responses/responses_client.dart';
 import 'package:oh_my_llm/core/logging/network_logger.dart';
 import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
@@ -494,13 +493,13 @@ void main() {
 
       expect(chunks.map((chunk) => chunk.contentDelta).join(), '你好');
       expect(
-        chunks.last.usage,
-        const LlmUsage(
-          inputTokens: 10,
-          outputTokens: 20,
-          reasoningTokens: 5,
-          cachedInputTokens: 3,
-          cacheWriteInputTokens: 0,
+        chunks.last.usage?.toJson(),
+        allOf(
+          containsPair('inputTokens', 10),
+          containsPair('outputTokens', 20),
+          containsPair('reasoningTokens', 5),
+          containsPair('cachedInputTokens', 3),
+          containsPair('cacheWriteInputTokens', 0),
         ),
       );
     });

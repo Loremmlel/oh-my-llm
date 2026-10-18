@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:oh_my_llm/core/llm/llm_content.dart';
+import 'package:oh_my_llm/core/llm/llm_usage.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
 import 'package:oh_my_llm/core/persistence/sqlite_json_history.dart';
 import 'package:oh_my_llm/core/utils/id_generator.dart';
@@ -16,6 +17,31 @@ class SqliteAgentStore implements AgentStore {
   SqliteAgentStore(this.database);
   final AppDatabase database;
   late final _histories = SqliteJsonHistory(database.connection);
+
+  @override
+  Map<String, AgentRunUsage> readRunUsages(String workspaceId) {
+    final usages = <String, AgentRunUsage>{};
+    for (final row in database.connection.select(
+      "SELECT id, status, CASE WHEN json_type(record_json, '\$.usage') = 'object' THEN json_extract(record_json, '\$.usage') END AS usage, json_extract(record_json, '\$.modelCalls') AS calls, json_extract(record_json, '\$.usageIncomplete') AS incomplete FROM agent_runs WHERE workspace_id = ?;",
+      [workspaceId],
+    )) {
+      final calls = switch (row['calls']) {
+        final int count when count >= 0 => count,
+        _ => null,
+      };
+      usages[row['id'] as String] = AgentRunUsage(
+        modelCalls: calls ?? 0,
+        tokens: LlmUsage.fromJson(
+          row['usage'] == null ? null : jsonDecode(row['usage'] as String),
+        ),
+        incomplete:
+            calls == null ||
+            row['incomplete'] == 1 ||
+            calls > 0 && row['status'] != 'completed',
+      );
+    }
+    return usages;
+  }
 
   Map<String, dynamic> _readRecord(
     String workspaceId,

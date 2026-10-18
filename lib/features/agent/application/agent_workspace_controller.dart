@@ -5,6 +5,7 @@ import 'package:oh_my_llm/core/utils/id_generator.dart';
 import 'package:oh_my_llm/core/llm/llm_client.dart';
 import 'package:oh_my_llm/core/llm/llm_content.dart';
 import 'package:oh_my_llm/core/llm/llm_history_conversion.dart';
+import 'package:oh_my_llm/core/llm/llm_usage_summary.dart';
 
 import '../domain/agent_models.dart';
 import '../domain/agent_context_batch.dart';
@@ -102,6 +103,27 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
   AgentWorkspace? _pendingDraft;
   final _unsavedRuns = <AgentRunRecord>[];
   AgentWorkspace? _unsavedWorkspace;
+  Map<String, AgentRunUsage> _savedUsages = const {};
+
+  LlmUsageSummary get usageSummary {
+    final usages =
+        {
+          ..._savedUsages,
+          for (final run in state.runs)
+            run.id: run.usage.add(
+              const AgentRunUsage(),
+              completed: run.status == AgentRunStatus.completed,
+            ),
+        }.values.where(
+          (usage) =>
+              usage.modelCalls > 0 || usage.tokens != null || usage.incomplete,
+        );
+    return LlmUsageSummary.fromUsages(
+      usages.map((usage) => usage.tokens),
+      incomplete: usages.any((usage) => usage.incomplete),
+    );
+  }
+
   @override
   AgentWorkspaceState build() {
     _store = ref.read(agentStoreProvider);
@@ -122,6 +144,9 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
       final selected = workspaces.isEmpty
           ? null
           : _store.loadWorkspace(workspaces.first.id);
+      _savedUsages = selected == null
+          ? const {}
+          : _store.readRunUsages(selected.id);
       return AgentWorkspaceState(
         workspaces: workspaces,
         workspace: selected,
@@ -533,6 +558,7 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
   });
   void _load(String id) {
     final workspace = _store.loadWorkspace(id);
+    _savedUsages = workspace == null ? const {} : _store.readRunUsages(id);
     state = AgentWorkspaceState(
       workspaces: _store.listWorkspaces(),
       workspace: workspace,

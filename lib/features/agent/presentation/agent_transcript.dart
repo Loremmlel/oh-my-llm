@@ -8,6 +8,7 @@ import 'package:flutter_smooth_markdown/flutter_smooth_markdown.dart'
 import 'package:go_router/go_router.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 import 'package:oh_my_llm/core/widgets/reading_markdown_style.dart';
+import 'package:oh_my_llm/core/widgets/llm_usage_widgets.dart';
 
 import '../domain/agent_models.dart';
 import '../domain/agent_story_state.dart';
@@ -274,6 +275,18 @@ class _RunTranscriptState extends State<_RunTranscript> {
                   _AgentMarkdown(
                     content: widget.round?.document.content ?? record.content,
                   ),
+                  if (record.steps
+                          .where(
+                            (step) =>
+                                step.kind == AgentStepKind.model &&
+                                step.content ==
+                                    (widget.round?.document.content ??
+                                        record.content),
+                          )
+                          .lastOrNull
+                          ?.usage
+                      case final usage?)
+                    LlmReplyUsage(usage: usage),
                 ],
               ),
             ),
@@ -436,6 +449,7 @@ class _StepView extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
               child: _AgentMarkdown(content: step.content),
             ),
+          if (step.usage != null) LlmReplyUsage(usage: step.usage!),
         ],
       ),
     );

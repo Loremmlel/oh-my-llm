@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 import 'package:oh_my_llm/core/theme/app_ui_colors.dart';
+import 'package:oh_my_llm/core/widgets/llm_usage_widgets.dart';
 import 'package:oh_my_llm/core/widgets/notification_bubble/notification_bubble_context_ext.dart';
 
 import '../../../../domain/chat_word_counter.dart';
@@ -428,38 +429,7 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
   }
 
   Widget _buildTokenUsageRow(ThemeData theme, ChatMessage message) {
-    final usage = message.tokenUsage!;
-    final values = <(String, int?)>[
-      ('输入', usage.inputTokens),
-      ('缓存命中', usage.cachedInputTokens),
-      ('缓存写入', usage.cacheWriteInputTokens),
-      ('输出', usage.outputTokens),
-    ].where((entry) => entry.$2 != null).toList(growable: false);
-    final style = theme.textTheme.bodySmall?.copyWith(
-      color: theme.colorScheme.onSurfaceVariant,
-    );
-    return Padding(
-      padding: EdgeInsets.zero,
-      child: Wrap(
-        spacing: 6,
-        runSpacing: 2,
-        children: [
-          for (var index = 0; index < values.length; index++)
-            Text(
-              '${index == 0 ? '' : '· '}${values[index].$1} '
-              '${_formatTokenCount(values[index].$2!)}',
-              style: style,
-            ),
-        ],
-      ),
-    );
-  }
-
-  String _formatTokenCount(int value) {
-    return value.toString().replaceAllMapped(
-      RegExp(r'\B(?=(\d{3})+(?!\d))'),
-      (_) => ',',
-    );
+    return LlmReplyUsage(usage: message.tokenUsage!);
   }
 
   /// 推理字数在折叠标题显示，底部只记录回复字数。

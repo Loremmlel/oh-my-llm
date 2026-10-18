@@ -164,6 +164,9 @@ class ChatTextGenerationAdapter extends ChatGenerationClient {
       )) {
         if (event is LlmCompleted) {
           diagnosticBody = event.result.diagnosticBody;
+          if (event.usage != null) {
+            yield ChatGenerationChunk(usage: event.usage);
+          }
           continue;
         }
         final split = splitInlineReasoning
