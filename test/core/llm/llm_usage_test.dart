@@ -51,4 +51,10 @@ void main() {
       expect(missing.tokensPerSecond, isNull);
     }
   });
+
+  test('未缓存输入对负数和零输入归零，未知输入保持未知', () {
+    expect(const LlmUsage(inputTokens: -1).uncachedInputTokens, 0);
+    expect(const LlmUsage(inputTokens: 0).uncachedInputTokens, 0);
+    expect(const LlmUsage().uncachedInputTokens, isNull);
+  });
 }

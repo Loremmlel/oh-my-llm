@@ -44,6 +44,7 @@ abstract interface class AgentStore {
   });
 
   /// 只读全作品的调用用量，不受时间线分页限制，也不加载正文和输入历史。
+  /// 统计字段异常时保留已报告 Token 并标记不完整，不修改原始记录。
   Map<String, AgentRunUsage> readRunUsages(String workspaceId);
   AgentRunRecord? loadRun(String workspaceId, String runId);
   List<AgentRunRecord> listChildRuns(String workspaceId, String parentId);

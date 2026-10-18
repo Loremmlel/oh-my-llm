@@ -106,14 +106,18 @@ class AgentWorkspaceController extends Notifier<AgentWorkspaceState> {
   Map<String, AgentRunUsage> _savedUsages = const {};
 
   LlmUsageSummary get usageSummary {
-    final usages = {
-      ..._savedUsages,
-      for (final run in state.runs)
-        run.id: run.usage.add(
-          const AgentRunUsage(),
-          completed: run.status == AgentRunStatus.completed,
-        ),
-    }.values.where((usage) => usage.modelCalls > 0);
+    final usages =
+        {
+          ..._savedUsages,
+          for (final run in state.runs)
+            run.id: run.usage.add(
+              const AgentRunUsage(),
+              completed: run.status == AgentRunStatus.completed,
+            ),
+        }.values.where(
+          (usage) =>
+              usage.modelCalls > 0 || usage.tokens != null || usage.incomplete,
+        );
     return LlmUsageSummary.fromUsages(
       usages.map((usage) => usage.tokens),
       incomplete: usages.any((usage) => usage.incomplete),

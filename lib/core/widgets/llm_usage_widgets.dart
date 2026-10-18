@@ -25,6 +25,9 @@ class LlmReplyUsage extends StatelessWidget {
       ('缓存写入', usage.cacheWriteInputTokens),
       ('输出', usage.outputTokens),
     ].where((entry) => entry.$2 != null);
+    if (values.isEmpty && usage.tokensPerSecond == null) {
+      return const SizedBox.shrink();
+    }
     final labels = [
       for (final (label, value) in values) '$label ${_tokenCount(value)}',
       'TPS ${usage.tokensPerSecond?.toStringAsFixed(1) ?? '—'}',

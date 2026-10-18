@@ -30,9 +30,12 @@ class LlmUsage extends Equatable {
             outputDuration!.inMicroseconds;
 
   /// 缓存写入属于本次未命中缓存的输入，不再额外加入总量。
-  int? get uncachedInputTokens => inputTokens == null
-      ? null
-      : (inputTokens! - (cachedInputTokens ?? 0)).clamp(0, inputTokens!);
+  int? get uncachedInputTokens {
+    final input = inputTokens;
+    if (input == null) return null;
+    if (input <= 0) return 0;
+    return (input - (cachedInputTokens ?? 0)).clamp(0, input);
+  }
 
   int? get totalTokens => inputTokens == null && outputTokens == null
       ? null
