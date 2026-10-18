@@ -6,16 +6,14 @@ import 'package:oh_my_llm/features/agent/domain/agent_models.dart';
 import 'package:oh_my_llm/features/agent/domain/agent_story_state.dart';
 import 'package:oh_my_llm/features/agent/presentation/agent_story_panel.dart';
 
-import '../../../helpers/async/widget_test_animation.dart';
-
 void main() {
-  testWidgets('数百楼正文按需读取，滚动后可展开原文和继续浏览轮次历史', (tester) async {
+  testWidgets('正文按需读取，滚动后可展开原文和继续浏览轮次历史', (tester) async {
     var reads = 0;
     final workspace = AgentWorkspace(id: 'novel', title: '长篇');
     final state = AgentWorkspaceState(
       workspace: workspace,
       storyRounds: [
-        for (var i = 299; i >= 0; i--)
+        for (var i = 59; i >= 0; i--)
           AgentStoryRound(
             id: 'round-$i',
             beforeWorkspace: workspace,
@@ -36,26 +34,26 @@ void main() {
     );
     await tester.pump();
     expect(reads, lessThan(20), reason: '屏幕外的正文不应为了创建折叠条目而全部读取');
-    await tester.scrollUntilVisible(find.text('第 299 楼'), 3000, maxScrolls: 20);
-    await tester.tap(find.widgetWithText(ExpansionTile, '第 299 楼'));
-    await settleAnimatedWidgetTransition(tester);
+    await tester.scrollUntilVisible(find.text('第 59 楼'), 3000, maxScrolls: 20);
+    await tester.tap(find.widgetWithText(ExpansionTile, '第 59 楼'));
+    await tester.pumpAndSettle();
     expect(
-      find.textContaining('这是第 299 楼的原文', findRichText: true),
+      find.textContaining('这是第 59 楼的原文', findRichText: true),
       findsWidgets,
     );
     await tester.scrollUntilVisible(find.text('轮次历史').hitTestable(), 300);
     await tester.tap(find.text('轮次历史'));
-    await settleAnimatedWidgetTransition(tester);
+    await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.text('加载更多轮次').hitTestable(), 300);
     await tester.pump();
     await tester.tap(find.text('加载更多轮次'));
     await tester.pump();
-    expect(find.text('第 260 楼'), findsOneWidget);
+    expect(find.text('第 20 楼'), findsOneWidget);
     await tester.scrollUntilVisible(
-      find.widgetWithText(ListTile, '第 260 楼').hitTestable(),
+      find.widgetWithText(ListTile, '第 20 楼').hitTestable(),
       300,
     );
-    expect(find.widgetWithText(ListTile, '第 260 楼'), findsOneWidget);
+    expect(find.widgetWithText(ListTile, '第 20 楼'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

@@ -92,7 +92,7 @@ void registerChatScreenStreamingTests() {
     expect(find.textContaining('这是最终回复'), findsWidgets);
 
     tester.semantics.tap(reasoningExpand);
-    await settleAnimatedWidgetTransition(tester);
+    await tester.pumpAndSettle();
 
     expect(find.text('这是思考过程'), findsOneWidget);
   });
@@ -208,7 +208,7 @@ void registerChatScreenStreamingTests() {
       (state) => state.generation?.phase == ChatGenerationPhase.cancelled,
       description: '确认终止后生成完成',
     );
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.textContaining('已生成部分'), findsWidgets);
     expect(find.byTooltip('发送'), findsOneWidget);
     expect(fakeClient.requestHistory, hasLength(1));

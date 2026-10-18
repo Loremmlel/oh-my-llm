@@ -8,7 +8,6 @@ import 'package:oh_my_llm/features/chat/domain/chat_error_messages.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
 import 'package:oh_my_llm/features/chat/presentation/widgets/messages/bubble/chat_message_bubble.dart';
 
-import '../../../../helpers/async/widget_test_animation.dart';
 import 'chat_screen_test_helpers.dart';
 
 void registerChatScreenBranchingTests() {
@@ -120,7 +119,7 @@ void registerChatScreenBranchingTests() {
         matching: find.byTooltip('编辑消息'),
       ),
     );
-    await settleAnimatedWidgetTransition(tester);
+    await tester.pumpAndSettle();
     await sendMessage(tester, '编辑后的用户1');
     await waitForChatGeneration(
       tester,
@@ -168,16 +167,16 @@ void registerChatScreenBranchingTests() {
       description: '删除场景重试生成完成',
     );
     await tester.tap(find.byTooltip('消息操作').last);
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('删除消息'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
 
     expect(find.text('删除哪个范围？'), findsOneWidget);
     expect(find.widgetWithText(TextButton, '删除当前分支'), findsOneWidget);
     expect(find.widgetWithText(TextButton, '删除全部版本'), findsOneWidget);
 
     await tester.tap(find.widgetWithText(TextButton, '删除当前分支'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
 
     expect(find.textContaining('首次回复'), findsWidgets);
     expect(find.textContaining('重试后回复'), findsNothing);
@@ -191,11 +190,11 @@ void registerChatScreenBranchingTests() {
     );
     expect(find.text('2/2'), findsOneWidget);
     await tester.tap(find.byTooltip('消息操作').last);
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('删除消息'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(TextButton, '删除全部版本'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
 
     expect(find.textContaining('首次回复'), findsNothing);
     expect(find.textContaining('重试后回复'), findsNothing);

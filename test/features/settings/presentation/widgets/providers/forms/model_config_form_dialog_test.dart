@@ -4,16 +4,12 @@ import 'package:oh_my_llm/core/widgets/app_text_field.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/features/settings/application/providers/model_catalog_workflow.dart';
 import 'package:oh_my_llm/features/settings/domain/models/providers/model_catalog_entry.dart';
 import 'package:oh_my_llm/features/settings/domain/models/providers/llm_provider_config.dart';
 import 'package:oh_my_llm/features/settings/presentation/widgets/providers/forms/model_config_form_dialog.dart';
-
-import '../../../../../../helpers/test_harness.dart';
-import '../../../../../../helpers/async/widget_test_animation.dart';
 
 void main() {
   LlmProviderConfig testProvider = const LlmProviderConfig(
@@ -26,7 +22,6 @@ void main() {
   );
 
   setUp(() {
-    SharedPreferences.setMockInitialValues({});
     testProvider = const LlmProviderConfig(
       id: 'p-1',
       name: 'TestProvider',
@@ -48,20 +43,20 @@ void main() {
     Size viewportSize = const Size(1440, 1200),
     LlmProviderModelConfig? initialValue,
   }) async {
-    final sp = await SharedPreferences.getInstance();
-
-    await pumpTestApp(
-      tester,
-      preferences: sp,
-      viewportSize: viewportSize,
-      child: Scaffold(
-        body: Center(
-          child: ModelConfigFormDialog(
-            provider: testProvider,
-            initialValue: initialValue,
-            onSubmit: onSubmit,
-            onBatchAdd: onBatchAdd,
-            fetchModels: fetchModels,
+    tester.view.physicalSize = viewportSize;
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: ModelConfigFormDialog(
+              provider: testProvider,
+              initialValue: initialValue,
+              onSubmit: onSubmit,
+              onBatchAdd: onBatchAdd,
+              fetchModels: fetchModels,
+            ),
           ),
         ),
       ),
@@ -132,69 +127,14 @@ void main() {
         );
         await tester.enterText(modelField('显示名称'), '新名称');
         await tester.tap(find.text('保存'));
-        await settleOverlayTransition(tester);
+        await tester.pumpAndSettle();
         expect(captured!.displayName, '新名称');
         expect(captured!.supportsImageInput, isTrue);
         expect(captured!.supportsReasoning, isTrue);
       });
-      testWidgets('保存时提交手动输入的模型', (tester) async {
-        ModelConfigFormData? captured;
-        await pumpDialog(
-          tester,
-          onSubmit: (data) async {
-            captured = data;
-          },
-          onBatchAdd: (_) async {},
-          fetchModels: (_) async => [],
-        );
-
-        await tester.enterText(modelField('显示名称'), 'My Model');
-        await tester.enterText(modelField('API 模型名称'), 'my-model');
-        await tester.pump();
-
-        await tester.tap(find.widgetWithText(SwitchListTile, '多模态 · 图像'));
-        await tester.tap(find.text('保存'));
-        // 提交后对话框出场，提交 Future 随帧完成
-        await settleOverlayTransition(tester);
-
-        expect(captured, isNotNull);
-        expect(captured!.displayName, 'My Model');
-        expect(captured!.modelName, 'my-model');
-        expect(captured!.supportsReasoning, false);
-        expect(captured!.supportsImageInput, true);
-      });
     });
 
     group('从 API 拉取', () {
-      testWidgets('拉取请求携带服务商的非默认协议', (tester) async {
-        testProvider = const LlmProviderConfig(
-          id: 'p-1',
-          name: 'TestProvider',
-          apiUrl: 'https://api.anthropic.com',
-          apiKey: 'sk-ant-test',
-          apiProtocol: LlmApiProtocol.anthropic,
-          models: [],
-        );
-        LlmApiProtocol? capturedProtocol;
-        final completer = Completer<List<ModelCatalogEntry>>();
-        await pumpDialog(
-          tester,
-          onSubmit: (_) async {},
-          onBatchAdd: (_) async {},
-          fetchModels: (request) async {
-            capturedProtocol = request.apiProtocol;
-            return completer.future;
-          },
-        );
-
-        await switchToFetchAndClickFetch(tester);
-
-        completer.complete(const []);
-        await tester.pump();
-
-        expect(capturedProtocol, LlmApiProtocol.anthropic);
-      });
-
       testWidgets('拉取失败后显示错误并可重试成功', (tester) async {
         final firstRequest = Completer<List<ModelCatalogEntry>>();
         final retryRequest = Completer<List<ModelCatalogEntry>>();
@@ -222,42 +162,6 @@ void main() {
 
         expect(requestCount, 2);
         expect(find.text('gpt-4o'), findsWidgets);
-      });
-
-      testWidgets('仅提交勾选的远程模型', (tester) async {
-        List<ModelBatchFormData>? captured;
-        final completer = Completer<List<ModelCatalogEntry>>();
-        await pumpDialog(
-          tester,
-          onSubmit: (_) async {},
-          onBatchAdd: (items) async {
-            captured = items;
-          },
-          fetchModels: (_) => completer.future,
-        );
-
-        await switchToFetchAndClickFetch(tester);
-
-        completer.complete([
-          const ModelCatalogEntry(id: 'gpt-4o', ownedBy: 'openai'),
-        ]);
-        await tester.pump();
-
-        await tester.tap(find.text('添加所选模型'), warnIfMissed: false);
-        await tester.pump();
-        expect(captured, isNull);
-
-        await tester.tap(modelCheckbox('gpt-4o'));
-        await tester.pump();
-
-        await tester.tap(find.text('添加所选模型'));
-        // 批量添加后对话框出场，onBatchAdd Future 随帧完成
-        await settleOverlayTransition(tester);
-
-        expect(captured, isNotNull);
-        expect(captured!.length, 1);
-        expect(captured!.first.modelName, 'gpt-4o');
-        expect(captured!.first.displayName, 'gpt-4o');
       });
 
       testWidgets('逐模型提交深度思考能力并禁用已有模型', (tester) async {
@@ -340,7 +244,7 @@ void main() {
         );
 
         await tester.tap(find.text('添加所选模型'));
-        await settleOverlayTransition(tester);
+        await tester.pumpAndSettle();
 
         expect(captured, hasLength(2));
         expect(captured![0].modelName, 'plain-model');

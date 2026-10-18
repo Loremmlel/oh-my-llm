@@ -13,7 +13,6 @@ import 'package:oh_my_llm/features/agent/presentation/agent_screen.dart';
 
 import '../../../helpers/fixtures.dart';
 import '../../../helpers/test_harness.dart';
-import '../../../helpers/async/widget_test_animation.dart';
 import '../agent_test_helpers.dart';
 
 void main() {
@@ -54,10 +53,10 @@ void main() {
     );
     expect(find.text('重试'), findsOneWidget);
     await tester.tap(find.text('重试'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.textContaining('不保留版本'), findsOneWidget);
     await tester.tap(find.text('取消'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(client.requests, isEmpty);
     expect(store.loadRun('novel', 'run-1')!.content, '回复 1');
 
@@ -74,12 +73,12 @@ void main() {
     });
     addTearDown(subscription.close);
     await tester.tap(find.text('重试'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('重试并覆盖'));
     await tester.runAsync(
       () => started.future.timeout(const Duration(seconds: 10)),
     );
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('重试'));
     await tester.pump();
     expect(find.text('重试最新回复？'), findsNothing);

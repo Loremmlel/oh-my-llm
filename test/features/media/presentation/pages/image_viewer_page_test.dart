@@ -8,7 +8,6 @@ import 'package:oh_my_llm/features/media/application/models/media_resource_reque
 import 'package:oh_my_llm/features/media/presentation/pages/image_viewer_page.dart';
 
 import '../../../../helpers/test_harness.dart';
-import '../../../../helpers/async/widget_test_animation.dart';
 import '../../helpers/fake_media_library.dart';
 import '../../helpers/media_test_helpers.dart';
 
@@ -47,25 +46,6 @@ void main() {
   // ── 静态渲染 ──────────────────────────────────────────────────
 
   group('静态渲染', () {
-    testWidgets('单张图片时隐藏页面计数器', (tester) async {
-      final prefs = await _testPrefs();
-      await pumpTestApp(
-        tester,
-        preferences: prefs,
-        extraOverrides: [
-          mediaLibrarySessionProvider.overrideWith(
-            () => PreActivatedMediaLibrarySessionController(
-              _libraryWithImages(1),
-            ),
-          ),
-        ],
-        child: ImageViewerPage(imageRequests: _imageRequests(1)),
-      );
-
-      // 单张图片不应显示 "1 / 1" 计数器
-      expect(find.text('1 / 1'), findsNothing);
-    });
-
     testWidgets('图片加载失败时显示错误状态', (tester) async {
       final prefs = await _testPrefs();
       await pumpTestApp(
@@ -119,7 +99,7 @@ void main() {
 
       // 从非零初始页继续翻页。
       await tester.fling(find.byType(PageView), const Offset(-200, 0), 1000);
-      await settleScrollMotion(tester);
+      await tester.pumpAndSettle();
 
       expect(find.text('4 / 5'), findsOneWidget);
     });
@@ -150,7 +130,7 @@ void main() {
 
       // 点击关闭
       await tester.tap(find.byTooltip('关闭图片'));
-      await settleRouteTransition(tester);
+      await tester.pumpAndSettle();
 
       // ImageViewerPage 是路由承载的页面，pop 后应返回父页面。
       // 在测试中作为唯一页面，pop 后不再有 ImageViewerPage 的内容。

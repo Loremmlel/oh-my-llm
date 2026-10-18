@@ -14,7 +14,6 @@ import 'package:oh_my_llm/features/agent/presentation/agent_transcript.dart';
 
 import '../../../helpers/test_harness.dart';
 import '../../../helpers/fixtures.dart';
-import '../../../helpers/async/widget_test_animation.dart';
 
 void main() {
   testWidgets('已完成模型步骤按需展开且采用正文始终可读', (tester) async {
@@ -62,7 +61,7 @@ void main() {
     expect(find.text('中间候选稿'), findsNothing);
     expect(find.text('正式采用正文'), findsOneWidget);
     await tester.tap(find.text('撰写正文'));
-    await settleAnimatedWidgetTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.text('中间候选稿'), findsOneWidget);
     expect(find.text('· TPS 15.0'), findsOneWidget);
     expect(find.text('正式采用正文'), findsOneWidget);
@@ -158,7 +157,7 @@ void main() {
       ),
     );
     await tester.tap(find.text('编辑'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     final name = find.widgetWithText(AppTextField, '文档名');
     final body = find.widgetWithText(AppTextField, '正文');
     expect(
@@ -166,25 +165,25 @@ void main() {
       List.filled(100, '校园设定').join('\n'),
     );
     await tester.tap(find.text('取消'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.text('放弃未保存的修改？'), findsNothing);
     expect(find.text('编辑文档'), findsNothing);
     expect(store.readDocument('w', '世界书'), document);
 
     await tester.tap(find.text('编辑'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await tester.drag(body, const Offset(0, -180));
     await tester.pump();
     expect(name.hitTestable(), findsOneWidget);
     expect(find.text('保存').hitTestable(), findsOneWidget);
     tester.view.viewInsets = const FakeViewPadding(bottom: 280);
     addTearDown(tester.view.resetViewInsets);
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.text('保存').hitTestable(), findsOneWidget);
     expect(body.hitTestable(), findsOneWidget);
     await tester.enterText(body, '新的校园设定');
     await tester.tap(find.text('保存'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(store.readDocument('w', '世界书')!.content, '新的校园设定');
     expect(store.listDocuments('w'), hasLength(1));
     expect(tester.takeException(), isNull);

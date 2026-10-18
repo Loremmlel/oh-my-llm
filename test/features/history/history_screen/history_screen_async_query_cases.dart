@@ -2,11 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/features/chat/application/history/history_pagination_controller.dart';
-import 'package:oh_my_llm/features/chat/application/ports/history_page_query.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation_summary.dart';
 import 'package:oh_my_llm/features/history/presentation/history_screen.dart';
 
-import '../../../helpers/async/widget_test_animation.dart';
 import 'history_screen_test_helpers.dart';
 
 ChatConversationSummary summary(String id, String title) =>
@@ -55,18 +53,6 @@ Finder _searchField() => find.byWidgetPredicate(
 );
 
 void registerHistoryScreenAsyncQueryTests() {
-  testWidgets('查询未完成时 loading 动画可 pump 且搜索输入仍可编辑', (tester) async {
-    final env = await pumpControllableHistoryScreen(tester);
-
-    expect(env.query.pendingCount, 1);
-    expect(find.byType(CircularProgressIndicator), findsOneWidget);
-
-    final searchField = _searchField();
-    await tester.enterText(searchField, '关键词');
-    await tester.pump();
-    expect(find.text('关键词'), findsOneWidget);
-  });
-
   testWidgets('搜索成功前 URL 保持旧值，成功后才 replace', (tester) async {
     final env = await pumpControllableHistoryScreen(tester);
     await _completeAndSettle(
@@ -194,7 +180,7 @@ void registerHistoryScreenAsyncQueryTests() {
     expect(env.query.pendingCount, 1);
 
     env.router.go('/chat');
-    await settleRouteTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.text('聊天落点'), findsOneWidget);
 
     // History 页已卸载：迟到的初始结果提交进 controller，不触碰路由。
@@ -208,43 +194,5 @@ void registerHistoryScreenAsyncQueryTests() {
 
     expect(find.text('聊天落点'), findsOneWidget);
     expect(env.router.routerDelegate.state.uri.path, '/chat');
-  });
-
-  testWidgets('深链 q/page/pageSize 在异步完成信号后恢复', (tester) async {
-    final env = await pumpControllableHistoryScreen(tester);
-    await _completeAndSettle(
-      tester,
-      env,
-      0,
-      items: [summary('a', '种子')],
-      totalItems: 1,
-    );
-
-    env.router.go('/history?q=Rust&page=2&pageSize=10');
-    await tester.pump();
-    await tester.pump();
-
-    expect(
-      env.query.requests.last,
-      isA<HistoryPageRequest>()
-          .having((r) => r.keyword, 'keyword', 'Rust')
-          .having((r) => r.requestedPage, 'requestedPage', 2)
-          .having((r) => r.pageSize, 'pageSize', 10),
-    );
-
-    await _completeAndSettle(
-      tester,
-      env,
-      1,
-      items: [summary('a', 'Rust 第二页')],
-      totalItems: 15,
-      committedPage: 2,
-    );
-
-    final uri = env.router.routerDelegate.state.uri;
-    expect(uri.queryParameters['q'], 'Rust');
-    expect(uri.queryParameters['page'], '2');
-    expect(uri.queryParameters['pageSize'], '10');
-    expect(find.text('Rust 第二页'), findsOneWidget);
   });
 }

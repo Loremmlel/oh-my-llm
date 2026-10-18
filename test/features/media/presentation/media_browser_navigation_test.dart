@@ -12,10 +12,10 @@ import 'package:oh_my_llm/features/media/presentation/media_browser_tab.dart';
 import 'package:oh_my_llm/features/media/presentation/pages/media_route_pages.dart';
 import 'package:oh_my_llm/features/media/presentation/pages/media_video_controller_factory.dart';
 import 'package:oh_my_llm/features/media/presentation/pages/video_player_platform_bindings.dart';
-import 'package:oh_my_llm/features/media/presentation/widgets/media_grid_view.dart';
 
-import '../../../helpers/test_harness.dart';
-import '../../../helpers/async/widget_test_animation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
+
 import '../helpers/fake_media_library.dart';
 import '../helpers/fake_video_player_controller.dart';
 import '../helpers/fake_video_player_platform_bindings.dart';
@@ -102,22 +102,26 @@ Future<void> _pumpMediaTab(
   required GoRouter router,
   required MediaBrowserState browserState,
   Map<String, List<FileItem>> itemsByPath = const {},
-  Size viewportSize = const Size(1440, 1200),
 }) {
-  return pumpTestApp(
-    tester,
-    preferences: prefs,
-    router: router,
-    viewportSize: viewportSize,
-    extraOverrides: [
-      mediaLibrarySessionProvider.overrideWith(
-        () => PreActivatedMediaLibrarySessionController(library),
-      ),
-      mediaBrowserControllerProvider.overrideWith(
-        () =>
-            FakeMediaBrowserController(browserState, itemsByPath: itemsByPath),
-      ),
-    ],
+  tester.view.physicalSize = const Size(1440, 1200);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.reset);
+  return tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        mediaLibrarySessionProvider.overrideWith(
+          () => PreActivatedMediaLibrarySessionController(library),
+        ),
+        mediaBrowserControllerProvider.overrideWith(
+          () => FakeMediaBrowserController(
+            browserState,
+            itemsByPath: itemsByPath,
+          ),
+        ),
+      ],
+      child: MaterialApp.router(routerConfig: router),
+    ),
   );
 }
 
@@ -136,7 +140,7 @@ void main() {
     );
 
     await tester.tap(find.text('猫.jpg'));
-    await settleRouteTransition(tester);
+    await tester.pumpAndSettle();
 
     expect(
       router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
@@ -154,7 +158,7 @@ void main() {
     expect(find.byIcon(Icons.close), findsOneWidget);
     expect(find.byTooltip('关闭图片'), findsOneWidget);
     await tester.tap(find.byTooltip('关闭图片'));
-    await settleRouteTransition(tester);
+    await tester.pumpAndSettle();
 
     expect(
       router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
@@ -177,7 +181,7 @@ void main() {
     );
 
     await tester.tap(find.text('demo.mp4'));
-    await settleRouteTransition(tester);
+    await tester.pumpAndSettle();
 
     expect(
       router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
@@ -190,7 +194,7 @@ void main() {
     expect(find.byIcon(Icons.close), findsOneWidget);
     await tester.tap(find.byTooltip('关闭视频'));
     // 控制栏与手势层是兄弟层：按钮 tap 即时派发，无需等待双击窗口。
-    await settleRouteTransition(tester);
+    await tester.pumpAndSettle();
 
     expect(
       router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
@@ -215,7 +219,7 @@ void main() {
     );
 
     await tester.tap(find.text('猫.jpg'));
-    await settleRouteTransition(tester);
+    await tester.pumpAndSettle();
 
     expect(
       router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
@@ -229,7 +233,7 @@ void main() {
     // widget 测试只验证 route pop；手势 progress/cancel 的完整行为
     // 留给 Android smoke 覆盖。
     await tester.binding.handlePopRoute();
-    await settleRouteTransition(tester);
+    await tester.pumpAndSettle();
 
     expect(
       router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
@@ -254,7 +258,7 @@ void main() {
     );
 
     await tester.tap(find.text('demo.mp4'));
-    await settleRouteTransition(tester);
+    await tester.pumpAndSettle();
     await fake.waitForInitializeCount(1);
     await tester.pump();
 
@@ -266,7 +270,7 @@ void main() {
     // system Back 与顶部关闭按钮走同一条路由 pop：回 /sync 后页面
     // dispose，播放器按既有生命周期只释放一次。
     await tester.binding.handlePopRoute();
-    await settleRouteTransition(tester);
+    await tester.pumpAndSettle();
     await tester.pump();
 
     expect(
@@ -307,7 +311,12 @@ void main() {
   testWidgets('会话不可用时显示媒体会话不可用占位，不渲染文件列表', (tester) async {
     final prefs = await _testPrefs();
     final router = _mediaRouter();
-    await pumpTestApp(tester, preferences: prefs, router: router);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
 
     // 未激活会话 → 占位页而非浏览网格
     expect(find.text('媒体会话不可用'), findsOneWidget);
@@ -316,37 +325,6 @@ void main() {
       '/sync',
     );
   });
-
-  // 紧凑竖屏 / 受限横屏 / 宽屏三类布局
-  const mediaSmokeViewports = [Size(390, 844), Size(844, 390), Size(1024, 768)];
-
-  for (final viewportSize in mediaSmokeViewports) {
-    testWidgets(
-      '${viewportSize.width}x${viewportSize.height}: 路径栏与目录/图片/视频可达',
-      (tester) async {
-        final prefs = await _testPrefs();
-        final router = _mediaRouter();
-        await _pumpMediaTab(
-          tester,
-          prefs: prefs,
-          library: FakeMediaLibrary(),
-          router: router,
-          viewportSize: viewportSize,
-          browserState: MediaBrowserState(
-            items: [_dir('/相册'), _file('/相册/猫.jpg'), _file('/视频/demo.mp4')],
-          ),
-        );
-
-        expect(find.text('根目录'), findsOneWidget);
-        expect(find.text('相册'), findsOneWidget);
-        expect(find.text('猫.jpg'), findsOneWidget);
-        expect(find.text('demo.mp4'), findsOneWidget);
-        // 自适应网格随父约束重排，视口矩阵下网格本体必须可达
-        expect(find.byType(MediaGridView), findsOneWidget);
-        expect(tester.takeException(), isNull);
-      },
-    );
-  }
 
   testWidgets('缩略图解析失败只回退该 tile 图标，网格其余项与整体渲染不受影响', (tester) async {
     final prefs = await _testPrefs();

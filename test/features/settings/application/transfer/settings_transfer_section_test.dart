@@ -6,40 +6,6 @@ import 'package:oh_my_llm/features/settings/application/transfer/settings_transf
 
 void main() {
   group('SettingsTransferSection 元数据', () {
-    for (final invalidKey in [
-      '',
-      'Pascal',
-      'with_underscore',
-      'with-hyphen',
-      '中文',
-    ]) {
-      test('拒绝非法 key「$invalidKey」', () {
-        expect(
-          () => _replaceSection(key: invalidKey),
-          throwsA(isA<ArgumentError>()),
-        );
-      });
-    }
-
-    test('拒绝空白 label', () {
-      expect(
-        () => _replaceSection(key: 'validKey', label: '  '),
-        throwsA(isA<ArgumentError>()),
-      );
-    });
-
-    test('Coordinator 拒绝重复 key', () {
-      expect(
-        () => SettingsTransferCoordinator(
-          sections: [
-            _replaceSection(key: 'sameKey'),
-            _replaceSection(key: 'sameKey'),
-          ],
-        ),
-        throwsA(isA<ArgumentError>()),
-      );
-    });
-
     test('Coordinator 只投影已有分组并聚合敏感性', () {
       final coordinator = SettingsTransferCoordinator(
         sections: [

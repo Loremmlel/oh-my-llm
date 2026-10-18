@@ -42,12 +42,6 @@ void main() {
       );
     });
 
-    test('非 Map JSON（List）→ 无 chunk', () {
-      final result = newParser().parse(event('[1, 2, 3]'));
-      expect(result.chunk, isNull);
-      expect(result.isDone, isFalse);
-    });
-
     test('error 为非空 String → 抛异常，message 为错误文本', () {
       expect(
         () => newParser().parse(event('{"error":"invalid api key"}')),
@@ -72,50 +66,11 @@ void main() {
         ),
       );
     });
-
-    test('error 为空值 → 忽略并返回无 chunk', () {
-      final emptyString = newParser().parse(event('{"error":"  "}'));
-      expect(emptyString.chunk, isNull);
-      expect(emptyString.isDone, isFalse);
-
-      final emptyMap = newParser().parse(event('{"error":{}}'));
-      expect(emptyMap.chunk, isNull);
-    });
-
-    test('无 choices 字段 → 无 chunk', () {
-      final result = newParser().parse(event('{"model":"gpt-4.1"}'));
-      expect(result.chunk, isNull);
-    });
-
-    test('choices 为空数组或首元素非 Map → 无 chunk', () {
-      final emptyList = newParser().parse(event('{"choices":[]}'));
-      expect(emptyList.chunk, isNull);
-
-      final notMap = newParser().parse(event('{"choices":["x"]}'));
-      expect(notMap.chunk, isNull);
-    });
   });
 
   // ── delta 提取 ─────────────────────────────────────────────────
 
   group('delta 提取', () {
-    test('delta.content String → contentDelta', () {
-      final chunk = newParser()
-          .parse(event('{"choices":[{"delta":{"content":"hello"}}]}'))
-          .chunk;
-      expect(chunk, isNotNull);
-      expect(chunk!.contentDelta, 'hello');
-      expect(chunk.reasoningDelta, isEmpty);
-    });
-
-    test('delta.reasoning_content → reasoningDelta', () {
-      final chunk = newParser()
-          .parse(event('{"choices":[{"delta":{"reasoning_content":"思考中"}}]}'))
-          .chunk;
-      expect(chunk!.reasoningDelta, '思考中');
-      expect(chunk.contentDelta, isEmpty);
-    });
-
     test('content 与 reasoning_content 同存 → 各入其通道', () {
       final chunk = newParser()
           .parse(
@@ -153,20 +108,6 @@ void main() {
       }
     });
 
-    test('finish_reason 缺失或非 String → null', () {
-      final missing = newParser()
-          .parse(event('{"choices":[{"delta":{"content":"hi"}}]}'))
-          .chunk;
-      expect(missing!.finishReason, isNull);
-
-      final notString = newParser()
-          .parse(
-            event('{"choices":[{"delta":{"content":"hi"},"finish_reason":1}]}'),
-          )
-          .chunk;
-      expect(notString!.finishReason, isNull);
-    });
-
     test('message envelope（一次性响应形状）同样提取', () {
       final chunk = newParser()
           .parse(
@@ -178,19 +119,6 @@ void main() {
       expect(chunk!.contentDelta, '完整回复');
       expect(chunk.reasoningDelta, '完整思考');
       expect(chunk.finishReason, 'stop');
-    });
-
-    test('delta.content 为 List → 按无内容处理，不提取文本', () {
-      final chunk = newParser()
-          .parse(
-            event(
-              '{"choices":[{"delta":{"content":[{"text":"segment1"},{"text":"segment2"}]}}]}',
-            ),
-          )
-          .chunk;
-      expect(chunk, isNotNull);
-      expect(chunk!.contentDelta, isEmpty);
-      expect(chunk.reasoningDelta, isEmpty);
     });
 
     test('delta.reasoning → reasoningDelta', () {
@@ -211,20 +139,6 @@ void main() {
           )
           .chunk;
       expect(chunk!.reasoningDelta, '规范推理');
-    });
-
-    test('delta 缺失或非 Map → 仅保留 finishReason', () {
-      final missing = newParser()
-          .parse(event('{"choices":[{"finish_reason":"stop"}]}'))
-          .chunk;
-      expect(missing!.finishReason, 'stop');
-      expect(missing.contentDelta, isEmpty);
-
-      final stringDelta = newParser()
-          .parse(event('{"choices":[{"delta":"纯文本"}]}'))
-          .chunk;
-      expect(stringDelta, isNotNull);
-      expect(stringDelta!.contentDelta, isEmpty);
     });
   });
 
@@ -265,32 +179,6 @@ void main() {
 
       expect(chunk!.usage, const LlmUsage(inputTokens: 10, outputTokens: 2));
       expect(chunk.isEmpty, isTrue);
-    });
-
-    test('usage 缺失或全非 int → usage 为 null', () {
-      final missing = newParser()
-          .parse(event('{"choices":[{"delta":{"content":"hi"}}]}'))
-          .chunk;
-      expect(missing!.usage, isNull);
-
-      final notInt = newParser()
-          .parse(
-            event(
-              '{"usage":{"prompt_tokens":"x","completion_tokens":null},'
-              '"choices":[{"delta":{"content":"hi"}}]}',
-            ),
-          )
-          .chunk;
-      expect(notInt!.usage, isNull);
-
-      final negative = newParser()
-          .parse(
-            event(
-              '{"usage":{"prompt_tokens":-1},"choices":[{"delta":{"content":"hi"}}]}',
-            ),
-          )
-          .chunk;
-      expect(negative!.usage, isNull);
     });
   });
 

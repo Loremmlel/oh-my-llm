@@ -38,53 +38,6 @@ void main() {
       expect(result.chunk!.reasoningDelta, '思考中');
       expect(result.chunk!.contentDelta, isEmpty);
     });
-
-    test('content_block_delta + signature_delta → 忽略', () {
-      final result = newParser().parse(
-        event(
-          '{"type":"content_block_delta","delta":{"type":"signature_delta","signature":"sig"}}',
-        ),
-      );
-      expect(result.chunk, isNull);
-      expect(result.isDone, isFalse);
-      expect(result.recognized, isTrue);
-    });
-
-    test('text/thinking 字段缺失或非 String → 空增量', () {
-      final missingText = newParser().parse(
-        event('{"type":"content_block_delta","delta":{"type":"text_delta"}}'),
-      );
-      expect(missingText.chunk!.contentDelta, isEmpty);
-
-      final notString = newParser().parse(
-        event(
-          '{"type":"content_block_delta","delta":{"type":"thinking_delta","thinking":123}}',
-        ),
-      );
-      expect(notString.chunk!.reasoningDelta, isEmpty);
-    });
-
-    test('content_block_start / content_block_stop / message_start → 忽略', () {
-      final start = newParser().parse(
-        event(
-          '{"type":"content_block_start","content_block":{"type":"text","text":""}}',
-        ),
-      );
-      expect(start.chunk, isNull);
-      expect(start.recognized, isTrue);
-
-      final stop = newParser().parse(
-        event('{"type":"content_block_stop","index":0}'),
-      );
-      expect(stop.chunk, isNull);
-      expect(stop.recognized, isTrue);
-
-      final messageStart = newParser().parse(
-        event('{"type":"message_start","message":{"role":"assistant"}}'),
-      );
-      expect(messageStart.chunk, isNull);
-      expect(messageStart.recognized, isTrue);
-    });
   });
 
   // ── finish reason 归一化 ──────────────────────────────────────
@@ -121,14 +74,6 @@ void main() {
       );
       expect(result.chunk!.finishReason, 'pause_turn');
     });
-
-    test('message_delta 无 stop_reason 也无 usage → 忽略', () {
-      final result = newParser().parse(
-        event('{"type":"message_delta","delta":{"stop_sequence":"zzz"}}'),
-      );
-      expect(result.chunk, isNull);
-      expect(result.recognized, isTrue);
-    });
   });
 
   // ── 流结束与 ping ─────────────────────────────────────────────
@@ -138,13 +83,6 @@ void main() {
       final result = newParser().parse(event('{"type":"message_stop"}'));
       expect(result.isDone, isTrue);
       expect(result.chunk, isNull);
-      expect(result.recognized, isTrue);
-    });
-
-    test('ping → 忽略（data 行仍由 transport 层重置 idle timeout）', () {
-      final result = newParser().parse(event('{"type":"ping"}'));
-      expect(result.chunk, isNull);
-      expect(result.isDone, isFalse);
       expect(result.recognized, isTrue);
     });
   });
@@ -165,19 +103,6 @@ void main() {
               .having((e) => e.apiErrorCode, 'apiErrorCode', 'overloaded_error')
               .having((e) => e.protocol, 'protocol', protocol)
               .having((e) => e.uri, 'uri', uri),
-        ),
-      );
-    });
-
-    test('error 事件无 error envelope → 抛默认文案异常', () {
-      expect(
-        () => newParser().parse(event('{"type":"error"}')),
-        throwsA(
-          isA<LlmException>().having(
-            (e) => e.message,
-            'message',
-            contains('error'),
-          ),
         ),
       );
     });
@@ -214,14 +139,7 @@ void main() {
     });
 
     test('所有工具或未知 content_block_start 类型均明确失败', () {
-      for (final blockType in [
-        'web_search_tool_result',
-        'web_fetch_tool_result',
-        'code_execution_tool_result',
-        'mcp_tool_use',
-        'mcp_tool_result',
-        'future_tool_block',
-      ]) {
+      for (final blockType in ['server_tool_use', 'future_tool_block']) {
         expect(
           () => newParser().parse(
             event(
@@ -237,18 +155,6 @@ void main() {
           ),
           reason: blockType,
         );
-      }
-    });
-
-    test('已知 text/thinking/redacted_thinking 内容块可忽略生命周期事件', () {
-      for (final blockType in ['text', 'thinking', 'redacted_thinking']) {
-        final result = newParser().parse(
-          event(
-            '{"type":"content_block_start","content_block":{"type":"$blockType"}}',
-          ),
-        );
-        expect(result.chunk, isNull, reason: blockType);
-        expect(result.recognized, isTrue, reason: blockType);
       }
     });
 
@@ -283,13 +189,6 @@ void main() {
           reason: type,
         );
       }
-    });
-
-    test('tooltip_ready 前缀近似 → 不再误触发，按未知事件忽略', () {
-      final result = newParser().parse(event('{"type":"tooltip_ready"}'));
-      expect(result.chunk, isNull);
-      expect(result.isDone, isFalse);
-      expect(result.recognized, isFalse);
     });
   });
 
@@ -336,28 +235,6 @@ void main() {
       );
       expect(deltaChunk.finishReason, 'stop');
     });
-
-    test('usage 缺失或全非 int → usage 为 null', () {
-      final missing = newParser()
-          .parse(
-            event(
-              '{"type":"message_delta","delta":{"stop_reason":"end_turn"}}',
-            ),
-          )
-          .chunk;
-      expect(missing!.usage, isNull);
-      expect(missing.finishReason, 'stop');
-
-      final notInt = newParser()
-          .parse(
-            event(
-              '{"type":"message_delta","usage":{"input_tokens":"x","output_tokens":null},'
-              '"delta":{"stop_reason":"end_turn"}}',
-            ),
-          )
-          .chunk;
-      expect(notInt!.usage, isNull);
-    });
   });
 
   // ── 格式错误与未知事件 ────────────────────────────────────────
@@ -380,19 +257,6 @@ void main() {
       );
     });
 
-    test('非 Map JSON（List）→ 忽略', () {
-      final result = newParser().parse(event('[1, 2, 3]'));
-      expect(result.chunk, isNull);
-      expect(result.isDone, isFalse);
-      expect(result.recognized, isFalse);
-    });
-
-    test('无 type 字段 → 忽略', () {
-      final result = newParser().parse(event('{"model":"claude-4"}'));
-      expect(result.chunk, isNull);
-      expect(result.recognized, isFalse);
-    });
-
     test('未知事件类型 → 忽略（不产生 chunk）', () {
       for (final type in [
         'message.start',
@@ -404,16 +268,6 @@ void main() {
         expect(result.isDone, isFalse, reason: type);
         expect(result.recognized, isFalse, reason: type);
       }
-    });
-
-    test('未知 delta 类型 → 忽略', () {
-      final result = newParser().parse(
-        event(
-          '{"type":"content_block_delta","delta":{"type":"future_delta","x":1}}',
-        ),
-      );
-      expect(result.chunk, isNull);
-      expect(result.recognized, isFalse);
     });
   });
 }

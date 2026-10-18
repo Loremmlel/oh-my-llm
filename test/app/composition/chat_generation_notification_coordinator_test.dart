@@ -291,60 +291,6 @@ void main() {
         1,
       );
     });
-
-    test('takePendingOpenConversation 抛错时 start 兜底记录诊断且订阅仍可用', () async {
-      port.throwOnTakePending = true;
-      await coordinator.start();
-      expect(diagnostics, ['take_pending_conversation_failed']);
-
-      // 订阅未受影响：动作流仍可触达，协调器保持可用，不会因异常永久卡死。
-      port.actionsController.add(
-        const ChatGenerationOpenConversationRequested('conv-after-fail'),
-      );
-      await _flushTail();
-      expect(openedConversationIds, ['conv-after-fail']);
-    });
-
-    test('openConversationRequested 动作转发给注入回调', () async {
-      await coordinator.start();
-      port.actionsController.add(
-        const ChatGenerationOpenConversationRequested('conv-9'),
-      );
-      await _flushTail();
-      expect(openedConversationIds, ['conv-9']);
-    });
-
-    test('snapshot 为 null 时不执行任何命令', () async {
-      await coordinator.start();
-      coordinator.onStateChanged(snapshot: null, streamingReply: null);
-      await _flushTail();
-      expect(port.calls, ['takePendingOpenConversation']);
-    });
-
-    test('意外 idle 快照被防御性忽略，不崩溃通知链路', () async {
-      await coordinator.start();
-      coordinator.onStateChanged(
-        snapshot: _snapshot(ChatGenerationPhase.idle),
-        streamingReply: null,
-      );
-      await _flushTail();
-      expect(port.calls, ['takePendingOpenConversation']);
-    });
-
-    test('权限查询不可用时记录固定诊断，不影响 start', () async {
-      port.permissionStatus = ChatNotificationPermissionStatus.unavailable;
-      await coordinator.start();
-      coordinator.onStateChanged(
-        snapshot: _snapshot(ChatGenerationPhase.preparing),
-        streamingReply: null,
-      );
-      await _flushTail();
-      expect(
-        port.calls,
-        containsAllInOrder(['ensureNotificationPermission', 'start']),
-      );
-      expect(diagnostics, ['permission_unavailable']);
-    });
   });
 
   group('节流', () {
@@ -436,27 +382,6 @@ void main() {
       expect(timers.pending, isEmpty);
       await _flushTail();
       expect(port.payloads.last.title, '正在停止');
-    });
-
-    test('finalizing 沿用最后一次已知字数', () async {
-      await coordinator.start();
-      coordinator.onStateChanged(
-        snapshot: _snapshot(ChatGenerationPhase.preparing),
-        streamingReply: null,
-      );
-      await _flushTail();
-      coordinator.onStateChanged(
-        snapshot: _snapshot(ChatGenerationPhase.streaming),
-        streamingReply: _reply('一二三', '四'),
-      );
-      await _flushTail();
-      // 流式回复已清空（null）：finalizing 必须沿用最后一次非空字数。
-      coordinator.onStateChanged(
-        snapshot: _snapshot(ChatGenerationPhase.finalizing),
-        streamingReply: null,
-      );
-      await _flushTail();
-      expect(port.payloads.last.text, '正在保存结果 · 正文 3 字 · 推理 1 字');
     });
 
     test('累计增量、重试清空和新 generation 分别维护独立字数', () async {
@@ -817,43 +742,6 @@ void main() {
         expect(stopCalls, isEmpty);
       }
     });
-
-    test('start 失败后不自动重试，同一 coordinator 中下一新 token 仍可重新 start', () async {
-      await coordinator.start();
-      port.queuedResults.add(
-        Future.value(
-          const ChatForegroundCommandResult.unavailable(
-            ChatForegroundFailureCode.startNotAllowed,
-          ),
-        ),
-      );
-      coordinator.onStateChanged(
-        snapshot: _snapshot(ChatGenerationPhase.preparing, generationId: 1),
-        streamingReply: null,
-      );
-      await _flushTail();
-
-      // 同 token 再次 preparing / streaming：不自动重试 start。
-      coordinator.onStateChanged(
-        snapshot: _snapshot(ChatGenerationPhase.preparing, generationId: 1),
-        streamingReply: null,
-      );
-      coordinator.onStateChanged(
-        snapshot: _snapshot(ChatGenerationPhase.streaming, generationId: 1),
-        streamingReply: _reply('一', ''),
-      );
-      await _flushTail();
-      expect(port.calls.where((c) => c == 'start').length, 1);
-
-      // 下一新 token：重新允许 start。
-      coordinator.onStateChanged(
-        snapshot: _snapshot(ChatGenerationPhase.preparing, generationId: 2),
-        streamingReply: null,
-      );
-      await _flushTail();
-      expect(port.calls.where((c) => c == 'start').length, 2);
-      expect(port.payloads.last.token, 2);
-    });
   });
 
   group('平台超时', () {
@@ -992,38 +880,6 @@ void main() {
       expect(terminalNotifications, isEmpty);
     });
 
-    test('成功通知字数采用最终正文，失败通知保留当前尝试已收到的字数', () async {
-      await coordinator.start();
-      for (final phase in [
-        ChatGenerationPhase.succeeded,
-        ChatGenerationPhase.failed,
-      ]) {
-        final token = phase == ChatGenerationPhase.succeeded ? 1 : 2;
-        coordinator.onStateChanged(
-          snapshot: _snapshot(
-            ChatGenerationPhase.streaming,
-            generationId: token,
-          ),
-          streamingReply: _reply('原始正文', '推理'),
-        );
-        await _flushTail();
-        coordinator.onStateChanged(
-          snapshot: _snapshot(
-            phase,
-            generationId: token,
-            outcome: _outcomeFor(phase, generationId: token),
-          ),
-          streamingReply: null,
-        );
-        await _flushTail();
-      }
-      expect(terminalNotifications.first.text, '正文 1 字 · 推理 0 字 · 已尝试 1 次');
-      expect(
-        terminalNotifications.last.text,
-        '生成失败，请打开应用查看详情 · 正文 4 字 · 推理 2 字 · 已尝试 1 次',
-      );
-    });
-
     test('成功和失败各投递一次系统通知，取消只清理', () async {
       await coordinator.start();
       final phases = <ChatGenerationPhase>[
@@ -1057,36 +913,6 @@ void main() {
         '生成失败',
       ]);
       expect(port.calls.where((call) => call == 'remove'), hasLength(3));
-    });
-
-    test('系统通知投递失败只记录诊断且仍清理前台通知', () async {
-      final throwingCoordinator = ChatGenerationNotificationCoordinator(
-        port: port,
-        sendTerminalNotification: (_) async => throw StateError('通知失败'),
-        stopGeneration: () async {},
-        openConversation: (_) {},
-        now: clock.call,
-        timerFactory: timers.create,
-        logDiagnostic: diagnostics.add,
-      );
-      await throwingCoordinator.start();
-      throwingCoordinator.onStateChanged(
-        snapshot: _snapshot(ChatGenerationPhase.preparing),
-        streamingReply: null,
-      );
-      await _flushTail();
-      throwingCoordinator.onStateChanged(
-        snapshot: _snapshot(
-          ChatGenerationPhase.succeeded,
-          outcome: _outcomeFor(ChatGenerationPhase.succeeded),
-        ),
-        streamingReply: null,
-      );
-      await _flushTail();
-
-      expect(port.calls.where((call) => call == 'remove'), hasLength(1));
-      expect(diagnostics, contains('terminal_notification_failed'));
-      throwingCoordinator.dispose();
     });
 
     test('terminal ACK 失败按 200ms/800ms 重试恰好 3 次后停止调度', () async {

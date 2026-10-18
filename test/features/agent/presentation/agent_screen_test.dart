@@ -19,7 +19,6 @@ import 'package:oh_my_llm/features/agent/presentation/agent_run_screen.dart';
 
 import '../../../helpers/fixtures.dart';
 import '../../../helpers/test_harness.dart';
-import '../../../helpers/async/widget_test_animation.dart';
 import '../agent_test_helpers.dart';
 
 void main() {
@@ -85,37 +84,37 @@ void main() {
       viewportSize: const Size(1000, 1000),
     );
     await tester.tap(find.byTooltip('打开侧边内容'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await tester.enterText(find.widgetWithText(AppTextField, '搜索作品'), '作品 1');
     await tester.pump();
     await tester.tap(find.byTooltip('重命名作品「作品 1」'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await tester.enterText(find.widgetWithText(AppTextField, '作品名称'), '雾港');
     await tester.tap(find.text('保存'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await tester.enterText(find.widgetWithText(AppTextField, '搜索作品'), '雾港');
     await tester.pump();
     await tester.tap(find.widgetWithText(ListTile, '雾港'));
     await tester.pump();
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.text('开场草稿'), findsOneWidget);
     expect(find.text('新建会话'), findsNothing);
 
     await tester.tap(find.byTooltip('打开侧边内容'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await tester.enterText(find.widgetWithText(AppTextField, '搜索作品'), '作品 2');
     await tester.pump();
     await tester.tap(find.widgetWithText(ListTile, '作品 2'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.text('后续草稿'), findsOneWidget);
     expect(find.text('开场草稿'), findsNothing);
 
     await tester.tap(find.byTooltip('打开侧边内容'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await tester.enterText(find.widgetWithText(AppTextField, '搜索作品'), '雾港');
     await tester.pump();
     await tester.tap(find.widgetWithText(ListTile, '雾港'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.text('开场草稿'), findsOneWidget);
     expect(store.loadWorkspace('novel-2')!.draft, '后续草稿');
     expect(tester.takeException(), isNull);
@@ -149,37 +148,37 @@ void main() {
     await tester.tap(find.byTooltip('工作文档'));
     await tester.pump();
     await tester.tap(find.text('新建文档'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await tester.enterText(find.widgetWithText(AppTextField, '文档名'), '世界规则');
     await tester.tap(find.byType(DropdownButtonFormField<AgentDocumentKind>));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await tester.tap(
       find.text(agentDocumentKindLabel(AgentDocumentKind.worldBook)).last,
     );
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await tester.enterText(find.widgetWithText(AppTextField, '正文'), '日落后禁止出城。');
     await tester.tap(find.text('保存'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.text('世界书 1'), findsOneWidget);
     await tester.tap(find.byTooltip('工作区操作'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('模型与规则'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.text('切换模型会丢弃不兼容的原生推理与厂商字段。'), findsOneWidget);
     await tester.tap(find.byTooltip('模型与规则说明'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.textContaining('不兼容的推理、签名'), findsOneWidget);
     await tester.tap(find.text('关闭').last);
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await tester.enterText(find.widgetWithText(AppTextField, '方案名称'), '独立审稿方案');
     await tester.tap(find.byType(DropdownButtonFormField<AgentRole>));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('审稿 Agent').last);
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await tester.tap(find.byType(DropdownButtonFormField<String>));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('测试商 / 审稿模型').last);
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await tester.enterText(
       find.widgetWithText(AppTextField, '角色提示词'),
       '只报告有原文依据的矛盾。',
@@ -203,7 +202,7 @@ void main() {
     await tester.pump();
     expect(store.listConfigurations('novel').single.name, '独立审稿方案');
     await tester.tap(find.text('应用配置'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     final saved = store.loadWorkspace('novel')!;
     expect(saved.configuration.name, '独立审稿方案');
     expect(saved.configuration.modelFor(AgentRole.reviewer), 'model-2');
@@ -214,12 +213,12 @@ void main() {
     await tester.tap(find.byTooltip('返回执行流'));
     await tester.pump();
     await tester.tap(find.byTooltip('工作区操作'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('查看上下文'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.textContaining('日落后禁止出城。'), findsOneWidget);
     await tester.tap(find.text('关闭'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.text('新建会话'), findsNothing);
     expect(store.listWorkspaces(), hasLength(1));
     expect(tester.takeException(), isNull);
@@ -313,16 +312,16 @@ void main() {
     await tester.pump(AgentRuntime.streamRefreshInterval);
     expect(visible.isCompleted, isTrue);
     await tester.tap(find.textContaining('审稿 Agent ·').first);
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.byType(AgentRunScreen), findsOneWidget);
     expect(find.text('核对阿弥的知情边界，保留完整依据。'), findsOneWidget);
     expect(find.text('正在逐项核对角色已经知道的事情。'), findsOneWidget);
     await tester.tap(find.textContaining('read_document ·'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.textContaining('阿弥不知道钥匙的位置。'), findsOneWidget);
     expect(container.read(agentWorkspaceProvider).busy, isTrue);
     await tester.tap(find.text('返回上级任务'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.byType(AgentScreen), findsOneWidget);
     release.complete();
     await tester.runAsync(() => finished.future);
@@ -390,15 +389,15 @@ void main() {
     expect(find.text('审阅完成，建议调整结尾。'), findsOneWidget);
     expect(store.listRuns('novel').single.status, AgentRunStatus.completed);
     await tester.tap(find.byTooltip('工作文档'));
-    await settleTabTransition(tester);
+    await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(ListTile, '正文'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await tester.enterText(find.widgetWithText(TextField, '旧稿'), '修订稿');
     await tester.tap(find.text('保存'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.text('普通文档 · 3 字符'), findsOneWidget);
     await tester.tap(find.widgetWithText(ListTile, '正文'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.byTooltip('上一版本'), findsNothing);
     expect(find.widgetWithText(TextField, '修订稿'), findsOneWidget);
     expect(store.readDocument('novel', '正文')?.content, '修订稿');

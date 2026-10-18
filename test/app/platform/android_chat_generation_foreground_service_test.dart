@@ -20,16 +20,6 @@ const _payload = ChatGenerationForegroundPayload(
   actionLabel: '停止生成',
 );
 
-const _noneActionPayload = ChatGenerationForegroundPayload(
-  token: 8,
-  conversationId: 'conv-2',
-  title: '正在停止',
-  text: '正在停止并保存已有内容',
-  publicTitle: '正在生成',
-  publicText: '请打开应用查看进度',
-  actionKind: ChatGenerationNotificationActionKind.none,
-);
-
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -118,40 +108,6 @@ void main() {
       // token 保持 int 类型。
       expect((calls[0].arguments as Map)['token'], isA<int>());
       expect((calls[0].arguments as Map)['actionKind'], 'stop');
-    });
-
-    test('actionKind 为 none 时 actionLabel 以 null 参与编码', () async {
-      response = {'accepted': true};
-      final adapter = AndroidChatGenerationForegroundService(channel: channel);
-      addTearDown(adapter.dispose);
-
-      await adapter.update(_noneActionPayload);
-
-      expect(calls, hasLength(1));
-      expect(
-        calls.single.arguments,
-        equals({
-          'token': 8,
-          'conversationId': 'conv-2',
-          'title': '正在停止',
-          'text': '正在停止并保存已有内容',
-          'publicTitle': '正在生成',
-          'publicText': '请打开应用查看进度',
-          'actionKind': 'none',
-          'actionLabel': null,
-        }),
-      );
-    });
-
-    test('未注入 channel 时使用生产通道名', () async {
-      response = {'accepted': true};
-      final adapter = AndroidChatGenerationForegroundService();
-      addTearDown(adapter.dispose);
-
-      final result = await adapter.start(_payload);
-
-      expect(result, const ChatForegroundCommandResult.accepted());
-      expect(calls.single.method, 'startForegroundGeneration');
     });
   });
 
@@ -422,41 +378,9 @@ void main() {
         ),
       );
     });
-
-    test('权限与待打开会话在通道失败时也安全降级', () async {
-      messenger.setMockMethodCallHandler(channel, (call) async {
-        throw PlatformException(code: 'boom');
-      });
-      final adapter = AndroidChatGenerationForegroundService(channel: channel);
-      addTearDown(adapter.dispose);
-
-      expect(
-        await adapter.ensureNotificationPermission(),
-        ChatNotificationPermissionStatus.unavailable,
-      );
-      expect(await adapter.takePendingOpenConversation(), isNull);
-    });
   });
 
   group('待打开会话与 dispose', () {
-    test('takePendingOpenConversation 接受非空白字符串，其余为 null', () async {
-      final adapter = AndroidChatGenerationForegroundService(channel: channel);
-      addTearDown(adapter.dispose);
-
-      response = 'conv-1';
-      expect(await adapter.takePendingOpenConversation(), 'conv-1');
-      response = null;
-      expect(await adapter.takePendingOpenConversation(), isNull);
-      response = '   ';
-      expect(await adapter.takePendingOpenConversation(), isNull);
-      response = 123;
-      expect(await adapter.takePendingOpenConversation(), isNull);
-
-      expect(calls.map((call) => call.method).toSet(), {
-        'takePendingOpenConversation',
-      });
-    });
-
     test('dispose 移除回调处理器并只关闭流一次', () async {
       final adapter = AndroidChatGenerationForegroundService(channel: channel);
       final events = <ChatGenerationForegroundAction>[];

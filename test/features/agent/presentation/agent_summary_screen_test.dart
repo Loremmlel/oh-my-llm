@@ -14,7 +14,6 @@ import 'package:oh_my_llm/features/agent/domain/agent_context_batch.dart';
 import 'package:oh_my_llm/features/agent/domain/agent_models.dart';
 import 'package:oh_my_llm/features/agent/presentation/agent_summary_dialog.dart';
 
-import '../../../helpers/async/widget_test_animation.dart';
 import '../../../helpers/async/async_test_signals.dart';
 import '../../../helpers/test_harness.dart';
 import '../../../helpers/fixtures.dart';
@@ -60,26 +59,26 @@ void main() {
       ),
     );
     await tester.tap(find.text('打开总结'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.text('直接隐藏'), findsNothing);
     expect(store.readContextBatch('novel')!.active, isTrue);
     await tester.ensureVisible(find.text('编辑摘要'));
     await tester.tap(find.text('编辑摘要'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     tester.view.viewInsets = const FakeViewPadding(bottom: 300);
     await tester.pump();
     await tester.enterText(find.widgetWithText(AppTextField, '摘要'), '窗口内的摘要');
     await tester.pump();
     expect(tester.takeException(), isNull);
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.text('放弃未保存的修改？'), findsOneWidget);
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('保存'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     tester.view.resetViewInsets();
-    await settleAnimatedWidgetTransition(tester);
+    await tester.pumpAndSettle();
     expect(store.readContextBatch('novel')!.summary, '窗口内的摘要');
     await tester.ensureVisible(find.text('恢复全部原文'));
     await tester.tap(find.text('恢复全部原文'));
@@ -89,7 +88,7 @@ void main() {
       AgentContextBatchStatus.restored,
     );
     await tester.tap(find.text('关闭'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.text('窗口内的摘要'), findsNothing);
   });
 
@@ -137,17 +136,17 @@ void main() {
       tester.element(find.text('打开总结')),
     );
     await tester.tap(find.text('打开总结'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('压缩并替代'));
     await tester.runAsync(
       () => entered.future.timeout(const Duration(seconds: 5)),
     );
     await tester.pump();
     await tester.tap(find.text('关闭'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(container.read(agentWorkspaceProvider).busy, isTrue);
     await tester.tap(find.text('打开总结'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     final done = Completer<void>();
     final sub = container.listen(agentWorkspaceProvider, (_, next) {
       if (!next.busy && !done.isCompleted) done.complete();

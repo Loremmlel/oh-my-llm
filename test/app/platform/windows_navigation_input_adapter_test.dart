@@ -134,16 +134,6 @@ void main() {
 
       expect(back.callCount, 1);
     });
-
-    testWidgets('Escape 不请求返回且不被吞掉', (tester) async {
-      final (back, ancestorKeys) = await pumpAdapterTree(tester);
-
-      await sendWindowsKeyDown(tester, LogicalKeyboardKey.escape);
-      await sendWindowsKeyUp(tester, LogicalKeyboardKey.escape);
-
-      expect(back.callCount, 0);
-      expect(ancestorKeys, contains(LogicalKeyboardKey.escape));
-    });
   });
 
   group('TextField 聚焦', () {
@@ -181,24 +171,6 @@ void main() {
   });
 
   group('根 no-op 与生命周期', () {
-    testWidgets('返回请求返回 false 时无异常且不二次请求', (tester) async {
-      final (back, ancestorKeys) = await pumpAdapterTree(
-        tester,
-        backResult: false,
-      );
-
-      await tester.tapAt(
-        tester.getCenter(find.byType(WindowsNavigationInputAdapter)),
-        buttons: kBackMouseButton,
-      );
-      await tester.pump();
-      await sendWindowsKeyDown(tester, LogicalKeyboardKey.browserBack);
-      await tester.pump();
-
-      expect(back.callCount, 2);
-      expect(tester.takeException(), isNull);
-    });
-
     testWidgets('adapter 卸载后不再响应返回输入', (tester) async {
       final (back, ancestorKeys) = await pumpAdapterTree(tester);
       await tester.pumpWidget(const SizedBox.shrink());

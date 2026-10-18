@@ -11,7 +11,6 @@ import 'package:oh_my_llm/features/chat/presentation/widgets/messages/bubble/cha
 import 'package:oh_my_llm/features/settings/application/prompts/template_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/template_prompt.dart';
 
-import '../../../../helpers/async/widget_test_animation.dart';
 import 'chat_screen_test_helpers.dart';
 
 /// 与 helpers 的 sendMessage 共用正文组件定位。
@@ -38,16 +37,16 @@ Future<void> _tapEditMessage(WidgetTester tester, String messageContent) async {
     ),
   );
   // 进入编辑模式伴随 composer 布局过渡，按组件动画等待。
-  await settleAnimatedWidgetTransition(tester);
+  await tester.pumpAndSettle();
 }
 
 /// 通过模板下拉选择指定名称的模板（沿用既有 cases 的 dropdown finder 手法）。
 Future<void> _selectTemplate(WidgetTester tester, String title) async {
   await tester.tap(chatTemplateSelectorFinder);
   // 下拉菜单开合属 overlay 过渡。
-  await settleOverlayTransition(tester);
+  await tester.pumpAndSettle();
   await tester.tap(find.text(title).last);
-  await settleOverlayTransition(tester);
+  await tester.pumpAndSettle();
 }
 
 /// 注册「变量模板」（tp-var，变量 title 默认值「默认标题」）并等待渲染。
@@ -131,7 +130,7 @@ void registerChatScreenWorkspaceOwnershipTests() {
 
     // 进入编辑模式：composer 显示消息正文。
     await tester.tap(find.byTooltip('编辑消息').last);
-    await settleAnimatedWidgetTransition(tester);
+    await tester.pumpAndSettle();
 
     // 编辑中修改正文（只写页面草稿，不写会话级 draft）。
     await tester.enterText(_composerFinder, '编辑中的修改');
@@ -139,7 +138,7 @@ void registerChatScreenWorkspaceOwnershipTests() {
 
     // 取消编辑：恢复编辑前草稿，会话级 draft 保持原值。
     await tester.tap(find.byTooltip('取消编辑'));
-    await settleAnimatedWidgetTransition(tester);
+    await tester.pumpAndSettle();
 
     _expectFieldText(_composerFinder, '普通草稿');
     expect(
@@ -169,7 +168,7 @@ void registerChatScreenWorkspaceOwnershipTests() {
     await tester.pump();
 
     await tester.tap(find.byTooltip('编辑消息').last);
-    await settleAnimatedWidgetTransition(tester);
+    await tester.pumpAndSettle();
     await tester.enterText(_composerFinder, '编辑修改');
     await tester.pump();
 

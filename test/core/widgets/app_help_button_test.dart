@@ -6,8 +6,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/core/widgets/app_help_button.dart';
 import 'package:oh_my_llm/features/settings/presentation/widgets/shared/settings_section_card.dart';
 
-import '../../helpers/async/widget_test_animation.dart';
-
 void main() {
   testWidgets('帮助按键盘打开和关闭后恢复焦点且不修改草稿', (tester) async {
     final controller = TextEditingController(text: '未保存的内容');
@@ -34,11 +32,11 @@ void main() {
       Tristate.isTrue,
     );
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.byType(SelectableText), findsOneWidget);
     expect(find.text('模板的完整解释'), findsOneWidget);
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.text('模板的完整解释'), findsNothing);
     expect(controller.text, '未保存的内容');
     expect(
@@ -73,16 +71,16 @@ void main() {
     );
     expect(find.text(message), findsNothing);
     await tester.tap(find.byTooltip('较长的设置分组名称说明'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
     expect(find.text('关闭').hitTestable(), findsOneWidget);
     await tester.drag(
       find.byType(SingleChildScrollView),
       const Offset(0, -300),
     );
-    await settleScrollMotion(tester);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('关闭'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.text('主要操作区域').hitTestable(), findsOneWidget);
     expect(find.text(message), findsNothing);
     expect(tester.takeException(), isNull);

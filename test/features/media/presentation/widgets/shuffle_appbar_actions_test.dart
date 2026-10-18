@@ -13,7 +13,6 @@ import 'package:oh_my_llm/features/media/presentation/pages/video_player_platfor
 import 'package:oh_my_llm/features/media/presentation/widgets/shuffle_appbar_actions.dart';
 
 import '../../../../helpers/test_harness.dart';
-import '../../../../helpers/async/widget_test_animation.dart';
 import '../../helpers/fake_media_library.dart';
 import '../../helpers/fake_video_player_controller.dart';
 import '../../helpers/fake_video_player_platform_bindings.dart';
@@ -125,7 +124,7 @@ void main() {
     );
 
     await tester.tap(find.byTooltip('下一个'));
-    await settleRouteTransition(tester);
+    await tester.pumpAndSettle();
 
     expect(
       router.routerDelegate.currentConfiguration.matches.last.matchedLocation,
@@ -139,7 +138,7 @@ void main() {
     expect(find.text('第二个.mp4'), findsOneWidget);
     expect(shuffleController.onPlayerExitedCallCount, 0);
     await tester.tap(find.byTooltip('关闭视频'));
-    await settleRouteTransition(tester);
+    await tester.pumpAndSettle();
     expect(shuffleController.onPlayerExitedCallCount, 1);
     expect(router.routerDelegate.state.uri.path, '/sync');
   });

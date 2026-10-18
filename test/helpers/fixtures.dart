@@ -203,9 +203,6 @@ class TestFixtures {
   static ChatGenerationChunk contentChunk(String delta) =>
       ChatGenerationChunk(contentDelta: delta);
 
-  static ChatGenerationChunk reasoningChunk(String delta) =>
-      ChatGenerationChunk(reasoningDelta: delta);
-
   // ── 固定提示词序列 ────────────────────────────────────────
 
   static FixedPromptSequenceStep sequenceStep({
@@ -227,18 +224,6 @@ class TestFixtures {
   );
 
   // ── 模板提示词 ────────────────────────────────────────────
-
-  static TemplatePromptVariable templateVariable({
-    required String name,
-    String defaultValue = '',
-    TemplatePromptVariableType type = TemplatePromptVariableType.text,
-    List<String> options = const [],
-  }) => TemplatePromptVariable(
-    name: name,
-    defaultValue: defaultValue,
-    type: type,
-    options: options,
-  );
 
   static TemplatePrompt templatePrompt({
     required String id,

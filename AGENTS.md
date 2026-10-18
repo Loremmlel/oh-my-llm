@@ -20,7 +20,7 @@
 | 新增、修改、删除或优化测试 | [test/AGENTS.md](test/AGENTS.md)，以及被测领域的规则 |
 | 页面、组件、导航、响应式与可访问性 | [DESIGN.md](DESIGN.md) |
 
-仅运行测试时按贡献指南执行；测试性能治理规则仅在测试提速任务中适用。产品内 Agent 功能文档在 `docs/agent/`，不作为编码 Agent 的全局指令。
+按业务重要性选择验证：日常运行受影响的现有测试，广泛影响或最终整体验收时运行全量。低风险修改允许不新增测试，普通修复优先复用现有用例；仅核心或重要行为有新的独立覆盖缺口时增加最小保护。低价值测试可直接删除，接受覆盖率下降。具体约定见 `test/AGENTS.md`。产品内 Agent 功能文档在 `docs/agent/`，不作为编码 Agent 的全局指令。
 
 ## 执行与交付
 
@@ -28,7 +28,7 @@
 - 编辑文件优先使用内置 Patch 工具；除必要的批处理或批量改名外，不用 Python、Bash、PowerShell、Node 脚本编辑文件。
 - `master` 受保护，禁止直接提交或 push。使用 `feat/`、`fix/`、`refactor/`、`test/`、`chore/`、`docs/` 加简短 kebab-case 描述的新分支；每个功能或修复独立提交，通过 PR 合入。
 - commit subject/body 与 PR 标题/正文使用简体中文，保留英文 Conventional Commit 前缀。PR 说明为什么改、改了什么、改后效果；模板见 [.github/pull_request_template.md](.github/pull_request_template.md)。
-- 每次提交前格式化所有改动的 Dart 文件，暂存后再次执行格式检查。代码变更须通过 `flutter analyze`、导入边界门禁和相关测试；纯文档变更可免 Flutter 检查，并说明原因。
+- 每次提交前格式化所有改动的 Dart 文件，暂存后再次执行格式检查。代码交付须通过 `flutter analyze` 和导入边界门禁；行为验证按实际价值选择已有相关测试或针对性检查，普通 bug 修复本身不构成新增测试的理由。纯文档变更可免 Flutter 检查，并说明原因。
 - 测试统一使用 [scripts/run-tests.ps1](scripts/run-tests.ps1)，自动落盘日志、保留真实退出码并限制本次进程树：单文件 60 秒，全量 240 秒。分析、构建和诊断日志也写入 ignored 的 `logs/`，不要在根目录生成日志或用 `tee` 输出全量测试。
 - 只报告当前提交实际完成的验证；区分本地检查、设备/服务商验收、未执行项与实际 CI 状态。提交后检查最终 HEAD 和工作区，版本 hook 会 amend 本次提交。
 

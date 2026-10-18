@@ -41,11 +41,11 @@ try {
     $env:SIYUE_RUNNER_CHECK_PWSH = $Pwsh
     $env:SIYUE_RUNNER_CHECK_STUB = Join-Path $FixtureRoot 'fake-flutter.ps1'
     $env:SIYUE_RUNNER_CHECK_MODE = 'success'
-    $Output = Invoke-RunnerCheck "-TestPath 'test/中文 路径_test.dart' -PlainName '名称带空格、单引号''和 $ 符号' -LogName 'test-runner-check-success.log' -FlutterArgs @('--coverage', '--exclude-tags=udp')" 0
+    $Output = Invoke-RunnerCheck "-TestPath 'test/中文 路径_test.dart' -PlainName '名称带空格、单引号''和 $ 符号' -LogName 'test-runner-check-success.log' -FlutterArgs @('--coverage')" 0
     if ($Output -notmatch 'TIMEOUT_SECONDS=60 ') { throw '单文件默认超时应为 60 秒' }
     $Log = Get-Content -Raw -LiteralPath (Join-Path $Repo 'logs/test-runner-check-success.log') -Encoding utf8
     $Recorded = ([regex]::Match($Log, '(?m)^ARGS=(.+)').Groups[1].Value | ConvertFrom-Json)
-    $Expected = @('test', '--reporter', 'compact', 'test/中文 路径_test.dart', '--plain-name', '名称带空格、单引号''和 $ 符号', '--coverage', '--exclude-tags=udp')
+    $Expected = @('test', '--reporter', 'compact', 'test/中文 路径_test.dart', '--plain-name', '名称带空格、单引号''和 $ 符号', '--coverage')
     if ((ConvertTo-Json -InputObject $Recorded -Compress) -ne (ConvertTo-Json -InputObject $Expected -Compress)) { throw "参数转发不一致：$Log" }
     if ($Log -notmatch '标准错误也必须写入日志') { throw '标准错误未落盘' }
 

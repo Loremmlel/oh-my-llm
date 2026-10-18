@@ -9,7 +9,6 @@ import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
 import 'package:oh_my_llm/features/settings/application/prompts/template_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/template_prompt.dart';
 
-import '../../../../helpers/async/widget_test_animation.dart';
 import 'chat_screen_test_helpers.dart';
 
 /// 文本/数字变量字段的输入框：按变量名 label 定位，避免与页面其他同名文本混淆。
@@ -27,9 +26,9 @@ void _expectFieldText(Finder field, String text) {
 Future<void> _selectTemplate(WidgetTester tester, String title) async {
   await tester.tap(chatTemplateSelectorFinder);
   // 下拉菜单开合属 overlay 过渡。
-  await settleOverlayTransition(tester);
+  await tester.pumpAndSettle();
   await tester.tap(find.text(title).last);
-  await settleOverlayTransition(tester);
+  await tester.pumpAndSettle();
 }
 
 /// 在单选下拉中选择一个选项：先点当前值打开菜单，再点目标选项。
@@ -40,9 +39,9 @@ Future<void> _selectSelectOption(
 ) async {
   await tester.ensureVisible(find.text(currentValue).first);
   await tester.tap(find.text(currentValue).first);
-  await settleOverlayTransition(tester);
+  await tester.pumpAndSettle();
   await tester.tap(find.text(option).last);
-  await settleOverlayTransition(tester);
+  await tester.pumpAndSettle();
 }
 
 /// 注册模板并等待渲染（upsert 同步持久化，单帧即可）。

@@ -16,7 +16,6 @@ import 'package:oh_my_llm/features/sync/application/sync_client_controller.dart'
 import 'package:oh_my_llm/features/sync/application/sync_server_controller.dart';
 
 import '../../../features/media/helpers/fake_media_library.dart';
-import '../../../helpers/async/widget_test_animation.dart';
 import 'sync_workspace_screen_test_helpers.dart';
 
 void registerSyncScreenRenderTests() {
@@ -99,7 +98,7 @@ void registerSyncScreenRenderTests() {
       await tester.tap(
         find.descendant(of: find.byType(TabBar), matching: find.text('媒体')),
       );
-      await settleTabTransition(tester);
+      await tester.pumpAndSettle();
 
       expect(factory.openedSources, [
         const LocalMediaLibrarySource(r'D:\Media'),
@@ -154,7 +153,7 @@ void registerSyncScreenRenderTests() {
       await tester.tap(
         find.descendant(of: find.byType(TabBar), matching: find.text('媒体')),
       );
-      await settleTabTransition(tester);
+      await tester.pumpAndSettle();
       return router;
     }
 

@@ -11,8 +11,7 @@ import 'package:oh_my_llm/core/constants/app_layout_density.dart';
 import 'package:oh_my_llm/features/media/application/media_grid_density_controller.dart';
 import 'package:oh_my_llm/features/media/presentation/widgets/media_grid_density_actions.dart';
 
-import '../../../../helpers/async/widget_test_animation.dart';
-import '../../../../helpers/test_harness.dart';
+import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 
 /// 创建内存 SharedPreferences，可按需种子初始值。
 Future<SharedPreferences> _prefs({Map<String, Object> seed = const {}}) async {
@@ -26,12 +25,15 @@ Future<ProviderContainer> _pumpActions(
   required SharedPreferences preferences,
   required Widget actions,
 }) async {
-  await pumpTestApp(
-    tester,
-    preferences: preferences,
-    child: Scaffold(
-      appBar: AppBar(actions: [actions]),
-      body: const SizedBox.shrink(),
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [sharedPreferencesProvider.overrideWithValue(preferences)],
+      child: MaterialApp(
+        home: Scaffold(
+          appBar: AppBar(actions: [actions]),
+          body: const SizedBox.shrink(),
+        ),
+      ),
     ),
   );
   return ProviderScope.containerOf(tester.element(find.byType(MaterialApp)));
@@ -108,7 +110,7 @@ void main() {
     expect(find.byTooltip('紧凑密度'), findsNothing);
 
     await tester.tap(find.byTooltip('显示密度'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
 
     // 三个密度项按 values 顺序：紧凑/标准/舒适；文本标签被 IgnorePointer
     // 包裹，点整个菜单项（InkWell 区域）才能稳定命中。
@@ -119,7 +121,7 @@ void main() {
     expect(find.text('标准'), findsOneWidget);
 
     await tester.tap(find.byType(CheckedPopupMenuItem<AppLayoutDensity>).at(1));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
 
     expect(container.read(mediaGridDensityProvider), AppLayoutDensity.standard);
     expect(preferences.getString(mediaGridDensityStorageKey), 'standard');

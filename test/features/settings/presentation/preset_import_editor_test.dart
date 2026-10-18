@@ -11,7 +11,6 @@ import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/p
 import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/silly_tavern_import_dialog.dart';
 
 import '../../../helpers/test_harness.dart';
-import '../../../helpers/async/widget_test_animation.dart';
 
 void main() {
   testWidgets('宏预设编辑保存保留跨位置顺序、关闭条目、空标题和正文空白', (tester) async {
@@ -62,12 +61,12 @@ void main() {
       ),
     );
     await tester.tap(find.text('编辑'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('保存'));
     final value = await submitted.future;
     expect(value.syntax, preset.syntax);
     expect(value.messages, preset.messages);
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
   });
 
   for (final invalid in [false, true]) {
@@ -103,7 +102,7 @@ void main() {
         ),
       );
       await tester.tap(find.text('打开导入'));
-      await settleOverlayTransition(tester);
+      await tester.pumpAndSettle();
       await tester.tap(find.text('选择 JSON 文件'));
       await tester.pump();
       await tester.pump();
@@ -123,7 +122,7 @@ void main() {
         expect(container.read(presetPromptsProvider), isEmpty);
       } else {
         await tester.tap(find.text('导入'));
-        await settleOverlayTransition(tester);
+        await tester.pumpAndSettle();
         final imported = container.read(presetPromptsProvider).single;
         expect(imported.syntax, PresetPromptSyntax.sillyTavernSubsetV1);
         expect(imported.messages.single.content, '{{user}}');

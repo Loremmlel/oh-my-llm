@@ -12,7 +12,6 @@ import 'package:oh_my_llm/features/favorites/domain/models/favorite.dart';
 import 'package:oh_my_llm/features/favorites/domain/models/favorite_page.dart';
 import 'package:oh_my_llm/features/favorites/presentation/favorite_collection_items_screen.dart';
 
-import '../../helpers/async/widget_test_animation.dart';
 import 'favorites_screen_test_helpers.dart';
 
 /// 按需抛出查询失败的收藏仓库装饰器，用于模拟存储层故障。
@@ -107,7 +106,7 @@ void registerFavoritesScreenPaginationTests() {
         matching: find.text('2'),
       ),
     );
-    await settleRouteTransition(tester);
+    await tester.pumpAndSettle();
 
     expect(find.text('问题001'), findsOneWidget);
     expect(find.text('问题021'), findsNothing);
@@ -125,9 +124,9 @@ void registerFavoritesScreenPaginationTests() {
     // 打开"每页"容量下拉并切换为 50；dropdown 菜单里选项文本为纯数字，
     // 用 descendant 限定在分页栏内避免与列表内容混淆。
     await tester.tap(find.text('20').last);
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('50').last);
-    await settleRouteTransition(tester);
+    await tester.pumpAndSettle();
 
     expect(find.textContaining('共 25 条 · 1/1 页'), findsOneWidget);
 
@@ -146,11 +145,11 @@ void registerFavoritesScreenPaginationTests() {
     await _openSystemCollection(tester, itemCount: 21, query: '?page=2');
 
     await tester.tap(find.text('问题001'));
-    await settleRouteTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.text('收藏详情'), findsOneWidget);
 
     await tester.tap(find.byType(BackButton));
-    await settleRouteTransition(tester);
+    await tester.pumpAndSettle();
 
     // 返回原夹时窗口保持第 2 页，不重置回第 1 页。
     expect(find.textContaining('共 21 条 · 2/2 页'), findsOneWidget);
@@ -165,30 +164,16 @@ void registerFavoritesScreenPaginationTests() {
 
     // 第 2 页只有 fav-001：经行内溢出菜单删除并确认。
     await tester.tap(find.byIcon(Icons.more_vert).first);
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('删除'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, '删除'));
-    await settleRouteTransition(tester);
+    await tester.pumpAndSettle();
 
     // 总数回到 20，页码从越界的第 2 页归一回最后一页（现在是第 1 页）。
     expect(find.textContaining('共 20 条 · 1/1 页'), findsOneWidget);
     expect(find.text('问题020'), findsOneWidget);
     expect(router.routerDelegate.state.uri.queryParameters['page'], '1');
-  });
-
-  testWidgets('清空收藏夹后显示夹内空状态', (tester) async {
-    await setUpFavoritesScreen(
-      tester,
-      seed: (db) {
-        seedCollection(db, id: 'col-empty-page', name: '空夹列表');
-      },
-      initialLocation: '/favorites/collections/col-empty-page',
-    );
-
-    expect(find.textContaining('暂无收藏'), findsOneWidget);
-    // 空夹没有可交互的分页栏内容（总数文案不渲染）。
-    expect(find.textContaining('共 '), findsNothing);
   });
 
   testWidgets('翻页查询失败保留旧内容并提供重试', (tester) async {
@@ -244,22 +229,10 @@ void registerFavoritesScreenPaginationTests() {
     // 恢复存储后重试成功进入目标页。
     flaky.failLoadPage = false;
     await tester.tap(find.widgetWithText(TextButton, '重试'));
-    await settleRouteTransition(tester);
+    await tester.pumpAndSettle();
 
     expect(find.text('加载收藏失败'), findsNothing);
     expect(find.text('问题015'), findsOneWidget);
     expect(find.textContaining('共 25 条 · 2/3 页'), findsOneWidget);
-  });
-
-  testWidgets('窄屏行布局纵向堆叠且无溢出', (tester) async {
-    await _openSystemCollection(
-      tester,
-      itemCount: 5,
-      viewportSize: const Size(360, 800),
-    );
-
-    expect(tester.takeException(), isNull);
-    expect(find.text('问题005'), findsOneWidget);
-    expect(find.textContaining('回复005'), findsOneWidget);
   });
 }

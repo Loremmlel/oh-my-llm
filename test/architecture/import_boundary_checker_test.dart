@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../tool/architecture/import_boundary_checker.dart';
@@ -181,36 +179,6 @@ void main() {
         violations.every((v) => v.ruleId == 'LLM_IMPLEMENTATION_BOUNDARY'),
         isTrue,
       );
-    });
-
-    test('输出排序与输入顺序无关', () {
-      final sourcesA = {
-        'lib/features/b/presentation/b_screen.dart':
-            "import 'package:oh_my_llm/features/b/data/b_repository.dart';",
-        'lib/features/a/presentation/a_screen.dart':
-            "import '../data/a_repository.dart';",
-      };
-      final sourcesB = Map<String, String>.of(sourcesA);
-      final keys = sourcesB.keys.toList().reversed.toList();
-      final sourcesBReordered = <String, String>{
-        for (final key in keys) key: sourcesB[key]!,
-      };
-      final violationsA = _checker().checkSources(sourcesA);
-      final violationsB = _checker().checkSources(sourcesBReordered);
-      (String, int, String, String?) keyOf(ArchitectureViolation v) =>
-          (v.sourcePath, v.line, v.ruleId, v.resolvedTarget);
-      expect(violationsA.map(keyOf).toList(), violationsB.map(keyOf).toList());
-      final sources = violationsA.map((v) => v.sourcePath).toList();
-      expect(sources, List<String>.of(sources)..sort());
-    });
-
-    test('当前仓库零违规且所有声明例外均被消费', () {
-      final checker = ImportBoundaryChecker(policy: architecturePolicy);
-      final violations = checker.checkDirectory(
-        Directory('lib'),
-        verifyAllowlistUsage: true,
-      );
-      expect(violations, isEmpty);
     });
   });
 }

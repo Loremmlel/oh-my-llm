@@ -65,32 +65,7 @@ final class PreActivatedMediaLibrarySessionController
 /// 会话/浏览器/随机播放三个 autoDispose 控制器由本 helper 统一订阅保活，
 /// 并在 tearDown 释放；单个测试不得再为这些控制器注册重复释放。
 ProviderContainer createMediaLibraryTestContainer(FakeMediaLibrary library) {
-  final container = ProviderContainer(
-    overrides: [
-      mediaLibraryFactoryProvider.overrideWithValue(
-        FakeMediaLibraryFactory(library),
-      ),
-    ],
-  );
-  final sessionSubscription = container.listen(
-    mediaLibrarySessionProvider,
-    (_, _) {},
-  );
-  final browserSubscription = container.listen(
-    mediaBrowserControllerProvider,
-    (_, _) {},
-  );
-  final shuffleSubscription = container.listen(
-    shufflePlaybackControllerProvider,
-    (_, _) {},
-  );
-  addTearDown(() {
-    sessionSubscription.close();
-    browserSubscription.close();
-    shuffleSubscription.close();
-    container.dispose();
-  });
-  return container;
+  return createMediaLibraryTestContainerWith(library);
 }
 
 /// 与 [createMediaLibraryTestContainer] 相同，但接受任意 [MediaLibrary]，

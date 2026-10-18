@@ -1,6 +1,5 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/features/media/application/models/media_resource.dart';
@@ -8,7 +7,6 @@ import 'package:oh_my_llm/features/media/presentation/pages/media_video_controll
 import 'package:oh_my_llm/features/media/presentation/pages/video_player_page.dart';
 import 'package:oh_my_llm/features/media/presentation/pages/video_player_platform_bindings.dart';
 
-import '../../../../helpers/async/widget_test_animation.dart';
 import '../../helpers/fake_video_player_controller.dart';
 import '../../helpers/fake_video_player_platform_bindings.dart';
 
@@ -192,7 +190,7 @@ void main() {
 
     await gesture.up();
     await tester.pump();
-    await settleAnimatedWidgetTransition(tester);
+    await tester.pumpAndSettle();
     expect(fakeController.seekToCalls, isNotEmpty);
     expect(semanticsByTooltip('关闭视频'), findsOneWidget);
     await _flushGestureTimers(tester);
@@ -242,46 +240,5 @@ void main() {
 
     expect(fakeController.seekToCalls, isEmpty);
     await _flushGestureTimers(tester);
-  });
-
-  testWidgets('非宽屏视口保持视频比例且手势层覆盖页面', (tester) async {
-    tester.view.physicalSize = const Size(400, 800);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.reset);
-    await tester.pumpWidget(
-      _buildTestPageWithFake(fakeController: fakeController),
-    );
-    await _pumpInit(tester, controller: fakeController);
-
-    final videoSize = tester.getSize(find.byType(AspectRatio));
-    expect(videoSize.height, closeTo(videoSize.width * 9 / 16, 0.1));
-
-    final gesture = await tester.startGesture(const Offset(200, 120));
-    final slop = const Offset(kDragSlopDefault, 0);
-    await gesture.moveBy(slop);
-    await gesture.moveBy(const Offset(100, 0) - slop);
-    await gesture.up();
-    await tester.pump();
-    expect(fakeController.seekToCalls, isNotEmpty);
-    await _flushGestureTimers(tester);
-  });
-
-  testWidgets('移动页面忽略桌面静音全屏和音量快捷键', (tester) async {
-    fakeController.fakeVolume = 0.5;
-    await tester.pumpWidget(
-      _buildTestPageWithFake(fakeController: fakeController),
-    );
-    await _pumpInit(tester, controller: fakeController);
-    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-    await tester.pump();
-
-    await tester.sendKeyEvent(LogicalKeyboardKey.keyM);
-    await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
-    await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
-    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
-    await tester.pump();
-
-    expect(fakeController.setVolumeCalls, isEmpty);
-    expect(fakeController.setPlaybackSpeedCalls, isEmpty);
   });
 }

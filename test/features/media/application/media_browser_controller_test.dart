@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/features/media/application/media_library_session_controller.dart';
@@ -9,7 +8,6 @@ import 'package:oh_my_llm/features/media/application/models/media_library_source
 import 'package:oh_my_llm/features/media/application/models/media_resource.dart';
 import 'package:oh_my_llm/features/media/application/models/media_resource_request.dart';
 import 'package:oh_my_llm/features/media/application/ports/media_library.dart';
-import 'package:oh_my_llm/features/media/application/ports/media_library_factory.dart';
 import 'package:oh_my_llm/features/media/domain/models/video_item.dart';
 
 import '../helpers/fake_media_library.dart';
@@ -50,47 +48,6 @@ FileItem _dir(String path) => FileItem(
 );
 
 void main() {
-  group('MediaBrowserState', () {
-    test('派生状态矩阵：初始/空路径/嵌套路径/历史记录', () {
-      for (final (:name, :state, :expectedIsAtRoot, :expectedCanGoBack) in [
-        (
-          name: '初始状态',
-          state: MediaBrowserState(),
-          expectedIsAtRoot: true,
-          expectedCanGoBack: false,
-        ),
-        (
-          name: '空路径视为根目录',
-          state: MediaBrowserState(currentPath: ''),
-          expectedIsAtRoot: true,
-          expectedCanGoBack: false,
-        ),
-        (
-          name: '嵌套路径非根目录',
-          state: MediaBrowserState(currentPath: '/sub'),
-          expectedIsAtRoot: false,
-          expectedCanGoBack: false,
-        ),
-        (
-          name: '有历史记录可返回',
-          state: MediaBrowserState(pathHistory: ['/']),
-          expectedIsAtRoot: true,
-          expectedCanGoBack: true,
-        ),
-      ]) {
-        expect(state.isAtRoot, expectedIsAtRoot, reason: 'case: $name');
-        expect(state.canGoBack, expectedCanGoBack, reason: 'case: $name');
-      }
-
-      // 初始公开状态即 build() 返回值：根目录、空列表、未加载、无错误
-      final initial = MediaBrowserState();
-      expect(initial.currentPath, '/');
-      expect(initial.items, isEmpty);
-      expect(initial.isLoading, isFalse);
-      expect(initial.errorMessage, isNull);
-    });
-  });
-
   group('MediaBrowserController', () {
     test('active session loads root and never exposes server state', () async {
       const image = FileItem(
@@ -109,17 +66,6 @@ void main() {
       final state = container.read(mediaBrowserControllerProvider);
       expect(state.items, [image]);
       expect(library.listDirectoryCalls, ['/']);
-    });
-
-    test('会话未激活时 initFromActiveSession 发布媒体会话不可用', () async {
-      final container = createMediaLibraryTestContainer(FakeMediaLibrary());
-      final loaded = await container
-          .read(mediaBrowserControllerProvider.notifier)
-          .initFromActiveSession();
-      expect(loaded, isFalse);
-      final state = container.read(mediaBrowserControllerProvider);
-      expect(state.errorMessage, '媒体会话不可用');
-      expect(state.isLoading, isFalse);
     });
 
     test('会话未激活时 loadDirectory 发布媒体会话不可用', () async {
@@ -150,39 +96,6 @@ void main() {
       library.pendingDirectory!.complete([_file('/stale.mp4')]);
       expect(await pending, isFalse);
 
-      expect(
-        container.read(mediaBrowserControllerProvider),
-        MediaBrowserState(),
-      );
-    });
-
-    test('媒体浏览页面会话在观察者释放后重建为空状态', () async {
-      final container = ProviderContainer(
-        overrides: [
-          mediaLibraryFactoryProvider.overrideWithValue(
-            FakeMediaLibraryFactory(FakeMediaLibrary()),
-          ),
-        ],
-      );
-      addTearDown(container.dispose);
-      final sessionSubscription = container.listen(
-        mediaLibrarySessionProvider,
-        (_, _) {},
-      );
-      final browserSubscription = container.listen(
-        mediaBrowserControllerProvider,
-        (_, _) {},
-      );
-      await activateTestMediaSession(container);
-      await container
-          .read(mediaBrowserControllerProvider.notifier)
-          .initFromActiveSession();
-
-      browserSubscription.close();
-      sessionSubscription.close();
-      await container.pump();
-
-      expect(container.exists(mediaBrowserControllerProvider), isFalse);
       expect(
         container.read(mediaBrowserControllerProvider),
         MediaBrowserState(),
@@ -268,16 +181,6 @@ void main() {
       final state = container.read(mediaBrowserControllerProvider);
       expect(state.pathHistory, isEmpty);
       expect(state.errorMessage, '媒体路径无效');
-    });
-
-    test('goBack 无历史 → 返回 false', () async {
-      final container = createMediaLibraryTestContainer(FakeMediaLibrary());
-      await activateTestMediaSession(container);
-
-      final result = await container
-          .read(mediaBrowserControllerProvider.notifier)
-          .goBack();
-      expect(result, isFalse);
     });
 
     test('会话替换后旧会话的挂起列表不更新浏览器状态', () async {

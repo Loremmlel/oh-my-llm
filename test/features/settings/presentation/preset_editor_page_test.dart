@@ -5,8 +5,6 @@ import 'package:go_router/go_router.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.dart';
 import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/preset_prompt_editor.dart';
 
-import '../../../helpers/async/widget_test_animation.dart';
-
 void main() {
   testWidgets('预设页面保存失败保留输入，返回确认取消后继续编辑', (tester) async {
     PresetPromptFormData? submitted;
@@ -45,7 +43,7 @@ void main() {
     addTearDown(router.dispose);
     await tester.pumpWidget(MaterialApp.router(routerConfig: router));
     await tester.tap(find.text('打开'));
-    await settleRouteTransition(tester);
+    await tester.pumpAndSettle();
     await tester.enterText(
       find.widgetWithText(AppTextField, '预设 Prompt 名称'),
       '修改名称',
@@ -71,15 +69,15 @@ void main() {
     expect(find.textContaining('只填写标签名'), findsOneWidget);
     expect(submitted, isNull);
     await tester.tap(find.text('取消'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.text('放弃未保存的修改？'), findsOneWidget);
     await tester.tap(find.widgetWithText(TextButton, '取消').last);
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.text('修改名称'), findsOneWidget);
     await tester.tap(find.text('取消'));
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('放弃修改'));
-    await settleRouteTransition(tester);
+    await tester.pumpAndSettle();
     expect(find.text('打开'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

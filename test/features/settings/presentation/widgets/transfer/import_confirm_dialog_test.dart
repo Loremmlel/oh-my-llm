@@ -10,7 +10,6 @@ import 'package:oh_my_llm/features/settings/application/transfer/settings_transf
 import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_transfer_document.dart';
 import 'package:oh_my_llm/features/settings/presentation/widgets/transfer/import_confirm_dialog.dart';
 
-import '../../../../../helpers/async/widget_test_animation.dart';
 import '../../../../../helpers/test_harness.dart';
 
 void main() {
@@ -48,7 +47,7 @@ void main() {
         ),
       );
       await tester.tap(find.text('打开'));
-      await settleOverlayTransition(tester);
+      await tester.pumpAndSettle();
       expect(find.text('检测到配置导入数据'), findsOneWidget);
     }
 
@@ -78,7 +77,7 @@ void main() {
       );
 
       await tester.tap(find.text('导入'));
-      await settleOverlayTransition(tester);
+      await tester.pumpAndSettle();
 
       expect(writes, ['incoming-1', 'incoming-2']);
       expect(dialogResult, isTrue);
@@ -109,7 +108,7 @@ void main() {
       await tester.tap(find.byType(Checkbox));
       await tester.pump();
       await tester.tap(find.text('导入'));
-      await settleOverlayTransition(tester);
+      await tester.pumpAndSettle();
 
       expect(writes, ['credential-secret']);
       expect(find.text('检测到配置导入数据'), findsNothing);
@@ -149,7 +148,7 @@ void main() {
       await tester.tap(find.byType(Checkbox));
       await tester.pump();
       await tester.tap(find.text('导入'));
-      await settleOverlayTransition(tester);
+      await tester.pumpAndSettle();
       expect(writes, ['incoming']);
     });
 
@@ -239,7 +238,7 @@ void main() {
       expect(find.text('检测到配置导入数据'), findsOneWidget);
 
       await tester.binding.handlePopRoute();
-      await settleOverlayTransition(tester);
+      await tester.pumpAndSettle();
       expect(find.text('检测到配置导入数据'), findsOneWidget);
 
       gate.complete();
@@ -249,7 +248,7 @@ void main() {
       expect(find.text('导入中...'), findsNothing);
       expect(find.text('写入未完成，请检查本地存储后重试'), findsOneWidget);
       await tester.tap(find.text('取消'));
-      await settleOverlayTransition(tester);
+      await tester.pumpAndSettle();
       expect(find.text('检测到配置导入数据'), findsNothing);
     });
   });

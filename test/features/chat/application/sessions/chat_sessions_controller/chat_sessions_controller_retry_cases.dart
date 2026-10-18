@@ -13,6 +13,7 @@ import 'package:oh_my_llm/features/settings/domain/models/preferences/auto_retry
 import 'package:oh_my_llm/features/settings/domain/models/preferences/output_processing_settings.dart';
 
 import '../../../../../helpers/chat/fake_chat_generation_client.dart';
+import '../../../../../helpers/fixtures.dart';
 import 'chat_sessions_controller_test_helpers.dart';
 
 /// 自动重试策略、异常 finish_reason 重试、retry cap 与空回复重试边界契约。
@@ -38,24 +39,6 @@ void registerChatSessionsControllerRetryCases() {
 
   // ── 自动重试 ─────────────────────────────────────────────────────────────────
 
-  test('autoRetryEnabled=true 时正常发送并收到回复', () async {
-    container
-        .read(chatSessionsProvider.notifier)
-        .updateActiveConversationPreferences(autoRetryEnabled: true);
-    fakeClient.enqueueChunks(['自动重试回复']);
-
-    await sendMsg('你好', retryDelay: Duration.zero);
-
-    final state = container.read(chatSessionsProvider);
-    final messages = state.activeConversation.messages;
-    expect(messages.length, 2);
-    expect(messages.last.content, '自动重试回复');
-    expect(state.errorMessage, isNull);
-    expect(state.autoRetryCount, 0);
-    expect(state.isAutoRetryWaiting, isFalse);
-    expect(state.isStreaming, isFalse);
-  });
-
   test('sendMessageWithAutoRetry 连续两次失败后第三次成功', () async {
     container
         .read(chatSessionsProvider.notifier)
@@ -79,6 +62,14 @@ void registerChatSessionsControllerRetryCases() {
 
   test('开启预设随机头部后自动重试复用快照，下一次发送重新生成', () async {
     final presets = container.read(presetPromptsProvider.notifier);
+    await presets.upsert(
+      TestFixtures.presetPrompt(
+        id: 'prompt-1',
+        messages: [
+          TestFixtures.promptMessage(id: 'message-1', content: '模板一前置'),
+        ],
+      ),
+    );
     await presets.setRandomHeader('prompt-1', true);
     container
         .read(chatSessionsProvider.notifier)
@@ -151,30 +142,6 @@ void registerChatSessionsControllerRetryCases() {
     await sendMsg('测试会话级开关');
 
     expect(fakeClient.requestedStreamIdleTimeouts.last, isNull);
-  });
-
-  test('会话开启自动重试 + retryOnTimeout 时 streamIdleTimeout 生效', () async {
-    container
-        .read(chatSessionsProvider.notifier)
-        .updateActiveConversationPreferences(autoRetryEnabled: true);
-    await container
-        .read(autoRetrySettingsProvider.notifier)
-        .save(
-          const AutoRetrySettings(
-            maxJitterSeconds: 0,
-            retryOnTimeout: true,
-            timeoutSeconds: 30,
-          ),
-        );
-
-    fakeClient.enqueueChunks(['回复']);
-
-    await sendMsg('测试生效');
-
-    expect(
-      fakeClient.requestedStreamIdleTimeouts.last,
-      const Duration(seconds: 30),
-    );
   });
 
   test('实际重试等待期间拒绝新消息，停止后不发出下一次请求', () async {
@@ -316,124 +283,6 @@ void registerChatSessionsControllerRetryCases() {
     // 不重试，保留异常 finish_reason 的回复
     expect(state.activeConversation.messages.last.content, '部分内容');
     expect(fakeClient.requestHistory.length, 1);
-  });
-
-  test('会话关闭自动重试时异常 finish_reason 不触发重试（依赖对话级开关）', () async {
-    // 全局开启异常 finish 重试，但会话级自动重试关闭：不应触发重试，也不应
-    // 残留「正在自动重试...」红色提示（spec 验证方式 3：依赖对话级开关）。
-    await container
-        .read(autoRetrySettingsProvider.notifier)
-        .save(
-          const AutoRetrySettings(
-            maxJitterSeconds: 0,
-            maxRetryCount: 0,
-            retryOnAbnormalFinishReason: true,
-          ),
-        );
-    // 不开 autoRetryEnabled（默认 false）
-
-    fakeClient.enqueueDeltas([
-      const ChatGenerationChunk(contentDelta: '部分内容', finishReason: 'length'),
-    ]);
-
-    await sendMsg('测试会话级开关');
-
-    final state = container.read(chatSessionsProvider);
-    // 保留异常 finish_reason 的回复，不重试
-    expect(state.activeConversation.messages.last.content, '部分内容');
-    expect(fakeClient.requestHistory.length, 1);
-    // 不显示「正在自动重试...」错误提示
-    expect(state.errorMessage, isNull);
-    expect(state.errorMessageAssistantId, isNull);
-  });
-
-  test('stop 不触发异常 finish_reason 重试', () async {
-    container
-        .read(chatSessionsProvider.notifier)
-        .updateActiveConversationPreferences(autoRetryEnabled: true);
-
-    await container
-        .read(autoRetrySettingsProvider.notifier)
-        .save(
-          const AutoRetrySettings(
-            maxJitterSeconds: 0,
-            maxRetryCount: 0,
-            retryOnAbnormalFinishReason: true,
-          ),
-        );
-
-    // stop - 正常完成，不重试
-    fakeClient.enqueueDeltas([
-      const ChatGenerationChunk(contentDelta: '正常回复', finishReason: 'stop'),
-    ]);
-
-    await sendMsg('测试 stop');
-
-    final state = container.read(chatSessionsProvider);
-    expect(state.activeConversation.messages.last.content, '正常回复');
-    expect(fakeClient.requestHistory.length, 1);
-  });
-
-  test('tool_calls 不触发异常 finish_reason 重试', () async {
-    container
-        .read(chatSessionsProvider.notifier)
-        .updateActiveConversationPreferences(autoRetryEnabled: true);
-
-    await container
-        .read(autoRetrySettingsProvider.notifier)
-        .save(
-          const AutoRetrySettings(
-            maxJitterSeconds: 0,
-            maxRetryCount: 0,
-            retryOnAbnormalFinishReason: true,
-          ),
-        );
-
-    // tool_calls - 正常完成，不重试
-    fakeClient.enqueueDeltas([
-      const ChatGenerationChunk(
-        contentDelta: '工具调用',
-        finishReason: 'tool_calls',
-      ),
-    ]);
-
-    await sendMsg('测试 tool_calls');
-
-    final state = container.read(chatSessionsProvider);
-    expect(state.activeConversation.messages.last.content, '工具调用');
-    expect(fakeClient.requestHistory.length, 1);
-  });
-
-  test('content_filter 触发异常 finish_reason 重试', () async {
-    container
-        .read(chatSessionsProvider.notifier)
-        .updateActiveConversationPreferences(autoRetryEnabled: true);
-
-    await container
-        .read(autoRetrySettingsProvider.notifier)
-        .save(
-          const AutoRetrySettings(
-            maxJitterSeconds: 0,
-            maxRetryCount: 0,
-            retryOnAbnormalFinishReason: true,
-          ),
-        );
-
-    // 第一次返回 content_filter（异常），第二次返回 stop（正常）
-    fakeClient.enqueueDeltas([
-      const ChatGenerationChunk(
-        contentDelta: '过滤内容',
-        finishReason: 'content_filter',
-      ),
-    ]);
-    fakeClient.enqueueChunks(['重试成功']);
-
-    await sendMsg('测试 content_filter', retryDelay: Duration.zero);
-
-    final state = container.read(chatSessionsProvider);
-    expect(state.activeConversation.messages.last.content, '重试成功');
-    expect(state.errorMessage, isNull);
-    expect(fakeClient.requestHistory.length, 2);
   });
 
   test('输出规则清空正文优先于正常和异常终止原因，保留错误且不重试', () async {

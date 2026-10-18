@@ -1,4 +1,2 @@
 timeout: 120s
 concurrency: 8
-tags:
-  udp:

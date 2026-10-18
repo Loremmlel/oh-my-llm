@@ -361,19 +361,18 @@ void main() {
         group: SettingsTransferGroup.other,
         order: 2,
       );
+      final coordinator = _coordinator([
+        notAttempted.section,
+        failed.section,
+        completed.section,
+      ]);
+      final document = _document({
+        'notAttemptedValue': 2,
+        'failedValue': 2,
+        'completedValue': 2,
+      });
       final ready =
-          _coordinator([
-                notAttempted.section,
-                failed.section,
-                completed.section,
-              ]).prepareDocument(
-                _document({
-                  'notAttemptedValue': 2,
-                  'failedValue': 2,
-                  'completedValue': 2,
-                }),
-              )
-              as SettingsImportReady;
+          coordinator.prepareDocument(document) as SettingsImportReady;
 
       final partial = await ready.batch.execute(
         confirmedSensitive: true,
@@ -385,6 +384,22 @@ void main() {
         'notAttemptedValue',
       ]);
       expect(notAttempted.writeCount, 0);
+
+      failed.writeAction = null;
+      final retry =
+          coordinator.prepareDocument(document) as SettingsImportReady;
+      expect(retry.batch.summaryItems.map((item) => item.key), [
+        'failedValue',
+        'notAttemptedValue',
+      ]);
+      expect(
+        await retry.batch.execute(confirmedSensitive: true),
+        isA<SettingsImportSuccess>(),
+      );
+      expect(completed.writeCount, 1);
+      expect(failed.writeCount, 2);
+      expect(notAttempted.writeCount, 1);
+      expect(failed.value, 2);
     });
 
     test('成功执行后再次执行返回 already consumed', () async {

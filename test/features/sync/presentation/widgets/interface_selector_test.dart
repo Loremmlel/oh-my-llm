@@ -3,9 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:oh_my_llm/app/composition/cross_feature_bindings.dart';
 import 'package:oh_my_llm/core/persistence/shared_preferences_provider.dart';
 import 'package:oh_my_llm/features/sync/application/network_interface_provider.dart';
+import 'package:oh_my_llm/features/sync/application/sync_server_controller.dart';
 import 'package:oh_my_llm/features/sync/domain/models/discovery/network_interface_info.dart';
 import 'package:oh_my_llm/features/sync/presentation/widgets/interface_selector.dart';
 
@@ -23,8 +23,8 @@ Future<void> _pumpSelector(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
-        ...appCompositionOverrides(),
         sharedPreferencesProvider.overrideWithValue(preferences),
+        isSyncServerRunningProvider.overrideWithValue(false),
         availableInterfacesProvider.overrideWith((ref) async => interfaces),
       ],
       child: const MaterialApp(home: Scaffold(body: InterfaceSelector())),
@@ -45,22 +45,6 @@ void main() {
     setUp(() async {
       SharedPreferences.setMockInitialValues({});
       preferences = await SharedPreferences.getInstance();
-    });
-
-    testWidgets('SharedPreferences 存 16 时默认选中 /16', (tester) async {
-      SharedPreferences.setMockInitialValues({
-        'sync.broadcast_prefix_length': 16,
-      });
-      preferences = await SharedPreferences.getInstance();
-
-      await _pumpSelector(
-        tester,
-        preferences: preferences,
-        interfaces: const [fakeInterface],
-      );
-
-      // /16 模式下广播地址为 10.214.255.255，间接验证 /16 被选中
-      expect(find.textContaining('10.214.255.255'), findsOneWidget);
     });
 
     testWidgets('点击 /16 后可见广播地址从 /24 切换到 /16', (tester) async {

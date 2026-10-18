@@ -27,7 +27,6 @@ import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/t
 
 import '../../../../helpers/fixtures.dart';
 import '../../../../helpers/test_harness.dart';
-import '../../../../helpers/async/widget_test_animation.dart';
 
 const settingsLastTabIndexKey = 'settings.tab.last_index';
 
@@ -38,7 +37,7 @@ Future<void> switchToTab(WidgetTester tester, int index) async {
   final tabFinder = find.text(tabLabels[index]);
   await tester.ensureVisible(tabFinder);
   await tester.tap(tabFinder);
-  await settleTabTransition(tester);
+  await tester.pumpAndSettle();
 }
 
 /// 挂载设置页并返回测试用数据库实例。
@@ -207,9 +206,9 @@ Future<void> selectProviderProtocol(
   LlmApiProtocol protocol,
 ) async {
   await tester.tap(providerProtocolDropdown());
-  await settleOverlayTransition(tester);
+  await tester.pumpAndSettle();
   await tester.tap(find.text(protocol.displayName).last);
-  await settleOverlayTransition(tester);
+  await tester.pumpAndSettle();
 }
 
 Finder providerApiUrlField() =>
@@ -261,7 +260,7 @@ Finder memoryPromptContentField() =>
 
 Future<void> createTestProvider(WidgetTester tester) async {
   await tester.tap(find.text('新增服务商'));
-  await settleOverlayTransition(tester);
+  await tester.pumpAndSettle();
   await tester.enterText(providerNameField(), 'OpenAI 官方');
   await tester.enterText(
     providerApiUrlField(),
@@ -269,5 +268,5 @@ Future<void> createTestProvider(WidgetTester tester) async {
   );
   await tester.enterText(providerApiKeyField(), 'sk-test-12345678');
   await tester.tap(find.text('保存'));
-  await settleOverlayTransition(tester);
+  await tester.pumpAndSettle();
 }

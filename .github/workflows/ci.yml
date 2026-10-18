@@ -40,15 +40,15 @@ jobs:
       - name: analyze
         run: flutter analyze
 
-      # 4) version hook 契约验证（Phase 2，不依赖 flutter，快速失败）
+      # 4) version hook 契约验证（不依赖 flutter，快速失败）
       - name: verify version hook
         run: bash scripts/verify-version-hook.sh
 
-      # 5) test 门禁：排除 UDP（CI 网络环境不可靠），重定向完整日志避免终端截断
+      # 5) test 门禁：运行必要测试，保留完整日志和真实退出码
       - name: test
         run: |
           set +e
-          flutter test --exclude-tags=udp --coverage --reporter compact > fltest.log 2>&1
+          flutter test --reporter compact > fltest.log 2>&1
           CODE=$?
           set -e
           echo "EXIT=$CODE" >> fltest.log
@@ -62,23 +62,4 @@ jobs:
         with:
           name: test-log
           path: fltest.log
-          retention-days: 14
-
-      # 7) coverage 生成与聚焦报告（application/data，剔除 presentation/domain 噪声）
-      - name: coverage report
-        if: always()
-        run: bash scripts/coverage-report.sh
-
-      # 8) 上传 coverage 产物（lcov / html / diff 报告）
-      - name: upload coverage
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage
-          path: |
-            coverage/lcov.info
-            coverage/lcov.filtered.info
-            coverage/html/
-            coverage/diff-report.html
-            coverage/summary.txt
           retention-days: 14

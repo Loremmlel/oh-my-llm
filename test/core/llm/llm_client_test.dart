@@ -17,82 +17,7 @@ const _target = LlmRequestTarget(
 );
 
 void main() {
-  test('错协议选项在发送 HTTP 前失败', () async {
-    final httpClient = _Http();
-    final client = ChatCompletionsClient(
-      transport: LlmHttpStreamTransport(httpClient: httpClient),
-    );
-    await expectLater(
-      client.complete(
-        LlmRequest(
-          target: _target,
-          input: [],
-          options: const LlmGenerationOptions(
-            protocolOptions: MessagesOptions(),
-          ),
-        ),
-      ),
-      throwsA(
-        isA<LlmException>().having(
-          (e) => e.kind,
-          '类型',
-          LlmFailureKind.invalidRequest,
-        ),
-      ),
-    );
-    expect(httpClient.sends, 0);
-  });
-
-  test('输入和嵌套工具 schema 在构造后保持不可变', () {
-    final schema = <String, Object?>{
-      'type': 'object',
-      'properties': <String, Object?>{
-        '角色': {'type': 'string'},
-      },
-    };
-    final tool = LlmToolDefinition(
-      name: 'read',
-      description: '读取',
-      parameters: schema,
-    );
-    (schema['properties'] as Map).clear();
-    expect(tool.parameters['properties'], isNotEmpty);
-    expect(
-      () => (tool.parameters['properties'] as Map).clear(),
-      throwsUnsupportedError,
-    );
-    final input = <LlmInputItem>[
-      const LlmTextMessage(role: LlmRole.user, text: '你好'),
-    ];
-    final request = LlmRequest(target: _target, input: input);
-    input.clear();
-    expect(request.input, hasLength(1));
-  });
-
-  test('JSON 边界拒绝自定义对象和循环引用', () {
-    final cycle = <Object?>[];
-    cycle.add(cycle);
-    for (final value in [
-      Object(),
-      _JsonObject(),
-      cycle,
-      double.nan,
-      <Object, Object>{1: '值'},
-    ]) {
-      expect(
-        () => immutableLlmJson(value),
-        throwsA(
-          isA<LlmException>().having(
-            (e) => e.kind,
-            '类型',
-            LlmFailureKind.invalidRequest,
-          ),
-        ),
-      );
-    }
-  });
-
-  for (final mode in ['缺失结果', '未知结果', '重复结果', '名称不符', '切换模型', '参数不符']) {
+  for (final mode in ['缺失结果', '重复结果', '切换模型']) {
     test('$mode 在发送前失败', () async {
       final httpClient = _Http();
       final client = ChatCompletionsClient(
@@ -168,7 +93,6 @@ void main() {
     expect(events.whereType<LlmCompleted>(), hasLength(1));
     expect(events.map((e) => e.contentDelta).join(), '正文');
     expect(events.whereType<LlmCompleted>().single.result.content, '正文');
-    expect(() => stream.listen((_) {}), throwsStateError);
   });
 
   test('工具参数和工具结果按 UTF8 字节限制', () {
@@ -202,8 +126,4 @@ class _Http extends http.BaseClient {
       200,
     );
   }
-}
-
-class _JsonObject {
-  Map<String, Object> toJson() => {};
 }

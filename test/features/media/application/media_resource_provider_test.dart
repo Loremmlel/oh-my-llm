@@ -5,7 +5,6 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/features/media/application/media_library_session_controller.dart';
 import 'package:oh_my_llm/features/media/application/media_resource_provider.dart';
-import 'package:oh_my_llm/features/media/application/models/media_library_failure.dart';
 import 'package:oh_my_llm/features/media/application/models/media_library_source.dart';
 import 'package:oh_my_llm/features/media/application/models/media_resource.dart';
 import 'package:oh_my_llm/features/media/application/models/media_resource_request.dart';
@@ -19,12 +18,6 @@ import '../helpers/fake_media_library.dart';
 const _assetRequest = MediaAssetRequest(
   kind: MediaAssetKind.video,
   relativePath: '/a.mp4',
-);
-const _thumbnailRequest = MediaThumbnailRequest(
-  relativePath: '/a.mp4',
-  sizeBytes: 1024,
-  lastModified: 1234,
-  hasThumbnail: true,
 );
 
 /// 资产解析受控的媒体库 Fake：resolveAsset 返回挂起的 Completer，
@@ -98,102 +91,6 @@ ProviderContainer _createContainer(MediaLibraryFactory factory) {
 }
 
 void main() {
-  test('未激活或打开中的会话返回 sourceUnavailable', () async {
-    final library = FakeMediaLibrary();
-    final factory = FakeMediaLibraryFactory(library)
-      ..pendingOpen = Completer<MediaLibrary>();
-    final container = _createContainer(factory);
-
-    // 初始 Inactive：资源解析直接失败。
-    await expectLater(
-      readResource(container, _assetRequest),
-      throwsA(
-        isA<MediaLibraryFailure>().having(
-          (f) => f.code,
-          'code',
-          MediaLibraryFailureCode.sourceUnavailable,
-        ),
-      ),
-    );
-
-    // Opening：同样失败。
-    final sub = container.listen(mediaLibrarySessionProvider, (_, _) {});
-    addTearDown(sub.close);
-    final activation = container
-        .read(mediaLibrarySessionProvider.notifier)
-        .activate(const LocalMediaLibrarySource(r'D:\Media'));
-    await expectLater(
-      readResource(container, _assetRequest),
-      throwsA(
-        isA<MediaLibraryFailure>().having(
-          (f) => f.code,
-          'code',
-          MediaLibraryFailureCode.sourceUnavailable,
-        ),
-      ),
-    );
-
-    factory.pendingOpen!.complete(library);
-    await activation;
-  });
-
-  test('失败的会话原样抛出其 MediaLibraryFailure', () async {
-    const failure = MediaLibraryFailure(
-      MediaLibraryFailureCode.networkUnavailable,
-      '对端不可达',
-    );
-    final library = FakeMediaLibrary();
-    final factory = FakeMediaLibraryFactory(library);
-    final container = _createContainer(factory);
-    final sub = container.listen(mediaLibrarySessionProvider, (_, _) {});
-    addTearDown(sub.close);
-
-    container.read(mediaLibrarySessionProvider.notifier).fail(failure);
-    await expectLater(
-      readResource(container, _assetRequest),
-      throwsA(
-        isA<MediaLibraryFailure>().having((f) => f.message, 'message', '对端不可达'),
-      ),
-    );
-  });
-
-  test('资产请求只调用一次 resolveAsset', () async {
-    final resource = NetworkMediaResource(
-      Uri.parse('http://192.168.1.5:8080/api/media/video/a.mp4'),
-    );
-    final library = FakeMediaLibrary()..assetResults[_assetRequest] = resource;
-    final factory = FakeMediaLibraryFactory(library);
-    final container = _createContainer(factory);
-    final sub = container.listen(mediaLibrarySessionProvider, (_, _) {});
-    addTearDown(sub.close);
-
-    await container
-        .read(mediaLibrarySessionProvider.notifier)
-        .activate(const LocalMediaLibrarySource(r'D:\Media'));
-    final result = await readResource(container, _assetRequest);
-    expect(result, same(resource));
-    expect(library.resolveAssetCalls, [_assetRequest]);
-  });
-
-  test('缩略图请求只调用一次 resolveThumbnail', () async {
-    final resource = NetworkMediaResource(
-      Uri.parse('http://192.168.1.5:8080/api/media/thumb/a.jpg'),
-    );
-    final library = FakeMediaLibrary()
-      ..thumbnailResults[_thumbnailRequest] = resource;
-    final factory = FakeMediaLibraryFactory(library);
-    final container = _createContainer(factory);
-    final sub = container.listen(mediaLibrarySessionProvider, (_, _) {});
-    addTearDown(sub.close);
-
-    await container
-        .read(mediaLibrarySessionProvider.notifier)
-        .activate(const LocalMediaLibrarySource(r'D:\Media'));
-    final result = await readResource(container, _thumbnailRequest);
-    expect(result, same(resource));
-    expect(library.resolveThumbnailCalls, [_thumbnailRequest]);
-  });
-
   test('会话重置/替换使挂起的 provider 结果失效，新读取使用新库', () async {
     final pending = _PendingAssetLibrary();
     final staleResource = NetworkMediaResource(

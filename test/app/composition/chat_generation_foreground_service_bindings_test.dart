@@ -4,9 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/app/app.dart';
-import 'package:oh_my_llm/app/composition/chat_generation_foreground_service_bindings.dart';
-import 'package:oh_my_llm/app/platform/android_chat_generation_foreground_service.dart';
-import 'package:oh_my_llm/app/platform/noop_chat_generation_foreground_service.dart';
 import 'package:oh_my_llm/app/router/app_router.dart';
 import 'package:oh_my_llm/core/llm/llm_reasoning_effort.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
@@ -123,43 +120,6 @@ Future<ProviderContainer> _pumpCompositionRoot(
 }
 
 void main() {
-  group('createChatGenerationForegroundService 平台选择', () {
-    setUpAll(TestWidgetsFlutterBinding.ensureInitialized);
-
-    test('Android 调用注入工厂恰好一次并返回其端口', () {
-      var calls = 0;
-      late AndroidChatGenerationForegroundService adapter;
-      final port = createChatGenerationForegroundService(
-        platform: TargetPlatform.android,
-        androidFactory: () {
-          calls++;
-          adapter = AndroidChatGenerationForegroundService();
-          return adapter;
-        },
-      );
-      expect(calls, 1);
-      expect(port, same(adapter));
-    });
-
-    for (final platform in const [
-      TargetPlatform.windows,
-      TargetPlatform.linux,
-      TargetPlatform.macOS,
-      TargetPlatform.iOS,
-      TargetPlatform.fuchsia,
-    ]) {
-      test('$platform 返回 noop 且绝不创建 Android adapter', () {
-        final port = createChatGenerationForegroundService(
-          platform: platform,
-          androidFactory: () {
-            throw StateError('非 Android 平台不得创建 Android adapter');
-          },
-        );
-        expect(port, isA<NoopChatGenerationForegroundService>());
-      });
-    }
-  });
-
   group('组合 eager 生命周期', () {
     testWidgets('ChatScreen 未挂载时 generation 进入 preparing 也记录 start', (
       tester,

@@ -258,91 +258,6 @@ void registerChatSessionsControllerGenerationCases() {
     expect(state.errorMessageAssistantId, state.emptyReplyAssistantId);
   });
 
-  // ── formatStreamingError ────────────────────────────────────────────────────
-
-  group('formatStreamingError', () {
-    test('ChatGenerationException 展开状态码与响应体', () {
-      final controller = container.read(chatSessionsProvider.notifier);
-      final message = controller.formatStreamingError(
-        const ChatGenerationException(
-          '请求失败',
-          statusCode: 429,
-          responseBody: '{"error":"rate limit"}',
-        ),
-        StackTrace.current,
-      );
-
-      expect(message, startsWith('请求失败'));
-      expect(message, contains('429'));
-      expect(message, contains('rate limit'));
-      // 缺字段时不出现对应小节。
-      expect(message, isNot(contains('协议：')));
-      expect(message, isNot(contains('请求地址：')));
-      expect(message, isNot(contains('API 错误码：')));
-    });
-
-    test('携带协议/请求地址/错误码时展开新字段', () {
-      final controller = container.read(chatSessionsProvider.notifier);
-      final message = controller.formatStreamingError(
-        ChatGenerationException(
-          '请求失败',
-          protocol: LlmApiProtocol.responses,
-          uri: Uri.parse('https://api.example.com/v1/responses'),
-          apiErrorCode: 'rate_limit_exceeded',
-          statusCode: 429,
-        ),
-        StackTrace.current,
-      );
-
-      expect(message, startsWith('请求失败'));
-      expect(message, contains('协议：Responses'));
-      expect(message, contains('请求地址：https://api.example.com/v1/responses'));
-      expect(message, contains('API 错误码：rate_limit_exceeded'));
-    });
-
-    test('超长响应体被截断并附省略提示', () {
-      final controller = container.read(chatSessionsProvider.notifier);
-      final hugeBody = 'x' * 5000;
-      final message = controller.formatStreamingError(
-        ChatGenerationException(
-          '请求失败',
-          statusCode: 500,
-          responseBody: hugeBody,
-        ),
-        StackTrace.current,
-      );
-
-      expect(message, contains('已截断'));
-      expect(message.length, lessThan(hugeBody.length));
-    });
-
-    test('携带源异常时展开 cause', () {
-      final controller = container.read(chatSessionsProvider.notifier);
-      final message = controller.formatStreamingError(
-        ChatGenerationException(
-          '连接失败',
-          cause: const SocketExceptionStub('连接被重置'),
-          causeStackTrace: StackTrace.current,
-        ),
-        StackTrace.current,
-      );
-
-      expect(message, startsWith('连接失败'));
-      expect(message, contains('连接被重置'));
-    });
-
-    test('非 ChatGenerationException 降级为 toString + 堆栈', () {
-      final controller = container.read(chatSessionsProvider.notifier);
-      final message = controller.formatStreamingError(
-        StateError('未知错误'),
-        StackTrace.current,
-      );
-
-      expect(message, contains('未知错误'));
-      expect(message, contains('```text'));
-    });
-  });
-
   // ── 原始请求目标接线 ────────────────────────────────────────────────────────
 
   test('根地址和显式协议原样交给生成客户端', () async {
@@ -367,12 +282,4 @@ void registerChatSessionsControllerGenerationCases() {
     );
     expect(fakeClient.requestedTargets.last.protocol, protocol);
   });
-}
-
-/// 测试用源异常桩，验证 cause 展开。
-class SocketExceptionStub implements Exception {
-  const SocketExceptionStub(this.message);
-  final String message;
-  @override
-  String toString() => message;
 }

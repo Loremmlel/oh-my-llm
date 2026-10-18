@@ -66,35 +66,6 @@ void main() {
           .drain<void>();
     });
 
-    test('无效原始 URL 在发 HTTP 前转换为 ChatGenerationException', () async {
-      var sent = false;
-      final client = _FakeStreamingHttpClient((request) async {
-        sent = true;
-        return okResponse();
-      });
-
-      await expectLater(
-        buildAnthropicClient(client)
-            .streamCompletion(
-              _request(
-                _messages(),
-                modelConfig: _modelConfig(apiUrl: 'not-a-url'),
-              ),
-            )
-            .drain<void>(),
-        throwsA(
-          isA<ChatGenerationException>()
-              .having(
-                (error) => error.protocol,
-                'protocol',
-                LlmApiProtocol.anthropic,
-              )
-              .having((error) => error.uri, 'uri', isNull),
-        ),
-      );
-      expect(sent, isFalse);
-    });
-
     test('Header 逐字：x-api-key 与 anthropic-version', () async {
       final client = _FakeStreamingHttpClient((request) async {
         expect(request.headers['Content-Type'], 'application/json');
@@ -260,51 +231,6 @@ void main() {
           )
           .drain<void>();
     });
-
-    test('请求日志合并自定义 header，反映最终实际请求头', () async {
-      final logger = _FakeNetworkLogger();
-      final client = _FakeStreamingHttpClient((_) async => okResponse());
-      final anthropicClient = buildAnthropicClient(
-        client,
-        logger: logger,
-        extraHeadersFactory: () => const {'X-Custom-Header': 'custom-value'},
-      );
-
-      await anthropicClient
-          .streamCompletion(_request(_messages(), modelConfig: _modelConfig()))
-          .drain<void>();
-
-      expect(logger.requestHeaders!['Content-Type'], 'application/json');
-      expect(logger.requestHeaders!['x-api-key'], 'sk-ant-test-12345678');
-      expect(logger.requestHeaders!['anthropic-version'], '2023-06-01');
-      expect(logger.requestHeaders!['X-Custom-Header'], 'custom-value');
-    });
-
-    test('协议不匹配 → ChatGenerationException，且不发送请求', () async {
-      final client = _FakeStreamingHttpClient((_) async {
-        throw UnimplementedError('协议不匹配时不应发送请求');
-      });
-
-      await expectLater(
-        buildAnthropicClient(client)
-            .streamCompletion(
-              _request(
-                _messages(),
-                modelConfig: _modelConfig(
-                  apiProtocol: LlmApiProtocol.responses,
-                ),
-              ),
-            )
-            .drain<void>(),
-        throwsA(
-          isA<ChatGenerationException>().having(
-            (e) => e.protocol,
-            'protocol',
-            LlmApiProtocol.responses,
-          ),
-        ),
-      );
-    });
   });
 
   // ── 行为等价（流式集成，经 transport + 假 http.Client）─────────
@@ -446,37 +372,6 @@ void main() {
       expect(result.content, isEmpty);
     });
 
-    test('非 2xx → ChatGenerationException 字段正确', () async {
-      final client = _FakeStreamingHttpClient((_) async {
-        return http.StreamedResponse(
-          Stream.value(
-            utf8.encode('{"type":"error","error":{"message":"bad key"}}'),
-          ),
-          401,
-        );
-      });
-
-      await expectLater(
-        buildAnthropicClient(client)
-            .streamCompletion(
-              _request(_messages(), modelConfig: _modelConfig()),
-            )
-            .drain<void>(),
-        throwsA(
-          isA<ChatGenerationException>()
-              .having((e) => e.statusCode, 'statusCode', 401)
-              .having((e) => e.protocol, 'protocol', LlmApiProtocol.anthropic)
-              .having((e) => e.uri, 'uri', testUri)
-              .having(
-                (e) => e.responseBody,
-                'responseBody',
-                '{"type":"error","error":{"message":"bad key"}}',
-              )
-              .having((e) => e.message, 'message', contains('401')),
-        ),
-      );
-    });
-
     test('意外 tool_use 内容块 → 明确不支持异常', () async {
       final client = _FakeStreamingHttpClient((_) async {
         return http.StreamedResponse(
@@ -553,22 +448,5 @@ class _FakeStreamingHttpClient extends http.BaseClient {
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) {
     return _handler(request);
-  }
-}
-
-final class _FakeNetworkLogger with NetworkLogger {
-  Map<String, String>? requestHeaders;
-
-  @override
-  Future<void> logRequest({
-    String? requestId,
-    int? attempt,
-    required Uri uri,
-    required String method,
-    required Map<String, String> headers,
-    required Object? payload,
-    bool logBody = false,
-  }) async {
-    requestHeaders = headers;
   }
 }

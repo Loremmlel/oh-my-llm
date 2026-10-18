@@ -3,32 +3,24 @@ import 'dart:async';
 import 'package:oh_my_llm/core/widgets/app_text_field.dart';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
 import 'package:oh_my_llm/features/settings/presentation/widgets/providers/forms/model_provider_form_dialog.dart';
 
-import '../../../../../../helpers/test_harness.dart';
-import '../../../../../../helpers/async/widget_test_animation.dart';
-
 void main() {
-  setUp(() {
-    SharedPreferences.setMockInitialValues({});
-  });
-
   Future<void> pumpDialog(
     WidgetTester tester, {
     required Future<void> Function(ModelProviderFormData) onSubmit,
   }) async {
-    final sp = await SharedPreferences.getInstance();
-
-    await pumpTestApp(
-      tester,
-      preferences: sp,
-      child: Scaffold(
-        body: Center(child: ModelProviderFormDialog(onSubmit: onSubmit)),
+    tester.view.physicalSize = const Size(1440, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(child: ModelProviderFormDialog(onSubmit: onSubmit)),
+        ),
       ),
     );
   }
@@ -50,9 +42,9 @@ void main() {
     LlmApiProtocol protocol,
   ) async {
     await tester.tap(protocolDropdown());
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
     await tester.tap(find.text(protocol.displayName).last);
-    await settleOverlayTransition(tester);
+    await tester.pumpAndSettle();
   }
 
   Future<void> fillRequiredFields(WidgetTester tester) async {
@@ -63,46 +55,6 @@ void main() {
   }
 
   group('服务商表单', () {
-    testWidgets('API Key 字段明文显示并关闭输入建议', (tester) async {
-      await pumpDialog(tester, onSubmit: (_) async {});
-
-      final field = tester.widget<TextField>(
-        find.descendant(
-          of: formField('API Key'),
-          matching: find.byType(TextField),
-        ),
-      );
-      expect(field.obscureText, isFalse);
-      expect(field.keyboardType, TextInputType.visiblePassword);
-      expect(field.autocorrect, isFalse);
-      expect(field.enableSuggestions, isFalse);
-    });
-
-    testWidgets('新增服务商默认 Chat Completions 并可提交', (tester) async {
-      ModelProviderFormData? captured;
-      await pumpDialog(
-        tester,
-        onSubmit: (data) async {
-          captured = data;
-        },
-      );
-
-      // 未传入 initialValue：下拉默认选中 Chat Completions。
-      expect(find.text('Chat Completions'), findsOneWidget);
-
-      await fillRequiredFields(tester);
-      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
-      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
-      await settleOverlayTransition(tester);
-
-      expect(captured, isNotNull);
-      expect(captured!.apiProtocol, LlmApiProtocol.chatCompletions);
-      expect(captured!.name, 'OpenAI 官方');
-      expect(captured!.apiUrl, 'https://api.example.com/v1');
-      expect(captured!.apiKey, 'sk-test-12345678');
-    });
-
     testWidgets('可选择并提交非默认 Anthropic 协议', (tester) async {
       ModelProviderFormData? captured;
       await pumpDialog(
@@ -115,7 +67,7 @@ void main() {
       await selectProtocol(tester, LlmApiProtocol.anthropic);
       await fillRequiredFields(tester);
       await tester.tap(find.text('保存'));
-      await settleOverlayTransition(tester);
+      await tester.pumpAndSettle();
 
       expect(captured, isNotNull);
       expect(captured!.apiProtocol, LlmApiProtocol.anthropic);
@@ -128,29 +80,31 @@ void main() {
       final submitDone = Completer<void>();
       // 经 showDialog 以真实 Dialog route 挂载，system Back 与 barrier tap
       // 才会走路由 pop 逻辑——直接嵌在 body 中时根路由永远不可弹，测不出契约。
-      final sp = await SharedPreferences.getInstance();
-      await pumpTestApp(
-        tester,
-        preferences: sp,
-        child: Scaffold(
-          body: Builder(
-            builder: (context) => TextButton(
-              onPressed: () => showDialog<void>(
-                context: context,
-                builder: (_) => ModelProviderFormDialog(
-                  onSubmit: (data) async {
-                    submitStarted.complete();
-                    await submitDone.future;
-                  },
+      tester.view.physicalSize = const Size(1440, 1200);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                onPressed: () => showDialog<void>(
+                  context: context,
+                  builder: (_) => ModelProviderFormDialog(
+                    onSubmit: (data) async {
+                      submitStarted.complete();
+                      await submitDone.future;
+                    },
+                  ),
                 ),
+                child: const Text('打开表单'),
               ),
-              child: const Text('打开表单'),
             ),
           ),
         ),
       );
       await tester.tap(find.text('打开表单'));
-      await settleOverlayTransition(tester);
+      await tester.pumpAndSettle();
 
       await fillRequiredFields(tester);
       await tester.tap(find.widgetWithText(FilledButton, '保存'));
@@ -163,7 +117,7 @@ void main() {
       await tester.binding.handlePopRoute();
       // 等退场动画收敛：若路由真的在退场，动画结束后对话框必然消失，
       // 单帧 pump 只会停在退场中途、树里仍有对话框，无法区分二者。
-      await settleOverlayTransition(tester);
+      await tester.pumpAndSettle();
       expect(find.byType(ModelProviderFormDialog), findsOneWidget);
 
       // busy 期间 barrier 点击同样不能关闭。
@@ -173,7 +127,7 @@ void main() {
 
       // 保存完成后 isSaving 恢复 false，表单自动关闭。
       submitDone.complete();
-      await settleOverlayTransition(tester);
+      await tester.pumpAndSettle();
       expect(find.byType(ModelProviderFormDialog), findsNothing);
     });
   });

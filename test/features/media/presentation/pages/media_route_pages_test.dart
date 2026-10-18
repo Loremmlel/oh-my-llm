@@ -9,7 +9,6 @@ import 'package:oh_my_llm/features/media/application/models/media_resource_reque
 import 'package:oh_my_llm/features/media/presentation/pages/media_route_pages.dart';
 import 'package:oh_my_llm/features/media/presentation/pages/video_player_platform_bindings.dart';
 
-import '../../../../helpers/async/widget_test_animation.dart';
 import '../../../../helpers/test_harness.dart';
 import '../../helpers/fake_media_library.dart';
 import '../../helpers/fake_video_player_controller.dart';
@@ -234,7 +233,7 @@ void main() {
     await pumpTestApp(tester, preferences: prefs, router: router);
 
     await tester.tap(find.text('返回同步页'));
-    await settleRouteTransition(tester);
+    await tester.pumpAndSettle();
 
     expect(router.routerDelegate.currentConfiguration.uri.path, '/sync');
     expect(find.text('同步落点'), findsOneWidget);
@@ -260,7 +259,7 @@ void main() {
     await pumpTestApp(tester, preferences: prefs, router: router);
 
     await tester.tap(find.text('返回同步页'));
-    await settleRouteTransition(tester);
+    await tester.pumpAndSettle();
 
     expect(
       router.routerDelegate.currentConfiguration.matches.last.matchedLocation,

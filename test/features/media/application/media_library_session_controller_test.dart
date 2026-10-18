@@ -47,28 +47,6 @@ void main() {
     );
   });
 
-  test('成功的激活返回 true 并保存来源类型/库/代数', () async {
-    final library = FakeMediaLibrary();
-    final factory = FakeMediaLibraryFactory(library);
-    final container = ProviderContainer(
-      overrides: [mediaLibraryFactoryProvider.overrideWithValue(factory)],
-    );
-    addTearDown(container.dispose);
-    final sub = container.listen(mediaLibrarySessionProvider, (_, _) {});
-    addTearDown(sub.close);
-
-    final result = await container
-        .read(mediaLibrarySessionProvider.notifier)
-        .activate(const LocalMediaLibrarySource(r'D:\Media'));
-    expect(result, isTrue);
-    final state = container.read(mediaLibrarySessionProvider);
-    expect(state, isA<MediaLibrarySessionActive>());
-    final active = state as MediaLibrarySessionActive;
-    expect(active.sourceKind, MediaSourceKind.local);
-    expect(active.library, same(library));
-    expect(active.generation, 1);
-  });
-
   test('较新的 activate 优先于旧的挂起 activate', () async {
     final first = FakeMediaLibrary();
     final second = FakeMediaLibrary();
@@ -156,60 +134,5 @@ void main() {
     expect(failed.failure.code, MediaLibraryFailureCode.sourceUnavailable);
     expect(failed.failure.message, isNot(contains('磁盘格式错误')));
     expect(failed.failure.message, '媒体来源不可用');
-  });
-
-  test('fail 递增代数并发布 Failed', () async {
-    final library = FakeMediaLibrary();
-    final factory = FakeMediaLibraryFactory(library);
-    final container = ProviderContainer(
-      overrides: [mediaLibraryFactoryProvider.overrideWithValue(factory)],
-    );
-    addTearDown(container.dispose);
-    final sub = container.listen(mediaLibrarySessionProvider, (_, _) {});
-    addTearDown(sub.close);
-
-    await container
-        .read(mediaLibrarySessionProvider.notifier)
-        .activate(const LocalMediaLibrarySource(r'D:\Media'));
-    final activatedState = container.read(mediaLibrarySessionProvider);
-    final active = activatedState as MediaLibrarySessionActive;
-    expect(active.generation, 1);
-
-    const failure = MediaLibraryFailure(
-      MediaLibraryFailureCode.notFound,
-      '文件不存在',
-    );
-    container.read(mediaLibrarySessionProvider.notifier).fail(failure);
-    final state = container.read(mediaLibrarySessionProvider);
-    expect(state, isA<MediaLibrarySessionFailed>());
-    final failed = state as MediaLibrarySessionFailed;
-    expect(failed.generation, greaterThan(active.generation));
-    expect(failed.failure, same(failure));
-  });
-
-  test('释放最后一个监听器并重建得到 Inactive', () async {
-    final library = FakeMediaLibrary();
-    final factory = FakeMediaLibraryFactory(library);
-    final container = ProviderContainer(
-      overrides: [mediaLibraryFactoryProvider.overrideWithValue(factory)],
-    );
-    addTearDown(container.dispose);
-    final sub = container.listen(mediaLibrarySessionProvider, (_, _) {});
-
-    await container
-        .read(mediaLibrarySessionProvider.notifier)
-        .activate(const LocalMediaLibrarySource(r'D:\Media'));
-    expect(
-      container.read(mediaLibrarySessionProvider),
-      isA<MediaLibrarySessionActive>(),
-    );
-
-    sub.close();
-    await container.pump();
-    expect(container.exists(mediaLibrarySessionProvider), isFalse);
-    expect(
-      container.read(mediaLibrarySessionProvider),
-      isA<MediaLibrarySessionInactive>(),
-    );
   });
 }

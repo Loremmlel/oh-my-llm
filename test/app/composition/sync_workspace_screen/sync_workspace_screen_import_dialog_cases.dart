@@ -10,7 +10,6 @@ import 'package:oh_my_llm/features/sync/application/ports/settings_sync_facade.d
 import 'package:oh_my_llm/features/sync/presentation/widgets/sync_import_confirm_dialog.dart';
 
 import '../../../helpers/test_harness.dart';
-import '../../../helpers/async/widget_test_animation.dart';
 import 'sync_workspace_screen_test_helpers.dart';
 import '../../../features/sync/application/sync_test_fakes.dart';
 
@@ -86,7 +85,7 @@ void registerSyncScreenImportDialogTests() {
         ),
       );
       await tester.tap(find.text('打开对话框'));
-      await settleOverlayTransition(tester);
+      await tester.pumpAndSettle();
 
       // 测试数据含服务商 API Key，先勾选敏感凭据确认，导入按钮才可用。
       await tester.tap(find.byType(Checkbox));
@@ -104,18 +103,18 @@ void registerSyncScreenImportDialogTests() {
       await tester.binding.handlePopRoute();
       // 等退场动画收敛：若路由真的在退场，动画结束后对话框必然消失，
       // 单帧 pump 只会停在退场中途、树里仍有对话框，无法区分二者。
-      await settleOverlayTransition(tester);
+      await tester.pumpAndSettle();
       expect(find.text('确认同步配置'), findsOneWidget);
 
       // 导入失败后 busy 恢复为 false，Back 可以关闭。
       gate.completeError(StateError('写入失败'));
       // completeError 的错误沿 await 链以微任务传播，需收敛帧后恢复态才可见。
-      await settleAnimatedWidgetTransition(tester);
+      await tester.pumpAndSettle();
       expect(find.text('导入未完成，请重试'), findsOneWidget);
       expect(find.text('导入中...'), findsNothing);
 
       await tester.binding.handlePopRoute();
-      await settleOverlayTransition(tester);
+      await tester.pumpAndSettle();
       expect(find.text('确认同步配置'), findsNothing);
     });
 
@@ -149,7 +148,7 @@ void registerSyncScreenImportDialogTests() {
         ),
       );
       await tester.tap(find.text('打开对话框'));
-      await settleOverlayTransition(tester);
+      await tester.pumpAndSettle();
 
       await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
@@ -161,7 +160,7 @@ void registerSyncScreenImportDialogTests() {
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
       await tester.pump();
-      await settleAnimatedWidgetTransition(tester);
+      await tester.pumpAndSettle();
       expect(prepared.requestedSensitiveConfirmation, isTrue);
       expect(find.text('确认同步配置'), findsNothing);
     });
@@ -194,14 +193,14 @@ void registerSyncScreenImportDialogTests() {
         ),
       );
       await tester.tap(find.text('打开导入'));
-      await settleOverlayTransition(tester);
+      await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
       await tester.drag(find.text('包含敏感凭据'), const Offset(0, -250));
-      await settleScrollMotion(tester);
+      await tester.pumpAndSettle();
       expect(find.text('输出正则处理').hitTestable(), findsOneWidget);
       expect(find.text('取消').hitTestable(), findsOneWidget);
       await tester.tap(find.text('取消'));
-      await settleOverlayTransition(tester);
+      await tester.pumpAndSettle();
       expect(find.text('确认同步配置'), findsNothing);
     });
   });
