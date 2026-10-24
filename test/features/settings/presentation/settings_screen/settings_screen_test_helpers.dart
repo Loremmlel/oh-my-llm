@@ -17,13 +17,13 @@ import 'package:oh_my_llm/features/settings/domain/models/prompts/memory_prompt.
 import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/template_prompt.dart';
 import 'package:oh_my_llm/features/settings/presentation/settings_screen.dart';
-import 'package:oh_my_llm/features/settings/presentation/preset_editor_screen.dart';
-import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/fixed_prompt_sequence_form_dialog.dart';
-import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/memory_prompt_form_dialog.dart';
+import 'package:oh_my_llm/features/settings/presentation/prompt_editor_screens.dart';
+import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/fixed_prompt_sequence_editor.dart';
+import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/memory_prompt_editor.dart';
 import 'package:oh_my_llm/features/settings/presentation/widgets/providers/forms/model_config_form_dialog.dart';
 import 'package:oh_my_llm/features/settings/presentation/widgets/providers/forms/model_provider_form_dialog.dart';
 import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/preset_prompt_editor.dart';
-import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/template_prompt_form_dialog.dart';
+import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/template_prompt_editor.dart';
 
 import '../../../../helpers/fixtures.dart';
 import '../../../../helpers/test_harness.dart';
@@ -88,6 +88,36 @@ Future<AppDatabase> pumpSettingsScreen(
             path: 'presets/:presetId',
             builder: (_, state) =>
                 PresetEditorScreen(presetId: state.pathParameters['presetId']),
+          ),
+          GoRoute(
+            path: 'memory-prompts/new',
+            builder: (_, _) => const MemoryPromptEditorScreen(),
+          ),
+          GoRoute(
+            path: 'memory-prompts/:promptId',
+            builder: (_, state) => MemoryPromptEditorScreen(
+              promptId: state.pathParameters['promptId'],
+            ),
+          ),
+          GoRoute(
+            path: 'template-prompts/new',
+            builder: (_, _) => const TemplatePromptEditorScreen(),
+          ),
+          GoRoute(
+            path: 'template-prompts/:promptId',
+            builder: (_, state) => TemplatePromptEditorScreen(
+              promptId: state.pathParameters['promptId'],
+            ),
+          ),
+          GoRoute(
+            path: 'fixed-sequences/new',
+            builder: (_, _) => const FixedPromptSequenceEditorScreen(),
+          ),
+          GoRoute(
+            path: 'fixed-sequences/:sequenceId',
+            builder: (_, state) => FixedPromptSequenceEditorScreen(
+              sequenceId: state.pathParameters['sequenceId'],
+            ),
           ),
         ],
       ),
@@ -236,27 +266,26 @@ Finder presetPromptContentField() =>
     fieldInDialog<PresetPromptEditor>('Prompt 内容');
 
 Finder fixedPromptSequenceNameField() =>
-    fieldInDialog<FixedPromptSequenceFormDialog>('序列名称');
+    fieldInDialog<FixedPromptSequenceEditor>('序列名称');
 
 Finder fixedStepTitleField() =>
-    fieldInDialog<FixedPromptSequenceFormDialog>('步骤标题');
+    fieldInDialog<FixedPromptSequenceEditor>('步骤标题');
 
 Finder fixedStepContentField() =>
-    fieldInDialog<FixedPromptSequenceFormDialog>('步骤内容');
+    fieldInDialog<FixedPromptSequenceEditor>('步骤内容');
 
-Finder templatePromptTitleField() =>
-    fieldInDialog<TemplatePromptFormDialog>('标题');
+Finder templatePromptTitleField() => fieldInDialog<TemplatePromptEditor>('标题');
 
 Finder templatePromptContentField() =>
-    fieldInDialog<TemplatePromptFormDialog>('模板提示词');
+    fieldInDialog<TemplatePromptEditor>('模板提示词');
 
 Finder templatePromptVariableField(String variableName) =>
-    fieldInDialog<TemplatePromptFormDialog>(variableName);
+    fieldInDialog<TemplatePromptEditor>(variableName);
 
-Finder memoryPromptNameField() => fieldInDialog<MemoryPromptFormDialog>('名称');
+Finder memoryPromptNameField() => fieldInDialog<MemoryPromptEditor>('名称');
 
 Finder memoryPromptContentField() =>
-    fieldInDialog<MemoryPromptFormDialog>('记忆总结提示词');
+    fieldInDialog<MemoryPromptEditor>('记忆总结提示词');
 
 Future<void> createTestProvider(WidgetTester tester) async {
   await tester.tap(find.text('新增服务商'));

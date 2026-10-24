@@ -1,22 +1,13 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:oh_my_llm/core/widgets/app_text_field.dart';
-
-import 'package:oh_my_llm/core/widgets/dialogs/app_confirm_dialog.dart';
-import 'package:oh_my_llm/core/widgets/app_dropdown_field.dart';
-import 'package:oh_my_llm/core/widgets/long_text_editing_controller.dart';
-
-import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
 import 'package:oh_my_llm/core/utils/id_generator.dart';
+import 'package:oh_my_llm/core/widgets/app_dropdown_field.dart';
+import 'package:oh_my_llm/core/widgets/app_text_field.dart';
 
 import '../../../../domain/models/prompts/preset_prompt.dart';
 import '../../shared/settings_editor_list.dart';
-import '../../shared/settings_form_dialog_scaffold.dart';
 import '../../shared/settings_form_dialog_state_mixin.dart';
-import 'editable_preset_prompt_item.dart';
-import 'preset_prompt_editor_role.dart';
-import 'preset_prompt_list_tile.dart';
 
 /// 预设 Prompt 表单提交数据。
 class PresetPromptFormData {
@@ -48,224 +39,152 @@ class PresetPromptEditor extends StatefulWidget {
   State<PresetPromptEditor> createState() => _PresetPromptEditorState();
 }
 
-/// 预设 Prompt 表单的输入与选中状态。
 class _PresetPromptEditorState extends State<PresetPromptEditor>
-    with SettingsFormDialogStateMixin {
-  late final TextEditingController _nameController;
-  late final TextEditingController _reasoningTagController;
-  late final List<EditablePresetPromptItem> _items;
-  String? _selectedItemId;
-  late PresetPromptSyntax _syntax;
-  late String _initialSnapshot;
-  bool _leaveAllowed = false;
-  bool _confirmingLeave = false;
-  String? _saveError;
-  String get _snapshot => jsonEncode([
-    _nameController.text,
-    _reasoningTagController.text,
-    _syntax.name,
-    (_clearInsertionOrder.map((placement) => placement.name).toList()..sort()),
-    for (final item in _items)
-      [
-        item.id,
-        item.role.name,
-        item.placement?.name,
-        item.titleController.text,
-        item.contentController.text,
-      ],
-  ]);
-
-  Future<void> _requestLeave() async {
-    if (isSaving || _confirmingLeave) return;
-    _confirmingLeave = true;
-    final leave =
-        _snapshot == _initialSnapshot ||
-        await showDialog<bool>(
-              context: context,
-              builder: (_) => const AppConfirmDialog(
-                title: '放弃未保存的修改？',
-                message: '返回后，本次对预设的修改将丢失。',
-                confirmLabel: '放弃修改',
-                isDestructive: true,
-              ),
-            ) ==
-            true;
-    _confirmingLeave = false;
-    if (!mounted || !leave) return;
-    setState(() => _leaveAllowed = true);
-    await WidgetsBinding.instance.endOfFrame;
-    if (mounted) Navigator.of(context).pop();
-  }
-
+    with
+        SettingsFormDialogStateMixin,
+        SettingsItemListEditorMixin<PresetPromptEditor, PromptMessage> {
+  late final TextEditingController _reasoningTagController = initController(
+    widget.initialValue?.customReasoningTag ?? '',
+  );
+  late PresetPromptSyntax _syntax =
+      widget.initialValue?.syntax ?? PresetPromptSyntax.plain;
   final _clearInsertionOrder = <PromptMessagePlacement>{};
+
   bool get _usesMacros => _syntax == PresetPromptSyntax.sillyTavernSubsetV1;
+
+  @override
+  String get initialName => widget.initialValue?.name ?? '';
+
+  @override
+  bool get trimItemTitle => !_usesMacros;
+
+  @override
+  bool get trimItemContent => !_usesMacros;
+
+  @override
+  String itemIdOf(PromptMessage item) => item.id;
+
+  @override
+  String itemTitleOf(PromptMessage item) => item.title;
+
+  @override
+  String itemContentOf(PromptMessage item) => item.content;
+
+  @override
+  PromptMessage copyItemWithText(
+    PromptMessage item, {
+    required String title,
+    required String content,
+  }) => item.copyWith(title: title, content: content);
+
+  String _snapshot() {
+    syncSelectedItem();
+    return jsonEncode([
+      nameController.text,
+      _reasoningTagController.text,
+      _syntax.name,
+      (_clearInsertionOrder.map((p) => p.name).toList()..sort()),
+      for (final item in items)
+        [
+          item.id,
+          item.role.name,
+          item.placement.name,
+          item.title,
+          item.content,
+        ],
+    ]);
+  }
 
   @override
   void initState() {
     super.initState();
-    _nameController = initController(widget.initialValue?.name ?? '');
-    _syntax = widget.initialValue?.syntax ?? PresetPromptSyntax.plain;
-    _reasoningTagController = TextEditingController(
-      text: widget.initialValue?.customReasoningTag ?? '',
-    );
-    _items = _buildInitialItems(widget.initialValue);
-    _selectedItemId = _items.isEmpty ? null : _items.first.id;
-    _initialSnapshot = _snapshot;
+    final original = widget.initialValue?.messages ?? const <PromptMessage>[];
+    initEditorItems(_usesMacros ? original : _groupByPlacement(original));
+    captureInitialSnapshot(_snapshot());
   }
 
   @override
   void dispose() {
-    _reasoningTagController.dispose();
-    for (final item in _items) {
-      item.titleController.dispose();
-      item.contentController.dispose();
-    }
     disposeAllControllers();
     super.dispose();
   }
 
+  List<PromptMessage> _groupByPlacement(Iterable<PromptMessage> source) => [
+    for (final placement in PromptMessagePlacement.values)
+      ...source.where((item) => item.placement == placement),
+  ];
+
   @override
-  /// 构建预设 Prompt 的主从式编辑器。
-  Widget build(BuildContext context) {
-    final isEditing = widget.initialValue != null;
+  void moveSelected(int delta) {
+    final current = selectedItem;
+    if (current == null) return;
+    _clearInsertionOrder.add(current.placement);
+    super.moveSelected(delta);
+  }
 
-    return PopScope<void>(
-      canPop: _leaveAllowed,
-      onPopInvokedWithResult: (didPop, result) {
-        if (!didPop) _requestLeave();
-      },
-      child: SettingsFormDialogScaffold(
-        fullPage: true,
-        title: isEditing ? '编辑预设' : '新增预设',
-        helpText:
-            '条目标题仅用于识别。System / User / Assistant 条目均可增删。\n\n'
-            '前置消息位于历史之前；最新输入前消息位于历史之后、新输入之前；后置消息位于最后。System 条目以 system 角色发送。\n\n'
-            'SillyTavern 有限宏按列表顺序求值启用条目，再按位置注入。支持 setvar / getvar / 文本 addvar、user、lastUserMessage、注释和 trim。导入注入顺序可在上下文中查看；移动条目会恢复该位置的列表顺序。普通文本模式不执行宏。\n\n'
-            '自定义 CoT 标签可选填。例如输出使用 <thinking_diy>...</thinking_diy>，只填写 thinking_diy。标签中的内容显示为推理，正文和协议原生推理继续保留。此选项不会自动修改预设内容。',
-        formKey: formKey,
-        isSaving: isSaving,
-        onSubmit: _handleSubmit,
-        width: 1120,
-        shouldScrollContent: (constraints) =>
-            constraints.maxWidth < AppBreakpoints.formMasterDetail,
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final header = Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (_saveError != null)
-                  Text(
-                    _saveError!,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                  ),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(flex: 3, child: _buildNameField()),
-                    const SizedBox(width: 12),
-                    Expanded(flex: 2, child: _buildSyntaxField()),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                AppTextField.form(
-                  controller: _reasoningTagController,
+  @override
+  Widget build(BuildContext context) => buildEditorPage(
+    title: widget.initialValue == null ? '新增预设' : '编辑预设',
+    targetName: '预设',
+    helpText:
+        '条目标题仅用于识别。System / User / Assistant 条目均可增删。\n\n'
+        '前置消息位于历史之前；最新输入前消息位于历史之后、新输入之前；后置消息位于最后。System 条目以 system 角色发送。\n\n'
+        'SillyTavern 有限宏按列表顺序求值启用条目，再按位置注入。支持 setvar / getvar / 文本 addvar、user、lastUserMessage、注释和 trim。导入注入顺序可在上下文中查看；移动条目会恢复该位置的列表顺序。普通文本模式不执行宏。\n\n'
+        '自定义 CoT 标签可选填。例如输出使用 <thinking_diy>...</thinking_diy>，只填写 thinking_diy。标签中的内容显示为推理，正文和协议原生推理继续保留。此选项不会自动修改预设内容。',
+    width: 1120,
+    minExpandedHeight: 500,
+    snapshotBuilder: _snapshot,
+    onSubmit: _handleSubmit,
+    builder: (context, constraints, shouldScroll) => buildMasterDetailSection(
+      constraints: constraints,
+      shouldScroll: shouldScroll,
+      emptyText: '请先选择左侧条目。',
+      canMoveUp: _canMoveSelectedUp(),
+      canMoveDown: _canMoveSelectedDown(),
+      onAdd: _addMessageItem,
+      onDeleteSelected: selectedItem != null
+          ? () => setState(removeSelected)
+          : null,
+      header: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                flex: 3,
+                child: AppTextField.form(
+                  controller: nameController,
                   decoration: const InputDecoration(
-                    labelText: '自定义 CoT 标签（可选）',
-                    hintText: 'thinking_diy',
+                    labelText: '预设 Prompt 名称',
+                    hintText: '例如：代码审阅助手',
                   ),
-                  validator: (value) =>
-                      PresetPrompt.isValidReasoningTag(value?.trim() ?? '')
-                      ? null
-                      : '只填写标签名，不包含空格、尖括号、斜杠、引号或等号',
                 ),
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 12),
-                  child: Divider(height: 1),
-                ),
-              ],
-            );
-            if (constraints.maxWidth < AppBreakpoints.formMasterDetail) {
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [header, _buildCompactLayout(context)],
-              );
-            }
-            return SizedBox(
-              height: constraints.maxHeight,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  SizedBox(
-                    width: 280,
-                    child: SettingsEditorList(
-                      itemCount: _items.length,
-                      itemBuilder: (_, index) =>
-                          _buildMasterListTile(index, _selectedIndex),
-                      onAdd: isSaving ? null : _addMessageItem,
-                      onMoveUp: !isSaving && _canMoveSelectedUp()
-                          ? () => _moveSelected(-1)
-                          : null,
-                      onMoveDown: !isSaving && _canMoveSelectedDown()
-                          ? () => _moveSelected(1)
-                          : null,
-                    ),
-                  ),
-                  const VerticalDivider(width: 33),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        header,
-                        Expanded(
-                          child: _buildDetailContent(context, isWide: true),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
               ),
-            );
-          },
-        ),
+              const SizedBox(width: 12),
+              Expanded(flex: 2, child: _buildSyntaxField()),
+            ],
+          ),
+          const SizedBox(height: 8),
+          AppTextField.form(
+            controller: _reasoningTagController,
+            decoration: const InputDecoration(
+              labelText: '自定义 CoT 标签（可选）',
+              hintText: 'thinking_diy',
+            ),
+            validator: (value) =>
+                PresetPrompt.isValidReasoningTag(value?.trim() ?? '')
+                ? null
+                : '只填写标签名，不包含空格、尖括号、斜杠、引号或等号',
+          ),
+          const SizedBox(height: 8),
+        ],
       ),
-    );
-  }
-
-  Widget _buildCompactLayout(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(child: _buildCompactItemSelector(context)),
-            const SizedBox(width: 4),
-            IconButton(
-              onPressed: _addMessageItem,
-              tooltip: '新增条目',
-              icon: const Icon(Icons.add),
-            ),
-            IconButton(
-              onPressed: _canMoveSelectedUp() ? () => _moveSelected(-1) : null,
-              tooltip: '上移',
-              icon: const Icon(Icons.arrow_upward_rounded),
-            ),
-            IconButton(
-              onPressed: _canMoveSelectedDown() ? () => _moveSelected(1) : null,
-              tooltip: '下移',
-              icon: const Icon(Icons.arrow_downward_rounded),
-            ),
-          ],
-        ),
-        const Divider(height: 24),
-        _buildDetailContent(context, isWide: false),
-      ],
-    );
-  }
+      detailBuilder: (_, selected, {required isWide, required expandContent}) =>
+          _buildDetail(selected, isWide: isWide, expandContent: expandContent),
+    ),
+  );
 
   Widget _buildSyntaxField() => AppDropdownField<PresetPromptSyntax>(
     initialValue: _syntax,
@@ -279,555 +198,253 @@ class _PresetPromptEditorState extends State<PresetPromptEditor>
       ),
     ],
     onChanged: (value) {
-      if (value != null) {
-        setState(() {
-          _syntax = value;
-          if (!_usesMacros) {
-            final grouped = [
-              for (final placement in PromptMessagePlacement.values)
-                ..._items.where((item) => item.placement == placement),
-            ];
-            _items
-              ..clear()
-              ..addAll(grouped);
+      if (value == null) return;
+      setState(() {
+        syncSelectedItem();
+        final selectedId = selectedItem?.id;
+        _syntax = value;
+        if (!_usesMacros) {
+          final grouped = _groupByPlacement(items);
+          items
+            ..clear()
+            ..addAll(grouped);
+          if (selectedId != null) {
+            selectedIndex = items.indexWhere((item) => item.id == selectedId);
           }
-        });
-      }
+        }
+      });
     },
   );
 
-  /// 紧凑模式下用下拉菜单替代条目列表，节省垂直空间，
-  /// 避免用户编辑正文前需要滚动经过所有条目标题。
-  Widget _buildCompactItemSelector(BuildContext context) {
-    return AppDropdownField<int>(
-      key: ValueKey('compact-item-selector-$_selectedItemId'),
-      initialValue: _selectedIndex,
-      isExpanded: true,
+  Widget _buildDetail(
+    PromptMessage selected, {
+    required bool isWide,
+    required bool expandContent,
+  }) {
+    final titleField = AppTextField.form(
+      controller: itemTitleController,
+      decoration: const InputDecoration(
+        labelText: '标题',
+        hintText: '例如：前置约束、最新输入前提醒、后置收尾说明',
+      ),
+    );
+    final roleField = AppDropdownField<PromptMessageRole>(
+      fillWidth: true,
+      initialValue: selected.role,
+      decoration: const InputDecoration(labelText: '角色'),
+      items: const [
+        DropdownMenuItem(
+          value: PromptMessageRole.system,
+          child: Text('System'),
+        ),
+        DropdownMenuItem(value: PromptMessageRole.user, child: Text('User')),
+        DropdownMenuItem(
+          value: PromptMessageRole.assistant,
+          child: Text('Assistant'),
+        ),
+      ],
+      onChanged: (value) {
+        if (value == null) return;
+        setState(() {
+          syncSelectedItem();
+          items[selectedIndex] = items[selectedIndex].copyWith(role: value);
+        });
+      },
+    );
+    final placementField = AppDropdownField<PromptMessagePlacement>(
+      fillWidth: true,
+      initialValue: selected.placement,
+      decoration: const InputDecoration(labelText: '位置'),
       items: [
-        for (var index = 0; index < _items.length; index++)
+        for (final placement in PromptMessagePlacement.values)
           DropdownMenuItem(
-            value: index,
-            child: Text(
-              '${index + 1}. ${_buildCompactItemTitle(_items[index])}',
-              overflow: TextOverflow.ellipsis,
-            ),
+            value: placement,
+            child: Text(switch (placement) {
+              PromptMessagePlacement.before => '前置',
+              PromptMessagePlacement.beforeLatestInput => '最新输入前',
+              PromptMessagePlacement.after => '后置',
+            }),
           ),
       ],
       onChanged: (value) {
-        if (value != null) {
-          setState(() {
-            _selectedItemId = _items[value].id;
-          });
-        }
+        if (value != null) _changeSelectedPlacement(value);
       },
-      decoration: const InputDecoration(labelText: '选择条目'),
     );
-  }
-
-  /// 构建条目标题，空标题时使用 fallback。
-  String _buildCompactItemTitle(EditablePresetPromptItem item) {
-    final title = item.titleController.text.trim();
-    return title.isNotEmpty ? title : '未命名条目';
-  }
-
-  Widget _buildMasterListTile(int index, int selectedIndex) {
-    return PresetPromptListTile(
-      item: _items[index],
-      isSelected: index == selectedIndex,
-      onTap: isSaving
-          ? null
-          : () {
-              setState(() {
-                _selectedItemId = _items[index].id;
-              });
-            },
-    );
-  }
-
-  Widget _buildDetailContent(BuildContext context, {required bool isWide}) {
-    final selected = _selectedItem;
-    if (selected == null) {
-      return const Text('请先选择左侧条目。');
-    }
-
-    final contentField = AppTextField(
-      key: const ValueKey('preset-prompt-content-field'), // test-key
-      controller: selected.contentController,
-      minLines: isWide ? null : 8,
-      maxLines: isWide ? null : 16,
-      expands: isWide,
-      textAlignVertical: TextAlignVertical.top,
-      decoration: InputDecoration(
-        labelText: 'Prompt 内容',
-        hintText: '输入这一条预设 Prompt 的具体内容。',
-      ),
-    );
-
-    final fields = <Widget>[
-      AppTextField.form(
-        key: const ValueKey('preset-prompt-title-field'), // test-key
-        controller: selected.titleController,
-        decoration: const InputDecoration(
-          labelText: '标题',
-          hintText: '例如：前置约束、最新输入前提醒、后置收尾说明',
-        ),
-      ),
-      AppDropdownField<PresetPromptEditorRole>(
-        fillWidth: true,
-        key: const ValueKey('preset-prompt-role-field'), // test-key
-        initialValue: selected.role,
-        items: const [
-          DropdownMenuItem(
-            value: PresetPromptEditorRole.system,
-            child: Text('System'),
-          ),
-          DropdownMenuItem(
-            value: PresetPromptEditorRole.user,
-            child: Text('User'),
-          ),
-          DropdownMenuItem(
-            value: PresetPromptEditorRole.assistant,
-            child: Text('Assistant'),
-          ),
-        ],
-        onChanged: (value) {
-          if (value != null) {
-            setState(() {
-              _replaceSelected(selected.copyWith(role: value));
-            });
-          }
-        },
-        decoration: const InputDecoration(labelText: '角色'),
-      ),
-      AppDropdownField<PromptMessagePlacement>(
-        fillWidth: true,
-        key: const ValueKey('preset-prompt-placement-field'), // test-key
-        initialValue: selected.placement,
-        items: PromptMessagePlacement.values
-            .map((placement) {
-              return DropdownMenuItem(
-                value: placement,
-                child: Text(switch (placement) {
-                  PromptMessagePlacement.before => '前置',
-                  PromptMessagePlacement.beforeLatestInput => '最新输入前',
-                  PromptMessagePlacement.after => '后置',
-                }),
-              );
-            })
-            .toList(growable: false),
-        onChanged: (value) {
-          if (value != null) {
-            _changeSelectedPlacement(value);
-          }
-        },
-        decoration: const InputDecoration(labelText: '位置'),
-      ),
-    ];
     return Column(
+      mainAxisSize: expandContent ? MainAxisSize.max : MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (isWide)
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(flex: 2, child: fields[0]),
+              Expanded(flex: 2, child: titleField),
               const SizedBox(width: 12),
-              Expanded(child: fields[1]),
+              Expanded(child: roleField),
               const SizedBox(width: 12),
-              Expanded(child: fields[2]),
+              Expanded(child: placementField),
             ],
           )
         else ...[
-          fields[0],
-          const SizedBox(height: 12),
+          titleField,
+          const SizedBox(height: 8),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(child: fields[1]),
+              Expanded(child: roleField),
               const SizedBox(width: 12),
-              Expanded(child: fields[2]),
+              Expanded(child: placementField),
             ],
           ),
         ],
-        const SizedBox(height: 12),
-        if (isWide) Expanded(child: contentField) else contentField,
-        const SizedBox(height: 16),
-        Align(
-          alignment: Alignment.centerRight,
-          child: TextButton.icon(
-            onPressed: () => _removeSelectedItem(),
-            icon: const Icon(Icons.delete_outline_rounded),
-            label: const Text('删除当前条目'),
+        const SizedBox(height: 8),
+        SettingsExpandedTextField(
+          controller: itemContentController,
+          expand: expandContent,
+          decoration: const InputDecoration(
+            labelText: 'Prompt 内容',
+            hintText: '输入这一条预设 Prompt 的具体内容。',
           ),
         ),
       ],
     );
   }
 
-  Widget _buildNameField() {
-    return AppTextField.form(
-      key: const ValueKey('preset-prompt-name-field'), // test-key
-      controller: _nameController,
-      decoration: const InputDecoration(
-        labelText: '预设 Prompt 名称',
-        hintText: '例如：代码审阅助手',
-      ),
-    );
-  }
-
-  List<EditablePresetPromptItem> _buildInitialItems(PresetPrompt? template) {
-    final original = template?.messages ?? const <PromptMessage>[];
-    final ordered = _usesMacros
-        ? original
-        : original
-              .where(
-                (message) => message.placement == PromptMessagePlacement.before,
-              )
-              .followedBy(
-                (template?.messages ?? const <PromptMessage>[]).where(
-                  (message) =>
-                      message.placement ==
-                      PromptMessagePlacement.beforeLatestInput,
-                ),
-              )
-              .followedBy(
-                (template?.messages ?? const <PromptMessage>[]).where(
-                  (message) =>
-                      message.placement == PromptMessagePlacement.after,
-                ),
-              );
-    return ordered
-        .map((message) {
-          return EditablePresetPromptItem(
-            id: message.id,
-            role: switch (message.role) {
-              PromptMessageRole.system => PresetPromptEditorRole.system,
-              PromptMessageRole.user => PresetPromptEditorRole.user,
-              PromptMessageRole.assistant => PresetPromptEditorRole.assistant,
-            },
-            placement: message.placement,
-            titleController: TextEditingController(text: message.title),
-            contentController: LongTextEditingController(text: message.content),
-          );
-        })
-        .toList(growable: true);
-  }
-
-  EditablePresetPromptItem? get _selectedItem {
-    final selectedItemId = _selectedItemId;
-    if (selectedItemId == null) {
-      return null;
-    }
-    for (final item in _items) {
-      if (item.id == selectedItemId) {
-        return item;
-      }
-    }
-    return null;
-  }
-
-  int get _selectedIndex {
-    final selectedItemId = _selectedItemId;
-    if (selectedItemId == null) {
-      return -1;
-    }
-    return _items.indexWhere((item) => item.id == selectedItemId);
-  }
-
-  PromptMessagePlacement _resolveNewItemPlacement(
-    EditablePresetPromptItem? selected,
-  ) {
-    if (selected == null) {
-      return PromptMessagePlacement.before;
-    }
-    return selected.placement ?? PromptMessagePlacement.before;
-  }
-
-  int _resolveNewItemInsertIndex({
-    required EditablePresetPromptItem? selected,
-    required PromptMessagePlacement placement,
-  }) {
-    final selectedIndex = _selectedIndex;
-    if (selected == null || selectedIndex < 0) {
-      return switch (placement) {
-        PromptMessagePlacement.before => _firstBeforeLatestInputIndex,
-        PromptMessagePlacement.beforeLatestInput => _firstAfterIndex,
-        PromptMessagePlacement.after => _items.length,
-      };
-    }
-    return selectedIndex + 1;
-  }
-
   void _addMessageItem() {
-    final selected = _selectedItem;
-    final placement = _resolveNewItemPlacement(selected);
-    final newItem = EditablePresetPromptItem(
-      id: generateEntityId(),
-      role: PresetPromptEditorRole.user,
-      placement: placement,
-      titleController: TextEditingController(
-        text: _buildNextGeneratedTitle(
+    syncSelectedItem();
+    final selected = selectedItem;
+    final placement = selected?.placement ?? PromptMessagePlacement.before;
+    final sequence =
+        items
+            .where(
+              (i) =>
+                  i.placement == placement && i.role == PromptMessageRole.user,
+            )
+            .length +
+        1;
+    final insertAt = selected == null
+        ? _insertIndexForPlacement(placement)
+        : selectedIndex + 1;
+    setState(() {
+      _clearInsertionOrder.add(placement);
+      insertItem(
+        PromptMessage(
+          id: generateEntityId(),
           role: PromptMessageRole.user,
           placement: placement,
+          title: buildPresetPromptMessageFallbackTitle(
+            role: PromptMessageRole.user,
+            placement: placement,
+            sequence: sequence,
+          ),
+          content: '',
         ),
-      ),
-      contentController: LongTextEditingController(),
-    );
-
-    setState(() {
-      final insertIndex = _resolveNewItemInsertIndex(
-        selected: selected,
-        placement: placement,
+        at: insertAt,
       );
-      _items.insert(insertIndex, newItem);
-      _clearInsertionOrder.add(placement);
-      _selectedItemId = newItem.id;
-    });
-  }
-
-  void _removeSelectedItem() {
-    final index = _selectedIndex;
-    if (index < 0) {
-      return;
-    }
-
-    setState(() {
-      final removed = _items.removeAt(index);
-      removed.titleController.dispose();
-      removed.contentController.dispose();
-      if (_items.isEmpty) {
-        _selectedItemId = null;
-        return;
-      }
-      _selectedItemId = _items[index > 0 ? index - 1 : 0].id;
-    });
-  }
-
-  bool _canMoveSelectedUp() {
-    final index = _selectedIndex;
-    if (index < 0) {
-      return false;
-    }
-    if (_usesMacros) return index > 0;
-    final selected = _items[index];
-    return switch (selected.placement!) {
-      PromptMessagePlacement.before => index > 0,
-      PromptMessagePlacement.beforeLatestInput =>
-        index > _firstBeforeLatestInputIndex,
-      PromptMessagePlacement.after => index > _firstAfterIndex,
-    };
-  }
-
-  bool _canMoveSelectedDown() {
-    final index = _selectedIndex;
-    if (index < 0) {
-      return false;
-    }
-    if (_usesMacros) return index < _items.length - 1;
-    final selected = _items[index];
-    return switch (selected.placement!) {
-      PromptMessagePlacement.before => index < _lastBeforeIndex,
-      PromptMessagePlacement.beforeLatestInput =>
-        index < _lastBeforeLatestInputIndex,
-      PromptMessagePlacement.after => index < _items.length - 1,
-    };
-  }
-
-  void _moveSelected(int delta) {
-    final index = _selectedIndex;
-    if (index < 0) {
-      return;
-    }
-
-    final nextIndex = index + delta;
-    if (nextIndex < 0 || nextIndex >= _items.length) {
-      return;
-    }
-
-    final current = _items[index];
-    final target = _items[nextIndex];
-    if (!_usesMacros && current.placement != target.placement) {
-      return;
-    }
-
-    setState(() {
-      _clearInsertionOrder.add(current.placement!);
-      _items[index] = target;
-      _items[nextIndex] = current;
-      _selectedItemId = current.id;
     });
   }
 
   void _changeSelectedPlacement(PromptMessagePlacement placement) {
-    final index = _selectedIndex;
-    if (index < 0) {
-      return;
-    }
-
+    if (selectedIndex < 0) return;
     setState(() {
-      _clearInsertionOrder.addAll([_items[index].placement!, placement]);
+      syncSelectedItem();
+      _clearInsertionOrder.addAll([items[selectedIndex].placement, placement]);
       if (_usesMacros) {
-        _items[index] = _items[index].copyWith(placement: placement);
+        items[selectedIndex] = items[selectedIndex].copyWith(
+          placement: placement,
+        );
         return;
       }
-      final current = _items.removeAt(index).copyWith(placement: placement);
-      final insertIndex = switch (placement) {
-        PromptMessagePlacement.before =>
-          _firstBeforeLatestInputIndexAfterRemoval,
-        PromptMessagePlacement.beforeLatestInput =>
-          _firstAfterIndexAfterRemoval,
-        PromptMessagePlacement.after => _items.length,
-      };
-      _items.insert(insertIndex, current);
-      _selectedItemId = current.id;
+      final current = items
+          .removeAt(selectedIndex)
+          .copyWith(placement: placement);
+      final targetIndex = _insertIndexForPlacement(placement);
+      items.insert(targetIndex, current);
+      selectedIndex = targetIndex;
     });
   }
 
-  void _replaceSelected(EditablePresetPromptItem item) {
-    final index = _selectedIndex;
-    if (index < 0) {
-      return;
-    }
-    _items[index] = item;
+  int _insertIndexForPlacement(PromptMessagePlacement placement) =>
+      switch (placement) {
+        PromptMessagePlacement.before => _firstIndexOf(
+          PromptMessagePlacement.beforeLatestInput,
+        ),
+        PromptMessagePlacement.beforeLatestInput => _firstIndexOf(
+          PromptMessagePlacement.after,
+        ),
+        PromptMessagePlacement.after => items.length,
+      };
+
+  int _firstIndexOf(PromptMessagePlacement placement) {
+    final index = items.indexWhere((item) => item.placement == placement);
+    if (index != -1) return index;
+    return placement == PromptMessagePlacement.beforeLatestInput
+        ? _firstIndexOf(PromptMessagePlacement.after)
+        : items.length;
   }
 
-  int get _firstBeforeLatestInputIndex {
-    final index = _items.indexWhere(
-      (item) => item.placement == PromptMessagePlacement.beforeLatestInput,
-    );
-    return index == -1 ? _firstAfterIndex : index;
-  }
-
-  int get _firstAfterIndex {
-    final index = _items.indexWhere(
-      (item) => item.placement == PromptMessagePlacement.after,
-    );
-    return index == -1 ? _items.length : index;
-  }
-
-  int get _firstBeforeLatestInputIndexAfterRemoval {
-    final index = _items.indexWhere(
-      (item) => item.placement == PromptMessagePlacement.beforeLatestInput,
-    );
-    return index == -1 ? _firstAfterIndexAfterRemoval : index;
-  }
-
-  int get _firstAfterIndexAfterRemoval {
-    final index = _items.indexWhere(
-      (item) => item.placement == PromptMessagePlacement.after,
-    );
-    return index == -1 ? _items.length : index;
-  }
-
-  int get _lastBeforeIndex {
-    final index = _items.lastIndexWhere(
-      (item) => item.placement == PromptMessagePlacement.before,
-    );
+  int _lastIndexOf(PromptMessagePlacement placement) {
+    final index = items.lastIndexWhere((item) => item.placement == placement);
     return index < 0 ? 0 : index;
   }
 
-  int get _lastBeforeLatestInputIndex {
-    final index = _items.lastIndexWhere(
-      (item) => item.placement == PromptMessagePlacement.beforeLatestInput,
-    );
-    return index < 0 ? 0 : index;
+  bool _canMoveSelectedUp() {
+    if (selectedIndex < 0) return false;
+    if (_usesMacros) return selectedIndex > 0;
+    return switch (items[selectedIndex].placement) {
+      PromptMessagePlacement.before => selectedIndex > 0,
+      PromptMessagePlacement.beforeLatestInput =>
+        selectedIndex > _firstIndexOf(PromptMessagePlacement.beforeLatestInput),
+      PromptMessagePlacement.after =>
+        selectedIndex > _firstIndexOf(PromptMessagePlacement.after),
+    };
   }
 
-  String _buildNextGeneratedTitle({
-    required PromptMessageRole role,
-    required PromptMessagePlacement placement,
-  }) {
-    final nextIndex =
-        _items
-            .where(
-              (item) =>
-                  item.placement == placement &&
-                  item.role == _toEditorRole(role),
-            )
-            .length +
-        1;
-    return buildPresetPromptMessageFallbackTitle(
-      role: role,
-      placement: placement,
-      sequence: nextIndex,
-    );
-  }
-
-  PresetPromptEditorRole _toEditorRole(PromptMessageRole role) {
-    return switch (role) {
-      PromptMessageRole.system => PresetPromptEditorRole.system,
-      PromptMessageRole.user => PresetPromptEditorRole.user,
-      PromptMessageRole.assistant => PresetPromptEditorRole.assistant,
+  bool _canMoveSelectedDown() {
+    if (selectedIndex < 0) return false;
+    if (_usesMacros) return selectedIndex < items.length - 1;
+    return switch (items[selectedIndex].placement) {
+      PromptMessagePlacement.before =>
+        selectedIndex < _lastIndexOf(PromptMessagePlacement.before),
+      PromptMessagePlacement.beforeLatestInput =>
+        selectedIndex < _lastIndexOf(PromptMessagePlacement.beforeLatestInput),
+      PromptMessagePlacement.after => selectedIndex < items.length - 1,
     };
   }
 
   Future<void> _handleSubmit() async {
-    if (!(formKey.currentState?.validate() ?? false)) return;
-    final name = _nameController.text.trim();
+    syncSelectedItem();
+    if (!validateForm()) return;
+    final name = nameController.text.trim();
     if (name.isEmpty) {
       showFormSnackBar('请填写预设 Prompt 名称');
       return;
     }
-
-    for (final item in _items) {
-      if (!_usesMacros && item.titleController.text.trim().isEmpty) {
-        _selectedItemId = item.id;
-        setState(() {});
+    for (var i = 0; i < items.length; i++) {
+      if (!_usesMacros && items[i].title.trim().isEmpty) {
+        setState(() => selectItem(i));
         showFormSnackBar('请填写每条预设 Prompt 的标题');
         return;
       }
     }
-    // 保留原始消息的 enabled 状态，防止设置页编辑后丢失聊天页的开关设置
-    final originalEnabledById = <String, bool>{};
-    if (widget.initialValue != null) {
-      for (final m in widget.initialValue!.messages) {
-        originalEnabledById[m.id] = m.enabled;
-      }
-    }
-
-    final messages = _items
-        .map((item) {
-          final original = widget.initialValue?.messages
-              .where((m) => m.id == item.id)
-              .firstOrNull;
-          return PromptMessage(
-            id: item.id,
-            role: switch (item.role) {
-              PresetPromptEditorRole.system => PromptMessageRole.system,
-              PresetPromptEditorRole.user => PromptMessageRole.user,
-              PresetPromptEditorRole.assistant => PromptMessageRole.assistant,
-            },
-            title: _usesMacros
-                ? item.titleController.text
-                : item.titleController.text.trim(),
-            content: item.contentController.textForSave(trim: !_usesMacros),
-            placement: item.placement ?? PromptMessagePlacement.before,
-            enabled: originalEnabledById[item.id] ?? true,
-            sourceIdentifier: original?.sourceIdentifier,
-            importInsertionOrder: _clearInsertionOrder.contains(item.placement)
-                ? null
-                : original?.importInsertionOrder,
-          );
-        })
-        .toList(growable: false);
-
-    try {
-      await submitAndClose(() async {
-        await widget.onSubmit(
-          PresetPromptFormData(
-            name: name,
-            messages: messages,
-            syntax: _syntax,
-            customReasoningTag: _reasoningTagController.text.trim(),
+    final messages = [
+      for (final item in items)
+        item.copyWith(
+          title: _usesMacros ? item.title : item.title.trim(),
+          clearImportInsertionOrder: _clearInsertionOrder.contains(
+            item.placement,
           ),
-        );
-        if (mounted) {
-          setState(() => _leaveAllowed = true);
-          await WidgetsBinding.instance.endOfFrame;
-        }
-      });
-    } catch (error) {
-      if (mounted) setState(() => _saveError = '保存失败：$error');
-    }
+        ),
+    ];
+    await submitPageAndClose(
+      () => widget.onSubmit(
+        PresetPromptFormData(
+          name: name,
+          messages: messages,
+          syntax: _syntax,
+          customReasoningTag: _reasoningTagController.text.trim(),
+        ),
+      ),
+    );
   }
 }

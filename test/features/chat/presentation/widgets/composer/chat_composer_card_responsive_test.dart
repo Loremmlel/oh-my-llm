@@ -10,6 +10,7 @@ import 'package:oh_my_llm/features/chat/presentation/widgets/composer/composer_h
 import 'package:oh_my_llm/features/chat/presentation/widgets/composer/controls/thinking_toggle.dart';
 import 'package:oh_my_llm/features/chat/presentation/widgets/composer/controls/composer_send_button.dart';
 import 'package:oh_my_llm/features/chat/presentation/widgets/workspace/chat_workspace_bindings.dart';
+import 'package:oh_my_llm/features/settings/domain/models/prompts/template_prompt.dart';
 
 ChatWorkspaceComposerState _composerState({
   double? cacheHitRate,
@@ -254,5 +255,76 @@ void main() {
     );
 
     expect(find.textContaining('总 Token').hitTestable(), findsNothing);
+  });
+
+  testWidgets('启用模板提示词时收起输入区按钮固定在右上角', (tester) async {
+    final controller = TextEditingController();
+    final variableController = TextEditingController();
+    final focusNode = FocusNode();
+    addTearDown(controller.dispose);
+    addTearDown(variableController.dispose);
+    addTearDown(focusNode.dispose);
+
+    final template = TemplatePrompt(
+      id: 'tpl-1',
+      title: '翻译模板',
+      content: '把{{正文}}翻译成{{目标语言}}',
+      variables: const [
+        TemplatePromptVariable(name: '正文'),
+        TemplatePromptVariable(name: '目标语言'),
+      ],
+      updatedAt: DateTime(2026),
+    );
+    final baseState = _composerState();
+    await _pumpComposer(
+      tester,
+      680,
+      state: ChatWorkspaceComposerState(
+        readModel: ChatWorkspaceComposerReadModel(
+          modelProviders: baseState.readModel.modelProviders,
+          modelConfigs: baseState.readModel.modelConfigs,
+          selectedProviderId: baseState.readModel.selectedProviderId,
+          selectedModel: baseState.readModel.selectedModel,
+          templatePrompts: [template],
+          selectedTemplatePrompt: template,
+          fixedPromptSequences: baseState.readModel.fixedPromptSequences,
+          isComposerCollapsed: false,
+          reasoningEnabled: false,
+          reasoningEffort: ReasoningEffort.low,
+          supportsReasoning: false,
+          autoRetryEnabled: false,
+          isBusy: false,
+          isStreaming: false,
+          isAutoRetryWaiting: false,
+          excludedMessageCount: 0,
+          usageSummary: baseState.readModel.usageSummary,
+        ),
+        selectedTemplatePrompt: template,
+        isEditingMessage: false,
+      ),
+      bindings: ChatWorkspaceComposerBindings(
+        messageController: controller,
+        messageFocusNode: focusNode,
+        templateVariableControllers: {'目标语言': variableController},
+        onProviderSelected: (_) {},
+        onModelSelected: (_) {},
+        onTemplatePromptSelected: (_) {},
+        onToggleComposerCollapsed: () {},
+        onOpenFixedPromptSequenceRunner: () async {},
+        onOpenMessageFilter: () async {},
+      ),
+    );
+
+    final collapseTopRight = tester.getTopRight(find.byTooltip('收起输入区'));
+    final variableTopLeft = tester.getTopLeft(
+      find.byKey(const ValueKey('template-variable-目标语言')),
+    );
+    final messageTopLeft = tester.getTopLeft(
+      find.byKey(const ValueKey('chat-message-composer')),
+    );
+
+    expect(collapseTopRight.dy, lessThanOrEqualTo(variableTopLeft.dy));
+    expect(collapseTopRight.dy, lessThan(messageTopLeft.dy));
+    expect(collapseTopRight.dx, greaterThan(variableTopLeft.dx));
   });
 }

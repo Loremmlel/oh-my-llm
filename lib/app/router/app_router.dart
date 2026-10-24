@@ -13,7 +13,7 @@ import 'package:oh_my_llm/features/history/presentation/history_screen.dart';
 import 'package:oh_my_llm/features/media/presentation/pages/media_route_pages.dart';
 import 'package:oh_my_llm/features/media/presentation/pages/video_player_platform_bindings.dart';
 import 'package:oh_my_llm/features/settings/presentation/settings_screen.dart';
-import 'package:oh_my_llm/features/settings/presentation/preset_editor_screen.dart';
+import 'package:oh_my_llm/features/settings/presentation/prompt_editor_screens.dart';
 import 'package:oh_my_llm/features/settings/presentation/world_book_editor_screen.dart';
 
 import '../composition/sync_workspace_screen.dart';
@@ -93,6 +93,36 @@ GoRouter createAppRouter({
             path: 'worldbooks/:worldBookId',
             builder: (_, state) => WorldBookEditorScreen(
               worldBookId: state.pathParameters['worldBookId'],
+            ),
+          ),
+          GoRoute(
+            path: 'memory-prompts/new',
+            builder: (_, _) => const MemoryPromptEditorScreen(),
+          ),
+          GoRoute(
+            path: 'memory-prompts/:promptId',
+            builder: (_, state) => MemoryPromptEditorScreen(
+              promptId: state.pathParameters['promptId'],
+            ),
+          ),
+          GoRoute(
+            path: 'template-prompts/new',
+            builder: (_, _) => const TemplatePromptEditorScreen(),
+          ),
+          GoRoute(
+            path: 'template-prompts/:promptId',
+            builder: (_, state) => TemplatePromptEditorScreen(
+              promptId: state.pathParameters['promptId'],
+            ),
+          ),
+          GoRoute(
+            path: 'fixed-sequences/new',
+            builder: (_, _) => const FixedPromptSequenceEditorScreen(),
+          ),
+          GoRoute(
+            path: 'fixed-sequences/:sequenceId',
+            builder: (_, state) => FixedPromptSequenceEditorScreen(
+              sequenceId: state.pathParameters['sequenceId'],
             ),
           ),
         ],

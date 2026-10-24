@@ -53,6 +53,12 @@ void main() {
       expect(find.byTooltip('下一页'), findsOneWidget);
       expect(find.textContaining('1/5'), findsOneWidget);
       expect(find.text('每页'), findsOneWidget);
+      final labelCenter = tester.getCenter(find.text('每页'));
+      final dropdownCenter = tester.getCenter(
+        find.byType(DropdownButtonFormField<int>),
+      );
+      expect(labelCenter.dx, lessThan(dropdownCenter.dx));
+      expect((labelCenter.dy - dropdownCenter.dy).abs(), lessThan(8));
       expect(find.text('跳转'), findsNothing);
     });
 

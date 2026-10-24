@@ -723,33 +723,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     WidgetRef ref, {
     MemoryPrompt? initialValue,
   }) {
-    return showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return MemoryPromptFormDialog(
-          initialValue: initialValue,
-          onSubmit: (formData) async {
-            await _saveSettingsItem(
-              context,
-              isEditing: initialValue != null,
-              createdMessage: '记忆总结提示词已保存',
-              updatedMessage: '记忆总结提示词已更新',
-              onSave: () {
-                final memoryPrompt = MemoryPrompt(
-                  id: initialValue?.id ?? generateEntityId(),
-                  name: formData.name,
-                  content: formData.content,
-                  updatedAt: DateTime.now(),
-                );
-
-                return ref
-                    .read(memoryPromptsProvider.notifier)
-                    .upsert(memoryPrompt);
-              },
-            );
-          },
-        );
-      },
+    return context.push<void>(
+      '/settings/memory-prompts/${initialValue == null ? 'new' : Uri.encodeComponent(initialValue.id)}',
     );
   }
 
@@ -758,34 +733,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     WidgetRef ref, {
     TemplatePrompt? initialValue,
   }) {
-    return showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return TemplatePromptFormDialog(
-          initialValue: initialValue,
-          onSubmit: (formData) async {
-            await _saveSettingsItem(
-              context,
-              isEditing: initialValue != null,
-              createdMessage: '模板提示词已保存',
-              updatedMessage: '模板提示词已更新',
-              onSave: () {
-                final templatePrompt = TemplatePrompt(
-                  id: initialValue?.id ?? generateEntityId(),
-                  title: formData.title,
-                  content: formData.content,
-                  variables: formData.variables,
-                  updatedAt: DateTime.now(),
-                );
-
-                return ref
-                    .read(templatePromptsProvider.notifier)
-                    .upsert(templatePrompt);
-              },
-            );
-          },
-        );
-      },
+    return context.push<void>(
+      '/settings/template-prompts/${initialValue == null ? 'new' : Uri.encodeComponent(initialValue.id)}',
     );
   }
 
@@ -794,33 +743,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     WidgetRef ref, {
     FixedPromptSequence? initialValue,
   }) {
-    return showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return FixedPromptSequenceFormDialog(
-          initialValue: initialValue,
-          onSubmit: (formData) async {
-            await _saveSettingsItem(
-              context,
-              isEditing: initialValue != null,
-              createdMessage: '固定顺序提示词已保存',
-              updatedMessage: '固定顺序提示词已更新',
-              onSave: () {
-                final sequence = FixedPromptSequence(
-                  id: initialValue?.id ?? generateEntityId(),
-                  name: formData.name,
-                  steps: formData.steps,
-                  updatedAt: DateTime.now(),
-                );
-
-                return ref
-                    .read(fixedPromptSequencesProvider.notifier)
-                    .upsert(sequence);
-              },
-            );
-          },
-        );
-      },
+    return context.push<void>(
+      '/settings/fixed-sequences/${initialValue == null ? 'new' : Uri.encodeComponent(initialValue.id)}',
     );
   }
 
