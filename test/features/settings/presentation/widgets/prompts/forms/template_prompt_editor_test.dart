@@ -9,7 +9,7 @@ import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/t
 import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/memory_prompt_editor.dart';
 
 void main() {
-  Future<void> pumpDialog(
+  Future<void> pumpEditor(
     WidgetTester tester, {
     required Future<void> Function(TemplatePromptFormData) onSubmit,
   }) async {
@@ -100,7 +100,7 @@ void main() {
 
     testWidgets('选择单选默认值后提交返回 select 类型变量及其选项', (tester) async {
       TemplatePromptFormData? captured;
-      await pumpDialog(
+      await pumpEditor(
         tester,
         onSubmit: (data) async {
           captured = data;
@@ -130,7 +130,7 @@ void main() {
 
     testWidgets('无效/未闭合/嵌套条件块展示首个带行列的诊断且不触发保存', (tester) async {
       TemplatePromptFormData? captured;
-      await pumpDialog(
+      await pumpEditor(
         tester,
         onSubmit: (data) async {
           captured = data;
@@ -156,7 +156,7 @@ void main() {
 
     testWidgets('正文防抖协调变量，无效内容保留默认值，修复后可保存', (tester) async {
       TemplatePromptFormData? saved;
-      await pumpDialog(
+      await pumpEditor(
         tester,
         onSubmit: (data) async {
           saved = data;

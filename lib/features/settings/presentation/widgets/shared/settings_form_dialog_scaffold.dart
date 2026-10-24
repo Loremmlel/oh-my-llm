@@ -85,16 +85,7 @@ class SettingsFormDialogScaffold extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        if (errorText != null)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: Text(
-                              errorText!,
-                              style: TextStyle(
-                                color: Theme.of(context).colorScheme.error,
-                              ),
-                            ),
-                          ),
+                        if (errorText != null) _buildErrorBanner(context),
                         Expanded(child: LayoutBuilder(builder: _buildForm)),
                       ],
                     ),
@@ -106,6 +97,14 @@ class SettingsFormDialogScaffold extends StatelessWidget {
     );
   }
 
+  Widget _buildErrorBanner(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Text(
+      errorText!,
+      style: TextStyle(color: Theme.of(context).colorScheme.error),
+    ),
+  );
+
   Widget _buildAlertDialog(BuildContext context) {
     return AlertDialog(
       title: helpText == null
@@ -113,7 +112,14 @@ class SettingsFormDialogScaffold extends StatelessWidget {
           : AppHelpTitle(title: title, message: helpText!),
       content: SizedBox(
         width: width,
-        child: LayoutBuilder(builder: _buildForm),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (errorText != null) _buildErrorBanner(context),
+            Flexible(child: LayoutBuilder(builder: _buildForm)),
+          ],
+        ),
       ),
       actions: [
         TextButton(

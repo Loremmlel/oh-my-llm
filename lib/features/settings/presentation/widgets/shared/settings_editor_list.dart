@@ -368,67 +368,82 @@ mixin SettingsItemListEditorMixin<T extends StatefulWidget, E>
           final selectedKey = selectedItem == null
               ? null
               : itemIdOf(selectedItem as E);
+          final stackCompactActions =
+              constraints.maxWidth < 360 ||
+              MediaQuery.textScalerOf(context).scale(1) > 1.3;
+          final selector = AppDropdownField<int>(
+            key: ValueKey('compact-item-selector-$selectedKey'),
+            fillWidth: true,
+            initialValue: selectedIndex >= 0 && selectedIndex < items.length
+                ? selectedIndex
+                : null,
+            isExpanded: true,
+            decoration: InputDecoration(labelText: selectLabel),
+            items: [
+              for (var i = 0; i < items.length; i++)
+                DropdownMenuItem(
+                  value: i,
+                  child: Text(
+                    '${i + 1}. ${_resolvedTitleAt(i)}',
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+            ],
+            onChanged: isSaving
+                ? null
+                : (value) {
+                    if (value != null) {
+                      setState(() => selectItem(value));
+                    }
+                  },
+          );
+          final actions = <Widget>[
+            IconButton(
+              visualDensity: VisualDensity.compact,
+              onPressed: isSaving ? null : onAdd,
+              tooltip: addLabel,
+              icon: const Icon(Icons.add),
+            ),
+            IconButton(
+              visualDensity: VisualDensity.compact,
+              onPressed: onMoveUp,
+              tooltip: '上移',
+              icon: const Icon(Icons.arrow_upward_rounded),
+            ),
+            IconButton(
+              visualDensity: VisualDensity.compact,
+              onPressed: onMoveDown,
+              tooltip: '下移',
+              icon: const Icon(Icons.arrow_downward_rounded),
+            ),
+            if (onDelete != null)
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                onPressed: onDelete,
+                tooltip: deleteLabel,
+                icon: const Icon(Icons.delete_outline_rounded),
+              ),
+          ];
           return Column(
             mainAxisSize: expandDetail ? MainAxisSize.max : MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               header,
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Expanded(
-                    child: AppDropdownField<int>(
-                      key: ValueKey('compact-item-selector-$selectedKey'),
-                      fillWidth: true,
-                      initialValue:
-                          selectedIndex >= 0 && selectedIndex < items.length
-                          ? selectedIndex
-                          : null,
-                      isExpanded: true,
-                      decoration: InputDecoration(labelText: selectLabel),
-                      items: [
-                        for (var i = 0; i < items.length; i++)
-                          DropdownMenuItem(
-                            value: i,
-                            child: Text(
-                              '${i + 1}. ${_resolvedTitleAt(i)}',
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                      ],
-                      onChanged: isSaving
-                          ? null
-                          : (value) {
-                              if (value != null) {
-                                setState(() => selectItem(value));
-                              }
-                            },
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  IconButton(
-                    onPressed: isSaving ? null : onAdd,
-                    tooltip: addLabel,
-                    icon: const Icon(Icons.add),
-                  ),
-                  IconButton(
-                    onPressed: onMoveUp,
-                    tooltip: '上移',
-                    icon: const Icon(Icons.arrow_upward_rounded),
-                  ),
-                  IconButton(
-                    onPressed: onMoveDown,
-                    tooltip: '下移',
-                    icon: const Icon(Icons.arrow_downward_rounded),
-                  ),
-                  if (onDelete != null)
-                    IconButton(
-                      onPressed: onDelete,
-                      tooltip: deleteLabel,
-                      icon: const Icon(Icons.delete_outline_rounded),
-                    ),
-                ],
-              ),
+              if (stackCompactActions) ...[
+                selector,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: actions,
+                ),
+              ] else
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(child: selector),
+                    const SizedBox(width: 4),
+                    ...actions,
+                  ],
+                ),
               const SizedBox(height: AppSpacing.sm),
               if (expandDetail) Expanded(child: detail) else detail,
             ],

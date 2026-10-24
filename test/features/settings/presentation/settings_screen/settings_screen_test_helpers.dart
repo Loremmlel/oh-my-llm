@@ -17,7 +17,7 @@ import 'package:oh_my_llm/features/settings/domain/models/prompts/memory_prompt.
 import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/template_prompt.dart';
 import 'package:oh_my_llm/features/settings/presentation/settings_screen.dart';
-import 'package:oh_my_llm/features/settings/presentation/preset_editor_screen.dart';
+import 'package:oh_my_llm/features/settings/presentation/prompt_editor_screens.dart';
 import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/fixed_prompt_sequence_editor.dart';
 import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/memory_prompt_editor.dart';
 import 'package:oh_my_llm/features/settings/presentation/widgets/providers/forms/model_config_form_dialog.dart';

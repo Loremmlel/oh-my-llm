@@ -183,36 +183,39 @@ class _AppPaginationBarState extends State<AppPaginationBar> {
                   ),
                 ),
                 SizedBox(width: compact ? 4 : 6),
-                SizedBox(
-                  width: pageSizeWidth,
-                  child: AppDropdownField<int>(
-                    // 容量不在选项内（如 route 携带非法值）时不预选，交由上层回退。
-                    fillWidth: true,
-                    initialValue:
-                        widget.pageSizeOptions.contains(state.pageSize)
-                        ? state.pageSize
-                        : null,
-                    isExpanded: true,
-                    decoration: InputDecoration(
-                      border: const OutlineInputBorder(),
-                      isDense: true,
-                      contentPadding: pageSizePadding,
+                Semantics(
+                  label: '每页',
+                  child: SizedBox(
+                    width: pageSizeWidth,
+                    child: AppDropdownField<int>(
+                      // 容量不在选项内（如 route 携带非法值）时不预选，交由上层回退。
+                      fillWidth: true,
+                      initialValue:
+                          widget.pageSizeOptions.contains(state.pageSize)
+                          ? state.pageSize
+                          : null,
+                      isExpanded: true,
+                      decoration: InputDecoration(
+                        border: const OutlineInputBorder(),
+                        isDense: true,
+                        contentPadding: pageSizePadding,
+                      ),
+                      items: [
+                        for (final size in widget.pageSizeOptions)
+                          DropdownMenuItem<int>(
+                            value: size,
+                            child: Text('$size'),
+                          ),
+                      ],
+                      onChanged: disabled
+                          ? null
+                          : (value) {
+                              if (value == null || value == state.pageSize) {
+                                return;
+                              }
+                              widget.onPageSizeChanged(value);
+                            },
                     ),
-                    items: [
-                      for (final size in widget.pageSizeOptions)
-                        DropdownMenuItem<int>(
-                          value: size,
-                          child: Text('$size'),
-                        ),
-                    ],
-                    onChanged: disabled
-                        ? null
-                        : (value) {
-                            if (value == null || value == state.pageSize) {
-                              return;
-                            }
-                            widget.onPageSizeChanged(value);
-                          },
                   ),
                 ),
               ],
