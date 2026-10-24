@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:oh_my_llm/core/widgets/app_help_button.dart';
 import 'package:oh_my_llm/core/widgets/dialogs/app_dialog_actions.dart';
 
-/// 设置页表单对话框的统一壳层。
+/// 设置页表单对话框与独立编辑页的统一壳层。
 class SettingsFormDialogScaffold extends StatelessWidget {
   const SettingsFormDialogScaffold({
     required this.title,
@@ -11,7 +11,10 @@ class SettingsFormDialogScaffold extends StatelessWidget {
     required this.isSaving,
     required this.onSubmit,
     this.helpText,
+    this.errorText,
     this.fullPage = false,
+    this.canPopPage = true,
+    this.onRequestLeave,
     this.width = 720,
     this.submitLabel = '保存',
     this.savingLabel = '保存中...',
@@ -24,7 +27,10 @@ class SettingsFormDialogScaffold extends StatelessWidget {
 
   final String title;
   final bool fullPage;
+  final bool canPopPage;
+  final VoidCallback? onRequestLeave;
   final String? helpText;
+  final String? errorText;
   final GlobalKey<FormState> formKey;
   final Widget child;
   final bool isSaving;
@@ -39,11 +45,16 @@ class SettingsFormDialogScaffold extends StatelessWidget {
   Widget build(BuildContext context) {
     // 保存期间阻止 system Back 与 barrier tap 关闭对话框（取消/保存按钮
     // 已禁用，避免提交中的表单被意外卸载）；保存完成后 isSaving 恢复 false，
-    // 路由回到可正常关闭状态。
+    // 路由回到可正常关闭状态。独立页面同时支持未保存修改拦截。
     return AppDialogActions(
       onSubmit: (isSaving || !submitEnabled) ? null : onSubmit,
       child: PopScope<void>(
-        canPop: !isSaving,
+        canPop: !isSaving && (!fullPage || canPopPage),
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop && !isSaving) {
+            onRequestLeave?.call();
+          }
+        },
         child: fullPage
             ? Scaffold(
                 appBar: AppBar(
@@ -71,7 +82,22 @@ class SettingsFormDialogScaffold extends StatelessWidget {
                 body: SafeArea(
                   child: Padding(
                     padding: const EdgeInsets.all(16),
-                    child: LayoutBuilder(builder: _buildForm),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (errorText != null)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Text(
+                              errorText!,
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.error,
+                              ),
+                            ),
+                          ),
+                        Expanded(child: LayoutBuilder(builder: _buildForm)),
+                      ],
+                    ),
                   ),
                 ),
               )

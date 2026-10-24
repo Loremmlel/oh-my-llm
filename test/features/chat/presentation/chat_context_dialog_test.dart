@@ -41,6 +41,14 @@ void main() {
     final view = find.byType(ChatContextDialog);
     expect(
       find.descendant(of: view, matching: find.text('快照输入')),
+      findsNothing,
+    );
+    await tester.tap(
+      find.descendant(of: view, matching: find.textContaining('1. user')),
+    );
+    await tester.pump();
+    expect(
+      find.descendant(of: view, matching: find.text('快照输入')),
       findsOneWidget,
     );
     expect(
@@ -106,6 +114,9 @@ void main() {
     await tester.tap(find.text('查看当前上下文'));
     await tester.pumpAndSettle();
     expect(find.text('请求预览 · 包含未发送草稿'), findsOneWidget);
+    expect(find.text('简洁：继续写作'), findsNothing);
+    await tester.tap(find.textContaining('2. user'));
+    await tester.pumpAndSettle();
     expect(find.text('简洁：继续写作'), findsOneWidget);
     expect(client.requestHistory, isEmpty);
     final copied = Completer<String>();

@@ -123,27 +123,43 @@ class _ChatContextDialogState extends State<ChatContextDialog> {
                             ),
                         ],
                       ),
+                    if (widget.messages.isNotEmpty)
+                      const SizedBox(height: AppSpacing.sm),
                     for (var i = 0; i < widget.messages.length; i++) ...[
-                      const Divider(height: AppSpacing.xl),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              '${i + 1}. ${widget.messages[i].role.apiValue} · ${widget.messages[i].sourceLabel}',
-                              style: Theme.of(context).textTheme.titleSmall,
+                      const Divider(height: 1),
+                      ExpansionTile(
+                        tilePadding: EdgeInsets.zero,
+                        childrenPadding: const EdgeInsets.only(
+                          bottom: AppSpacing.md,
+                        ),
+                        expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
+                        title: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                '${i + 1}. ${widget.messages[i].role.apiValue} · ${widget.messages[i].sourceLabel}',
+                                style: Theme.of(context).textTheme.titleSmall,
+                              ),
                             ),
-                          ),
-                          IconButton(
-                            tooltip: '复制第 ${i + 1} 条',
-                            onPressed: () =>
-                                _copy(_text(widget.messages[i], i)),
-                            icon: const Icon(Icons.copy_outlined),
-                          ),
+                            Text(
+                              '${widget.messages[i].content.characters.length} 字符'
+                              '${widget.messages[i].images.isEmpty ? '' : ' · ${widget.messages[i].images.length} 图'}',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                            IconButton(
+                              tooltip: '复制第 ${i + 1} 条',
+                              onPressed: () =>
+                                  _copy(_text(widget.messages[i], i)),
+                              icon: const Icon(Icons.copy_outlined),
+                            ),
+                          ],
+                        ),
+                        children: [
+                          Text(widget.messages[i].content),
+                          for (final image in widget.messages[i].images)
+                            Text('[图片：${image.name} · ${image.mimeType}]'),
                         ],
                       ),
-                      Text(widget.messages[i].content),
-                      for (final image in widget.messages[i].images)
-                        Text('[图片：${image.name} · ${image.mimeType}]'),
                     ],
                   ],
                 ),

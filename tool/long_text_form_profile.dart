@@ -11,7 +11,7 @@ import 'package:flutter/services.dart';
 import 'package:oh_my_llm/app/theme/app_theme.dart';
 import 'package:oh_my_llm/core/widgets/long_text_editing_controller.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/fixed_prompt_sequence.dart';
-import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/fixed_prompt_sequence_form_dialog.dart';
+import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/fixed_prompt_sequence_editor.dart';
 
 // 复用生产表单与主题，不启动 bootstrap，避免连接或改写用户数据库。
 Future<void> main() async {
@@ -58,23 +58,24 @@ class _ProbeState extends State<_Probe> {
     Size? size;
     try {
       unawaited(
-        showDialog<void>(
-          context: context,
-          builder: (_) => FixedPromptSequenceFormDialog(
-            key: _dialog,
-            initialValue: FixedPromptSequence(
-              id: 'profile',
-              name: '长文本性能验证',
-              steps: [
-                FixedPromptSequenceStep(
-                  id: 'step',
-                  title: '正文',
-                  content: widget.source,
-                ),
-              ],
-              updatedAt: DateTime(2026, 10, 6),
+        Navigator.of(context).push<void>(
+          MaterialPageRoute<void>(
+            builder: (_) => FixedPromptSequenceEditor(
+              key: _dialog,
+              initialValue: FixedPromptSequence(
+                id: 'profile',
+                name: '长文本性能验证',
+                steps: [
+                  FixedPromptSequenceStep(
+                    id: 'step',
+                    title: '正文',
+                    content: widget.source,
+                  ),
+                ],
+                updatedAt: DateTime(2026, 10, 6),
+              ),
+              onSubmit: (_) async {},
             ),
-            onSubmit: (_) async {},
           ),
         ),
       );

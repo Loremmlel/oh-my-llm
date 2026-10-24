@@ -5,8 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/features/settings/domain/models/prompts/template_prompt.dart'
     show TemplatePromptVariableType;
-import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/template_prompt_form_dialog.dart';
-import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/memory_prompt_form_dialog.dart';
+import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/template_prompt_editor.dart';
+import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/memory_prompt_editor.dart';
 
 void main() {
   Future<void> pumpDialog(
@@ -17,34 +17,30 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: Center(child: TemplatePromptFormDialog(onSubmit: onSubmit)),
-        ),
-      ),
+      MaterialApp(home: TemplatePromptEditor(onSubmit: onSubmit)),
     );
   }
 
   Finder titleField() => find.descendant(
-    of: find.byType(TemplatePromptFormDialog),
+    of: find.byType(TemplatePromptEditor),
     matching: find.widgetWithText(AppTextField, '标题'),
   );
 
   Finder contentField() => find.descendant(
-    of: find.byType(TemplatePromptFormDialog),
+    of: find.byType(TemplatePromptEditor),
     matching: find.widgetWithText(AppTextField, '模板提示词'),
   );
 
   /// 文本变量默认值输入框（label 即变量名）。
   Finder textVariableField(String name) => find.descendant(
-    of: find.byType(TemplatePromptFormDialog),
+    of: find.byType(TemplatePromptEditor),
     matching: find.widgetWithText(AppTextField, name),
   );
 
   /// 单选变量默认值下拉框（DropdownButtonFormField 非 TextFormField，
   /// 需按泛型控件与 label 定位）。
   Finder selectVariableField(String name) => find.descendant(
-    of: find.byType(TemplatePromptFormDialog),
+    of: find.byType(TemplatePromptEditor),
     matching: find.byWidgetPredicate(
       (widget) =>
           widget is AppDropdownField<String> &&
@@ -55,7 +51,7 @@ void main() {
   /// 输入模板正文并精确推进防抖常量，触发变量重算。
   Future<void> typeContent(WidgetTester tester, String content) async {
     await tester.enterText(contentField(), content);
-    await tester.pump(TemplatePromptFormDialog.variableReconcileDebounce);
+    await tester.pump(TemplatePromptEditor.variableReconcileDebounce);
     await tester.pump();
   }
 
@@ -69,23 +65,11 @@ void main() {
         addTearDown(tester.view.reset);
         await tester.pumpWidget(
           MaterialApp(
-            home: Scaffold(
-              body: Builder(
-                builder: (context) => TextButton(
-                  onPressed: () => showDialog<void>(
-                    context: context,
-                    builder: (_) => isTemplate
-                        ? TemplatePromptFormDialog(onSubmit: (_) async {})
-                        : MemoryPromptFormDialog(onSubmit: (_) async {}),
-                  ),
-                  child: const Text('编辑'),
-                ),
-              ),
-            ),
+            home: isTemplate
+                ? TemplatePromptEditor(onSubmit: (_) async {})
+                : MemoryPromptEditor(onSubmit: (_) async {}),
           ),
         );
-        await tester.tap(find.text('编辑'));
-        await tester.pumpAndSettle();
         final field = find.widgetWithText(
           AppTextField,
           isTemplate ? '模板提示词' : '记忆总结提示词',
@@ -183,7 +167,7 @@ void main() {
       await tester.enterText(contentField(), '请处理{{变量A}}。');
       await tester.pump();
       expect(find.text('变量A'), findsNothing);
-      await tester.pump(TemplatePromptFormDialog.variableReconcileDebounce);
+      await tester.pump(TemplatePromptEditor.variableReconcileDebounce);
       await tester.pump();
       expect(find.text('变量A'), findsOneWidget);
       await tester.enterText(textVariableField('变量A'), '旧值');
@@ -210,7 +194,7 @@ void main() {
       await tester.pump();
       expect(find.text('变量A'), findsOneWidget);
       expect(find.text('变量B'), findsNothing);
-      await tester.pump(TemplatePromptFormDialog.variableReconcileDebounce);
+      await tester.pump(TemplatePromptEditor.variableReconcileDebounce);
       await tester.pump();
       expect(find.text('变量A'), findsNothing);
       expect(find.text('变量B'), findsOneWidget);

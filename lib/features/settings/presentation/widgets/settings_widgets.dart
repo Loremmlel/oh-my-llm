@@ -1,6 +1,6 @@
-export 'prompts/forms/fixed_prompt_sequence_form_dialog.dart';
+export 'prompts/forms/fixed_prompt_sequence_editor.dart';
 export 'prompts/lists/fixed_prompt_sequences_list.dart';
-export 'prompts/forms/memory_prompt_form_dialog.dart';
+export 'prompts/forms/memory_prompt_editor.dart';
 export 'prompts/lists/memory_prompts_list.dart';
 export 'providers/forms/model_config_form_dialog.dart';
 export 'providers/lists/model_configs_list.dart';
@@ -11,5 +11,5 @@ export 'shared/settings_form_dialog_scaffold.dart';
 export 'shared/settings_entity_row.dart';
 export 'shared/settings_helpers.dart';
 export 'shared/settings_section_card.dart';
-export 'prompts/forms/template_prompt_form_dialog.dart';
+export 'prompts/forms/template_prompt_editor.dart';
 export 'prompts/lists/template_prompts_list.dart';

@@ -153,162 +153,184 @@ class ChatComposerCard extends ConsumerWidget {
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (state.isEditingMessage)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 8,
-                              ),
-                              decoration: BoxDecoration(
-                                border: Border(
-                                  left: BorderSide(
-                                    color: theme.colorScheme.primary,
-                                    width: 2,
-                                  ),
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    Icons.edit_rounded,
-                                    size: 18,
-                                    color: theme.colorScheme.onSurfaceVariant,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      '正在编辑消息…',
-                                      style: theme.textTheme.bodyMedium
-                                          ?.copyWith(
-                                            color: theme
-                                                .colorScheme
-                                                .onSurfaceVariant,
-                                          ),
-                                    ),
-                                  ),
-                                  Tooltip(
-                                    message: '取消编辑',
-                                    child: InkWell(
-                                      borderRadius: BorderRadius.circular(
-                                        AppRadii.dialog,
-                                      ),
-                                      onTap: bindings.onCancelEdit,
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(4),
-                                        child: Icon(
-                                          Icons.close_rounded,
-                                          size: 18,
-                                          color: theme
-                                              .colorScheme
-                                              .onSurfaceVariant,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        if (selectedTemplate != null) ...[
-                          const SizedBox(height: 10),
-                          // program 为 null 也并入诊断分支：不依赖「编译失败必有
-                          // 诊断」的编译器不变量，编译器违约时同样不触碰 program
-                          // 字段，消除空安全 NPE 风险。
-                          if (validation.compileErrorText != null ||
-                              validation.program == null)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 4),
-                              child: Text(
-                                '模板语法无效，请到设置中修正：${validation.compileErrorText}',
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: theme.colorScheme.error,
-                                ),
-                              ),
-                            )
-                          else if (validation.program!.inputVariables.isEmpty)
-                            Text(
-                              '当前模板没有额外变量。',
-                              style: theme.textTheme.bodySmall,
-                            )
-                          else
-                            ComposerTemplateVariableFields(
-                              program: validation.program!,
-                              activeInputVariableNames:
-                                  validation.activeInputVariableNames,
-                              templateVariableControllers:
-                                  bindings.templateVariableControllers,
-                              valueErrorsByVariable:
-                                  validation.valueErrorsByVariable,
-                            ),
-                          if (!selectedTemplate.containsBodyVariable) ...[
-                            const SizedBox(height: 4),
-                            Text(
-                              '正文会在发送时插入模板提示词上方。',
-                              style: theme.textTheme.bodySmall,
-                            ),
-                          ],
-                        ],
-                        if (state.images.isNotEmpty) ...[
-                          ChatImageStrip(
-                            images: state.images,
-                            onRemove: bindings.onRemoveImage,
-                          ),
-                          const SizedBox(height: 8),
-                        ],
-                        if (state.isImportingImages || state.images.isNotEmpty)
-                          Row(
-                            children: [
-                              if (state.isImportingImages)
-                                Expanded(
-                                  child: Semantics(
-                                    liveRegion: true,
-                                    child: const Text('正在处理图片…'),
-                                  ),
-                                )
-                              else if (state.images.isNotEmpty)
-                                Expanded(
-                                  child: Text(
-                                    '${state.images.length}/8 张图片 · 点击预览',
-                                    style: theme.textTheme.bodySmall,
-                                  ),
-                                ),
-                            ],
-                          ),
-                        if (state.imageError != null)
-                          Row(
-                            children: [
-                              const Icon(Icons.error_outline),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Semantics(
-                                  liveRegion: true,
-                                  child: Text(
-                                    state.imageError!,
-                                    style: TextStyle(
-                                      color: theme.colorScheme.error,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              if (!state.imageInputBlocked)
-                                IconButton(
-                                  tooltip: '关闭图片提示',
-                                  onPressed: bindings.onDismissImageError,
-                                  icon: const Icon(Icons.close),
-                                ),
-                            ],
-                          ),
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Expanded(
-                              child: ComposerMessageField(
-                                messageController: bindings.messageController,
-                                messageFocusNode: bindings.messageFocusNode,
-                                selectedTemplatePrompt: selectedTemplate,
-                                onSendPressed: effectiveOnSend,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  if (state.isEditingMessage)
+                                    Padding(
+                                      padding: const EdgeInsets.only(bottom: 8),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 8,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          border: Border(
+                                            left: BorderSide(
+                                              color: theme.colorScheme.primary,
+                                              width: 2,
+                                            ),
+                                          ),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Icon(
+                                              Icons.edit_rounded,
+                                              size: 18,
+                                              color: theme
+                                                  .colorScheme
+                                                  .onSurfaceVariant,
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: Text(
+                                                '正在编辑消息…',
+                                                style: theme
+                                                    .textTheme
+                                                    .bodyMedium
+                                                    ?.copyWith(
+                                                      color: theme
+                                                          .colorScheme
+                                                          .onSurfaceVariant,
+                                                    ),
+                                              ),
+                                            ),
+                                            Tooltip(
+                                              message: '取消编辑',
+                                              child: InkWell(
+                                                borderRadius:
+                                                    BorderRadius.circular(
+                                                      AppRadii.dialog,
+                                                    ),
+                                                onTap: bindings.onCancelEdit,
+                                                child: Padding(
+                                                  padding: const EdgeInsets.all(
+                                                    4,
+                                                  ),
+                                                  child: Icon(
+                                                    Icons.close_rounded,
+                                                    size: 18,
+                                                    color: theme
+                                                        .colorScheme
+                                                        .onSurfaceVariant,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  if (selectedTemplate != null) ...[
+                                    const SizedBox(height: 10),
+                                    // program 为 null 也并入诊断分支：不依赖「编译失败必有
+                                    // 诊断」的编译器不变量，编译器违约时同样不触碰 program
+                                    // 字段，消除空安全 NPE 风险。
+                                    if (validation.compileErrorText != null ||
+                                        validation.program == null)
+                                      Padding(
+                                        padding: const EdgeInsets.only(
+                                          bottom: 4,
+                                        ),
+                                        child: Text(
+                                          '模板语法无效，请到设置中修正：${validation.compileErrorText}',
+                                          style: theme.textTheme.bodySmall
+                                              ?.copyWith(
+                                                color: theme.colorScheme.error,
+                                              ),
+                                        ),
+                                      )
+                                    else if (validation
+                                        .program!
+                                        .inputVariables
+                                        .isEmpty)
+                                      Text(
+                                        '当前模板没有额外变量。',
+                                        style: theme.textTheme.bodySmall,
+                                      )
+                                    else
+                                      ComposerTemplateVariableFields(
+                                        program: validation.program!,
+                                        activeInputVariableNames:
+                                            validation.activeInputVariableNames,
+                                        templateVariableControllers: bindings
+                                            .templateVariableControllers,
+                                        valueErrorsByVariable:
+                                            validation.valueErrorsByVariable,
+                                      ),
+                                    if (!selectedTemplate
+                                        .containsBodyVariable) ...[
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        '正文会在发送时插入模板提示词上方。',
+                                        style: theme.textTheme.bodySmall,
+                                      ),
+                                    ],
+                                  ],
+                                  if (state.images.isNotEmpty) ...[
+                                    ChatImageStrip(
+                                      images: state.images,
+                                      onRemove: bindings.onRemoveImage,
+                                    ),
+                                    const SizedBox(height: 8),
+                                  ],
+                                  if (state.isImportingImages ||
+                                      state.images.isNotEmpty)
+                                    Row(
+                                      children: [
+                                        if (state.isImportingImages)
+                                          Expanded(
+                                            child: Semantics(
+                                              liveRegion: true,
+                                              child: const Text('正在处理图片…'),
+                                            ),
+                                          )
+                                        else if (state.images.isNotEmpty)
+                                          Expanded(
+                                            child: Text(
+                                              '${state.images.length}/8 张图片 · 点击预览',
+                                              style: theme.textTheme.bodySmall,
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  if (state.imageError != null)
+                                    Row(
+                                      children: [
+                                        const Icon(Icons.error_outline),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Semantics(
+                                            liveRegion: true,
+                                            child: Text(
+                                              state.imageError!,
+                                              style: TextStyle(
+                                                color: theme.colorScheme.error,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        if (!state.imageInputBlocked)
+                                          IconButton(
+                                            tooltip: '关闭图片提示',
+                                            onPressed:
+                                                bindings.onDismissImageError,
+                                            icon: const Icon(Icons.close),
+                                          ),
+                                      ],
+                                    ),
+                                  ComposerMessageField(
+                                    messageController:
+                                        bindings.messageController,
+                                    messageFocusNode: bindings.messageFocusNode,
+                                    selectedTemplatePrompt: selectedTemplate,
+                                    onSendPressed: effectiveOnSend,
+                                  ),
+                                ],
                               ),
                             ),
                             IconButton(

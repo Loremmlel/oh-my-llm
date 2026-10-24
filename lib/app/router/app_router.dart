@@ -95,6 +95,36 @@ GoRouter createAppRouter({
               worldBookId: state.pathParameters['worldBookId'],
             ),
           ),
+          GoRoute(
+            path: 'memory-prompts/new',
+            builder: (_, _) => const MemoryPromptEditorScreen(),
+          ),
+          GoRoute(
+            path: 'memory-prompts/:promptId',
+            builder: (_, state) => MemoryPromptEditorScreen(
+              promptId: state.pathParameters['promptId'],
+            ),
+          ),
+          GoRoute(
+            path: 'template-prompts/new',
+            builder: (_, _) => const TemplatePromptEditorScreen(),
+          ),
+          GoRoute(
+            path: 'template-prompts/:promptId',
+            builder: (_, state) => TemplatePromptEditorScreen(
+              promptId: state.pathParameters['promptId'],
+            ),
+          ),
+          GoRoute(
+            path: 'fixed-sequences/new',
+            builder: (_, _) => const FixedPromptSequenceEditorScreen(),
+          ),
+          GoRoute(
+            path: 'fixed-sequences/:sequenceId',
+            builder: (_, state) => FixedPromptSequenceEditorScreen(
+              sequenceId: state.pathParameters['sequenceId'],
+            ),
+          ),
         ],
       ),
       GoRoute(

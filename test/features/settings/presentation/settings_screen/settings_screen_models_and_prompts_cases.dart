@@ -12,7 +12,7 @@ import 'package:oh_my_llm/features/settings/data/prompts/sqlite_template_prompt_
 import 'package:oh_my_llm/features/settings/domain/models/providers/model_catalog_entry.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/template_prompt.dart';
 import 'package:oh_my_llm/features/settings/presentation/settings_screen.dart';
-import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/template_prompt_form_dialog.dart';
+import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/template_prompt_editor.dart';
 
 import '../../../../helpers/fixtures.dart';
 import 'settings_screen_test_helpers.dart';
@@ -341,7 +341,7 @@ void registerSettingsScreenModelsAndPromptsTests() {
       '请把{{正文}}翻译成{{目标语言}}。',
     );
     // 精确推进防抖常量，变量重算恰好触发，无需 +50ms 余量
-    await tester.pump(TemplatePromptFormDialog.variableReconcileDebounce);
+    await tester.pump(TemplatePromptEditor.variableReconcileDebounce);
     await tester.pump();
 
     await tester.enterText(templatePromptVariableField('目标语言'), '英文');
