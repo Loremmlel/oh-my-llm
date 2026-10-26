@@ -4,11 +4,41 @@ import 'package:oh_my_llm/core/widgets/app_text_field.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/features/settings/domain/models/prompts/template_prompt.dart'
-    show TemplatePromptVariableType;
+    show TemplatePrompt, TemplatePromptVariable, TemplatePromptVariableType;
 import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/template_prompt_editor.dart';
 import 'package:oh_my_llm/features/settings/presentation/widgets/prompts/forms/memory_prompt_editor.dart';
 
 void main() {
+  testWidgets('只修改变量默认值也拦截返回，恢复原值后放行', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TemplatePromptEditor(
+          initialValue: TemplatePrompt(
+            id: 'template',
+            title: '称呼模板',
+            content: '{{称呼}}',
+            variables: const [
+              TemplatePromptVariable(name: '称呼', defaultValue: '原称呼'),
+            ],
+            updatedAt: DateTime(2026),
+          ),
+          onSubmit: (_) async {},
+        ),
+      ),
+    );
+    final route = ModalRoute.of(
+      tester.element(find.byType(TemplatePromptEditor)),
+    )!;
+    expect(route.popDisposition, RoutePopDisposition.bubble);
+    final field = find.widgetWithText(AppTextField, '称呼');
+    await tester.enterText(field, '新称呼');
+    await tester.pump();
+    expect(route.popDisposition, RoutePopDisposition.doNotPop);
+    await tester.enterText(field, '原称呼');
+    await tester.pump();
+    expect(route.popDisposition, RoutePopDisposition.bubble);
+  });
+
   Future<void> pumpEditor(
     WidgetTester tester, {
     required Future<void> Function(TemplatePromptFormData) onSubmit,
@@ -83,7 +113,10 @@ void main() {
         tester.testTextInput.updateEditingValue(value);
         await tester.pump();
         addTearDown(tester.view.resetViewInsets);
-        for (final bottom in [420.0, 0.0]) {
+        final originalState = tester.state<EditableTextState>(
+          find.descendant(of: field, matching: find.byType(EditableText)),
+        );
+        for (final bottom in [420.0, 540.0, 0.0]) {
           tester.view.viewInsets = FakeViewPadding(bottom: bottom);
           await tester.pumpAndSettle();
           final editable = tester.widget<EditableText>(
@@ -92,6 +125,12 @@ void main() {
           expect(editable.focusNode.hasFocus, isTrue);
           expect(tester.testTextInput.isVisible, isTrue);
           expect(editable.controller.value, value);
+          expect(
+            tester.state<EditableTextState>(
+              find.descendant(of: field, matching: find.byType(EditableText)),
+            ),
+            same(originalState),
+          );
           expect(find.text('保存').hitTestable(), findsOneWidget);
           expect(tester.takeException(), isNull);
         }

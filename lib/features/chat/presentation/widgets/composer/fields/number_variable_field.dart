@@ -11,11 +11,13 @@ class NumberVariableField extends StatelessWidget {
     required this.controller,
     required this.labelText,
     this.errorText,
+    this.width = 165,
     super.key,
   });
 
   final TextEditingController controller;
   final String labelText;
+  final double width;
 
   /// 值错误信息（如「必须是整数」），附着在字段下方 inline 展示。
   final String? errorText;
@@ -43,7 +45,7 @@ class NumberVariableField extends StatelessWidget {
     final theme = Theme.of(context);
 
     return SizedBox(
-      width: 165,
+      width: width,
       child: AppTextField(
         key: ValueKey('template-variable-$labelText'),
         controller: controller,
@@ -52,8 +54,18 @@ class NumberVariableField extends StatelessWidget {
         decoration: InputDecoration(
           labelText: labelText,
           errorText: errorText,
+          isDense: true,
+          prefixIconConstraints: const BoxConstraints.tightFor(
+            width: 32,
+            height: 48,
+          ),
+          suffixIconConstraints: const BoxConstraints.tightFor(
+            width: 32,
+            height: 48,
+          ),
           // 按钮随输入区域居中，外置标签与错误提示不参与对齐。
           prefixIcon: IconButton(
+            padding: EdgeInsets.zero,
             tooltip: '减少$labelText',
             onPressed: _decrement,
             icon: Icon(
@@ -63,6 +75,7 @@ class NumberVariableField extends StatelessWidget {
             ),
           ),
           suffixIcon: IconButton(
+            padding: EdgeInsets.zero,
             tooltip: '增加$labelText',
             onPressed: _increment,
             icon: Icon(
@@ -72,9 +85,9 @@ class NumberVariableField extends StatelessWidget {
             ),
           ),
           contentPadding: const EdgeInsets.symmetric(
-            horizontal: 8,
+            horizontal: 2,
             vertical: 12,
-          ), // 取消 isDense 后保持略紧凑的行高
+          ),
         ),
         textAlign: TextAlign.center,
       ),

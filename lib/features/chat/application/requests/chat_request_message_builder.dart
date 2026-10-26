@@ -39,14 +39,14 @@ class ChatPreparedContext {
 }
 
 List<ChatRequestMessage> buildRequestMessages({
-  WorldBook? worldBook,
+  List<WorldBook> worldBooks = const [],
   required PresetPrompt? presetPrompt,
   required List<ChatMessage> conversationMessages,
   String? latestInputMessageId,
   List<ChatCheckpoint> checkpointChain = const [],
   RequestMessageFilter filter = RequestMessageFilter.passthrough,
 }) => prepareChatContext(
-  worldBook: worldBook,
+  worldBooks: worldBooks,
   presetPrompt: presetPrompt,
   conversationMessages: conversationMessages,
   latestInputMessageId: latestInputMessageId,
@@ -56,7 +56,7 @@ List<ChatRequestMessage> buildRequestMessages({
 
 /// 发送与预览共享同一求值边界；只有真实会话消息可以提供 lastUserMessage。
 ChatPreparedContext prepareChatContext({
-  WorldBook? worldBook,
+  List<WorldBook> worldBooks = const [],
   required PresetPrompt? presetPrompt,
   required List<ChatMessage> conversationMessages,
   String? latestInputMessageId,
@@ -146,13 +146,14 @@ ChatPreparedContext prepareChatContext({
 
   final historyEnd = latestIndex < 0 ? filtered.length : latestIndex;
   appendPreset(PromptMessagePlacement.before);
-  final worldContent = worldBook?.promptContent ?? '';
-  if (worldContent.isNotEmpty) {
+  for (final worldBook in worldBooks) {
+    final worldContent = worldBook.promptContent;
+    if (worldContent.isEmpty) continue;
     messages.add(
       ChatRequestMessage(
         role: ChatMessageRole.system,
         content: worldContent,
-        sourceLabel: '世界书 · ${worldBook!.name}',
+        sourceLabel: '世界书 · ${worldBook.name}',
         sourceId: worldBook.id,
       ),
     );

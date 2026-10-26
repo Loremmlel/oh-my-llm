@@ -108,14 +108,14 @@ List<ChatCheckpoint> resolveCheckpointChain({
 
 /// 构建创建新检查点时的总结请求。
 List<ChatRequestMessage> buildCheckpointSummaryMessages({
-  WorldBook? worldBook,
+  List<WorldBook> worldBooks = const [],
   required MemoryPrompt memoryPrompt,
   required List<ChatMessage> conversationMessages,
   List<ChatCheckpoint> checkpointChain = const [],
   PresetPrompt? presetPrompt,
   RequestMessageFilter filter = RequestMessageFilter.passthrough,
 }) => prepareCheckpointSummaryContext(
-  worldBook: worldBook,
+  worldBooks: worldBooks,
   memoryPrompt: memoryPrompt,
   conversationMessages: conversationMessages,
   checkpointChain: checkpointChain,
@@ -124,7 +124,7 @@ List<ChatRequestMessage> buildCheckpointSummaryMessages({
 ).requireMessages();
 
 ChatPreparedContext prepareCheckpointSummaryContext({
-  WorldBook? worldBook,
+  List<WorldBook> worldBooks = const [],
   required MemoryPrompt memoryPrompt,
   required List<ChatMessage> conversationMessages,
   List<ChatCheckpoint> checkpointChain = const [],
@@ -139,7 +139,7 @@ ChatPreparedContext prepareCheckpointSummaryContext({
     createdAt: DateTime.fromMillisecondsSinceEpoch(0),
   );
   return prepareChatContext(
-    worldBook: worldBook,
+    worldBooks: worldBooks,
     presetPrompt: presetPrompt,
     conversationMessages: [...filter.apply(conversationMessages), summaryInput],
     latestInputMessageId: summaryInput.id,

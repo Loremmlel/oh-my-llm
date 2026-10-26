@@ -29,7 +29,7 @@ class ChatGenerationCommand extends Equatable {
     required this.reasoningEffort,
     required this.retryPolicy,
     this.retryDelay,
-    this.worldBook,
+    this.worldBooks = const [],
   });
 
   /// 发起 generation 时的活动会话快照（含已追加的用户/编辑消息）。
@@ -37,7 +37,7 @@ class ChatGenerationCommand extends Equatable {
 
   final LlmModelConfig modelConfig;
   final PresetPrompt? presetPrompt;
-  final WorldBook? worldBook;
+  final List<WorldBook> worldBooks;
 
   /// 检查点链与尾部消息共享同一次解析结果，标题由该上下文派生。
   final CheckpointRequestContext requestContext;
@@ -59,7 +59,7 @@ class ChatGenerationCommand extends Equatable {
     conversation,
     modelConfig,
     presetPrompt,
-    worldBook,
+    worldBooks,
     requestContext,
     parentMessageId,
     reasoningEnabled,

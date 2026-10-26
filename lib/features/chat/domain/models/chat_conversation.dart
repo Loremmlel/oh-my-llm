@@ -25,7 +25,7 @@ class ChatConversation extends Equatable {
     this.selectedModelId,
     this.selectedCheckpointId,
     this.selectedPresetPromptId,
-    this.selectedWorldBookId,
+    this.selectedWorldBookIds = const [],
     this.reasoningEnabled = false,
     this.reasoningEffort = ReasoningEffort.medium,
     this.autoRetryEnabled = false,
@@ -42,7 +42,7 @@ class ChatConversation extends Equatable {
   final String? selectedModelId;
   final String? selectedCheckpointId;
   final String? selectedPresetPromptId;
-  final String? selectedWorldBookId;
+  final List<String> selectedWorldBookIds;
   final bool reasoningEnabled;
   final ReasoningEffort reasoningEffort;
   final bool autoRetryEnabled;
@@ -102,7 +102,7 @@ class ChatConversation extends Equatable {
     String? selectedModelId,
     String? selectedCheckpointId,
     String? selectedPresetPromptId,
-    String? selectedWorldBookId,
+    List<String>? selectedWorldBookIds,
     bool? reasoningEnabled,
     ReasoningEffort? reasoningEffort,
     bool? autoRetryEnabled,
@@ -110,7 +110,6 @@ class ChatConversation extends Equatable {
     bool clearSelectedModelId = false,
     bool clearSelectedCheckpointId = false,
     bool clearSelectedPresetPromptId = false,
-    bool clearSelectedWorldBookId = false,
   }) {
     return ChatConversation(
       id: id ?? this.id,
@@ -130,9 +129,7 @@ class ChatConversation extends Equatable {
       selectedPresetPromptId: clearSelectedPresetPromptId
           ? null
           : selectedPresetPromptId ?? this.selectedPresetPromptId,
-      selectedWorldBookId: clearSelectedWorldBookId
-          ? null
-          : selectedWorldBookId ?? this.selectedWorldBookId,
+      selectedWorldBookIds: selectedWorldBookIds ?? this.selectedWorldBookIds,
       reasoningEnabled: reasoningEnabled ?? this.reasoningEnabled,
       reasoningEffort: reasoningEffort ?? this.reasoningEffort,
       autoRetryEnabled: autoRetryEnabled ?? this.autoRetryEnabled,
@@ -152,7 +149,7 @@ class ChatConversation extends Equatable {
       'selectedModelId': selectedModelId,
       'selectedCheckpointId': selectedCheckpointId,
       'selectedPresetPromptId': selectedPresetPromptId,
-      'selectedWorldBookId': selectedWorldBookId,
+      'selectedWorldBookIds': selectedWorldBookIds,
       'checkpoints': checkpoints
           .map((checkpoint) => checkpoint.toJson())
           .toList(),
@@ -196,7 +193,10 @@ class ChatConversation extends Equatable {
       selectedModelId: json['selectedModelId'] as String?,
       selectedCheckpointId: json['selectedCheckpointId'] as String?,
       selectedPresetPromptId: json['selectedPresetPromptId'] as String?,
-      selectedWorldBookId: json['selectedWorldBookId'] as String?,
+      selectedWorldBookIds: List<String>.unmodifiable(
+        (json['selectedWorldBookIds'] as List<dynamic>? ?? const [])
+            .cast<String>(),
+      ),
       reasoningEnabled: json['reasoningEnabled'] as bool? ?? false,
       reasoningEffort: ReasoningEffort.values.firstWhere(
         (effort) => effort.apiValue == json['reasoningEffort'],
@@ -261,7 +261,7 @@ class ChatConversation extends Equatable {
     selectedModelId,
     selectedCheckpointId,
     selectedPresetPromptId,
-    selectedWorldBookId,
+    selectedWorldBookIds,
     reasoningEnabled,
     reasoningEffort,
     autoRetryEnabled,

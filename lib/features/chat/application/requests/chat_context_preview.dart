@@ -9,7 +9,7 @@ import 'checkpoint_request_context.dart';
 
 /// 草稿只形成临时请求视图，不写入消息树或改变当前分支选择。
 ChatPreparedContext previewChatContext({
-  WorldBook? worldBook,
+  List<WorldBook> worldBooks = const [],
   required ChatConversation conversation,
   required PresetPrompt? presetPrompt,
   String body = '',
@@ -40,7 +40,7 @@ ChatPreparedContext previewChatContext({
     conversationMessages: [...history, ?input],
   );
   return prepareChatContext(
-    worldBook: worldBook,
+    worldBooks: worldBooks,
     presetPrompt: presetPrompt,
     conversationMessages: context.tailMessages,
     latestInputMessageId: input?.id,

@@ -153,6 +153,20 @@ class ChatComposerCard extends ConsumerWidget {
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: Tooltip(
+                            message: '收起输入区',
+                            child: TextButton.icon(
+                              onPressed: bindings.onToggleComposerCollapsed,
+                              icon: const Icon(
+                                Icons.keyboard_arrow_down_rounded,
+                                size: 20,
+                              ),
+                              label: const Text('收起输入区'),
+                            ),
+                          ),
+                        ),
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -331,14 +345,6 @@ class ChatComposerCard extends ConsumerWidget {
                                     onSendPressed: effectiveOnSend,
                                   ),
                                 ],
-                              ),
-                            ),
-                            IconButton(
-                              tooltip: '收起输入区',
-                              onPressed: bindings.onToggleComposerCollapsed,
-                              icon: const Icon(
-                                Icons.keyboard_arrow_down_rounded,
-                                size: 20,
                               ),
                             ),
                           ],

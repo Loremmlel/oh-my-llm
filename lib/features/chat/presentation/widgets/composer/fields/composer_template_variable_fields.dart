@@ -34,9 +34,28 @@ class ComposerTemplateVariableFields extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         const gap = 6.0;
-        final itemWidth = math.min(280.0, constraints.maxWidth);
+        final scale = MediaQuery.textScalerOf(context).scale(1);
+        final numberColumns =
+            ((constraints.maxWidth + gap) / (104 * scale + gap)).floor().clamp(
+              1,
+              3,
+            );
+        final textColumns = ((constraints.maxWidth + gap) / (144 * scale + gap))
+            .floor()
+            .clamp(1, 2);
+        final numberWidth = math.min(
+          165.0,
+          (constraints.maxWidth - gap * (numberColumns - 1)) / numberColumns,
+        );
+        final itemWidth = math.min(
+          280.0,
+          (constraints.maxWidth - gap * (textColumns - 1)) / textColumns,
+        );
 
         return Wrap(
+          alignment: constraints.maxWidth < 600
+              ? WrapAlignment.spaceBetween
+              : WrapAlignment.start,
           spacing: gap,
           runSpacing: gap,
           children: [
@@ -44,6 +63,7 @@ class ComposerTemplateVariableFields extends StatelessWidget {
               if (activeInputVariableNames.contains(variable.name))
                 switch (variable.type) {
                   TemplatePromptVariableType.number => NumberVariableField(
+                    width: numberWidth,
                     key: ValueKey('number-variable-${variable.name}'),
                     controller: templateVariableControllers[variable.name]!,
                     labelText: variable.name,

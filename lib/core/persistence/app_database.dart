@@ -27,7 +27,7 @@ class AppDatabase {
   /// 当前滚动迁移基线：全新数据库直接创建到该版本。
   ///
   /// 历史 V9→V13 逐级迁移已退役；v13 起的已发布迁移按顺序保留。
-  static const int currentSchemaVersion = 27;
+  static const int currentSchemaVersion = 28;
 
   final sqlite.Database _connection;
   final String path;
@@ -108,7 +108,8 @@ class AppDatabase {
       }
       if (currentVersion <= 24) _migratePresetSyntaxFromV24ToV25();
       if (currentVersion <= 25) _migrateWorldBooksFromV25ToV26();
-      _migratePresetRandomHeaderFromV26ToV27();
+      if (currentVersion <= 26) _migratePresetRandomHeaderFromV26ToV27();
+      _migrateWorldBookSelectionsFromV27ToV28();
     } else {
       throw AppDatabaseSchemaVersionException(currentVersion);
     }
@@ -121,6 +122,25 @@ class AppDatabase {
         "ALTER TABLE messages ADD COLUMN images_json TEXT NOT NULL DEFAULT '[]';",
       );
       _connection.execute('PRAGMA user_version = 23; COMMIT;');
+    } catch (_) {
+      _connection.execute('ROLLBACK;');
+      rethrow;
+    }
+  }
+
+  void _migrateWorldBookSelectionsFromV27ToV28() {
+    _connection.execute('BEGIN IMMEDIATE;');
+    try {
+      _connection.execute('''
+        ALTER TABLE conversations
+        ADD COLUMN selected_world_book_ids_json TEXT NOT NULL DEFAULT '[]';
+        UPDATE conversations
+        SET selected_world_book_ids_json = json_array(selected_world_book_id)
+        WHERE selected_world_book_id IS NOT NULL;
+        ALTER TABLE conversations DROP COLUMN selected_world_book_id;
+        PRAGMA user_version = 28;
+        COMMIT;
+      ''');
     } catch (_) {
       _connection.execute('ROLLBACK;');
       rethrow;
@@ -712,7 +732,7 @@ class AppDatabase {
         updated_at TEXT NOT NULL,
         selected_model_id TEXT,
         selected_preset_prompt_id TEXT,
-        selected_world_book_id TEXT,
+        selected_world_book_ids_json TEXT NOT NULL DEFAULT '[]',
         reasoning_enabled INTEGER NOT NULL DEFAULT 0,
         reasoning_effort TEXT NOT NULL,
         selected_checkpoint_id TEXT,

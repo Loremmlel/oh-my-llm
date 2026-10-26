@@ -19,6 +19,7 @@ import 'package:oh_my_llm/features/settings/presentation/world_book_editor_scree
 import '../composition/sync_workspace_screen.dart';
 import '../composition/video_player_platform_bindings_factory.dart';
 import '../navigation/app_destination.dart';
+import 'app_material_route.dart';
 
 /// 应用顶层路由配置。
 ///
@@ -47,12 +48,12 @@ GoRouter createAppRouter({
   return GoRouter(
     initialLocation: initialLocation ?? AppDestination.chat.path,
     routes: [
-      GoRoute(
+      appMaterialRoute(
         path: '/chat/images/:imageId',
         builder: (context, state) =>
             ChatImagePreviewPage(imageId: state.pathParameters['imageId']!),
       ),
-      GoRoute(
+      appMaterialRoute(
         path: AppDestination.chat.path,
         name: AppDestination.chat.name,
         // 只消费 query 中的可序列化会话 ID；不传 state.extra 实体。
@@ -61,7 +62,7 @@ GoRouter createAppRouter({
               state.uri.queryParameters[AppRouteParameter.conversationId],
         ),
       ),
-      GoRoute(
+      appMaterialRoute(
         path: AppDestination.history.path,
         name: AppDestination.history.name,
         // 只消费 query 中的可序列化浏览窗口参数；校验与夹取在 controller。
@@ -71,55 +72,55 @@ GoRouter createAppRouter({
           ),
         ),
       ),
-      GoRoute(
+      appMaterialRoute(
         path: AppDestination.settings.path,
         name: AppDestination.settings.name,
         builder: (context, state) => const SettingsScreen(),
         routes: [
-          GoRoute(
+          appMaterialRoute(
             path: 'presets/new',
             builder: (context, state) => const PresetEditorScreen(),
           ),
-          GoRoute(
+          appMaterialRoute(
             path: 'presets/:presetId',
             builder: (context, state) =>
                 PresetEditorScreen(presetId: state.pathParameters['presetId']),
           ),
-          GoRoute(
+          appMaterialRoute(
             path: 'worldbooks/new',
             builder: (_, _) => const WorldBookEditorScreen(),
           ),
-          GoRoute(
+          appMaterialRoute(
             path: 'worldbooks/:worldBookId',
             builder: (_, state) => WorldBookEditorScreen(
               worldBookId: state.pathParameters['worldBookId'],
             ),
           ),
-          GoRoute(
+          appMaterialRoute(
             path: 'memory-prompts/new',
             builder: (_, _) => const MemoryPromptEditorScreen(),
           ),
-          GoRoute(
+          appMaterialRoute(
             path: 'memory-prompts/:promptId',
             builder: (_, state) => MemoryPromptEditorScreen(
               promptId: state.pathParameters['promptId'],
             ),
           ),
-          GoRoute(
+          appMaterialRoute(
             path: 'template-prompts/new',
             builder: (_, _) => const TemplatePromptEditorScreen(),
           ),
-          GoRoute(
+          appMaterialRoute(
             path: 'template-prompts/:promptId',
             builder: (_, state) => TemplatePromptEditorScreen(
               promptId: state.pathParameters['promptId'],
             ),
           ),
-          GoRoute(
+          appMaterialRoute(
             path: 'fixed-sequences/new',
             builder: (_, _) => const FixedPromptSequenceEditorScreen(),
           ),
-          GoRoute(
+          appMaterialRoute(
             path: 'fixed-sequences/:sequenceId',
             builder: (_, state) => FixedPromptSequenceEditorScreen(
               sequenceId: state.pathParameters['sequenceId'],
@@ -127,12 +128,12 @@ GoRouter createAppRouter({
           ),
         ],
       ),
-      GoRoute(
+      appMaterialRoute(
         path: AppDestination.agent.path,
         name: AppDestination.agent.name,
         builder: (context, state) => const AgentScreen(),
         routes: [
-          GoRoute(
+          appMaterialRoute(
             path: 'workspaces/:workspaceId/runs/:runId',
             name: 'agentRun',
             builder: (context, state) => AgentRunScreen(
@@ -142,12 +143,12 @@ GoRouter createAppRouter({
           ),
         ],
       ),
-      GoRoute(
+      appMaterialRoute(
         path: AppDestination.favorites.path,
         name: AppDestination.favorites.name,
         builder: (context, state) => const FavoriteCollectionsScreen(),
         routes: [
-          GoRoute(
+          appMaterialRoute(
             path: 'collections/:${AppRouteParameter.collectionId}',
             name: AppRouteName.favoriteCollectionItems,
             builder: (context, state) => FavoriteCollectionItemsScreen(
@@ -161,7 +162,7 @@ GoRouter createAppRouter({
               ),
             ),
           ),
-          GoRoute(
+          appMaterialRoute(
             path: 'items/:${AppRouteParameter.favoriteId}',
             name: AppRouteName.favoriteItemDetail,
             builder: (context, state) => FavoriteDetailScreen(
@@ -170,12 +171,12 @@ GoRouter createAppRouter({
           ),
         ],
       ),
-      GoRoute(
+      appMaterialRoute(
         path: AppDestination.sync.path,
         name: AppDestination.sync.name,
         builder: (context, state) => const SyncWorkspaceScreen(),
         routes: [
-          GoRoute(
+          appMaterialRoute(
             path: 'media/image',
             name: AppRouteName.mediaImage,
             builder: (context, state) => MediaImageRoutePage(
@@ -183,7 +184,7 @@ GoRouter createAppRouter({
                   state.uri.queryParameters[AppRouteParameter.mediaPath],
             ),
           ),
-          GoRoute(
+          appMaterialRoute(
             path: 'media/video',
             name: AppRouteName.mediaVideo,
             builder: (context, state) => MediaVideoRoutePage(

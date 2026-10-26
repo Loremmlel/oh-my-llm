@@ -71,8 +71,8 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
   /// 关闭流程进行中：阻止同一关闭命令被多次触发。
   bool _closing = false;
 
-  /// 关闭流程已完成系统 UI / 全屏恢复；dispose 据此跳过重复 fallback。
-  bool _restoreCompleted = false;
+  /// 返回确认与 dispose 复用同一次系统 UI / 全屏恢复。
+  Future<void>? _restoreFuture;
 
   /// 真正 pop 的短暂放行标志：恢复完成后置位，让 PopScope 允许本次 pop。
   bool _allowPop = false;
@@ -134,19 +134,12 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
     _desktop?.dispose();
     _mobile?.dispose();
     _playback.dispose();
-    if (!_restoreCompleted) {
-      // 外部强制移除路由的兜底：幂等恢复系统 UI / 全屏会话，不得 await。
-      final bindings = _bindings;
-      if (bindings is DesktopVideoPlayerBindings) {
-        unawaited(bindings.fullscreen.restoreAndDispose());
-      } else if (bindings is MobileVideoPlayerBindings) {
-        unawaited(bindings.systemUi.restore());
-      }
-    }
+    // 外部移除路由与系统返回共用恢复任务，避免重复恢复系统 UI。
+    unawaited(_restorePlatformSession());
     super.dispose();
   }
 
-  /// 顶部关闭、windowed Escape、系统返回与 GoRouter pop 共用的关闭路径。
+  /// 顶部关闭与桌面返回等待平台会话恢复后退栈。
   ///
   /// 先等待平台会话恢复（桌面全屏恢复 / 移动系统 UI 恢复），再把 PopScope
   /// 放行状态置位并等待一帧，最后执行真正的 route pop。等待 [endOfFrame]
@@ -155,6 +148,17 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
   Future<void> _requestClose() async {
     if (_closing) return;
     _closing = true;
+    await _restorePlatformSession();
+    if (!mounted) return;
+    setState(() => _allowPop = true);
+    await WidgetsBinding.instance.endOfFrame;
+    if (mounted) Navigator.of(context).pop();
+  }
+
+  Future<void> _restorePlatformSession() =>
+      _restoreFuture ??= _restorePlatformState();
+
+  Future<void> _restorePlatformState() async {
     final bindings = _bindings;
     try {
       if (bindings is DesktopVideoPlayerBindings) {
@@ -166,17 +170,14 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
       // 恢复失败（如 Android 系统 UI 平台通道异常）不阻塞退出：吞掉异常后
       // 仍放行 pop，与桌面侧 restoreAndDispose 内部捕获的保证一致，避免
       // _closing 残留把用户困在播放器。
-    } finally {
-      _restoreCompleted = true;
     }
-    if (!mounted) return;
-    setState(() => _allowPop = true);
-    await WidgetsBinding.instance.endOfFrame;
-    if (mounted) Navigator.of(context).pop();
   }
 
   void _handlePopInvokedWithResult(bool didPop, Object? result) {
-    if (didPop) return;
+    if (didPop) {
+      unawaited(_restorePlatformSession());
+      return;
+    }
     unawaited(_requestClose());
   }
 
@@ -310,7 +311,8 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
     _mobile?.updateScreenWidth(MediaQuery.sizeOf(context).width);
 
     return PopScope(
-      canPop: _allowPop,
+      // 手机端允许系统预览返回；只有提交手势才恢复系统 UI，取消不打断播放。
+      canPop: _allowPop || _bindings is MobileVideoPlayerBindings,
       onPopInvokedWithResult: _handlePopInvokedWithResult,
       child: Scaffold(
         backgroundColor: Colors.black,

@@ -257,28 +257,56 @@ void main() {
     expect(find.textContaining('总 Token').hitTestable(), findsNothing);
   });
 
-  testWidgets('启用模板提示词时收起输入区按钮固定在右上角', (tester) async {
+  testWidgets('手机模板区独立收起行，数字三列、普通字段两列', (tester) async {
     final controller = TextEditingController();
     final variableController = TextEditingController();
+    final variables = {
+      '目标语言': variableController,
+      '语气': TextEditingController(),
+      for (final name in ['起始', '数量', '轮数'])
+        name: TextEditingController(text: '1'),
+    };
     final focusNode = FocusNode();
     addTearDown(controller.dispose);
-    addTearDown(variableController.dispose);
+    addTearDown(() {
+      for (final controller in variables.values) {
+        controller.dispose();
+      }
+    });
     addTearDown(focusNode.dispose);
 
     final template = TemplatePrompt(
       id: 'tpl-1',
       title: '翻译模板',
-      content: '把{{正文}}翻译成{{目标语言}}',
+      content:
+          '{{起始:number}}{{数量:number}}{{轮数:number}}把{{正文}}翻译成{{目标语言}}，{{语气}}',
       variables: const [
+        TemplatePromptVariable(
+          name: '起始',
+          type: TemplatePromptVariableType.number,
+          defaultValue: '1',
+        ),
+        TemplatePromptVariable(
+          name: '数量',
+          type: TemplatePromptVariableType.number,
+          defaultValue: '1',
+        ),
+        TemplatePromptVariable(
+          name: '轮数',
+          type: TemplatePromptVariableType.number,
+          defaultValue: '1',
+        ),
         TemplatePromptVariable(name: '正文'),
         TemplatePromptVariable(name: '目标语言'),
+        TemplatePromptVariable(name: '语气'),
       ],
       updatedAt: DateTime(2026),
     );
     final baseState = _composerState();
     await _pumpComposer(
       tester,
-      680,
+      374,
+      viewport: const Size(390, 844),
       state: ChatWorkspaceComposerState(
         readModel: ChatWorkspaceComposerReadModel(
           modelProviders: baseState.readModel.modelProviders,
@@ -305,7 +333,7 @@ void main() {
       bindings: ChatWorkspaceComposerBindings(
         messageController: controller,
         messageFocusNode: focusNode,
-        templateVariableControllers: {'目标语言': variableController},
+        templateVariableControllers: variables,
         onProviderSelected: (_) {},
         onModelSelected: (_) {},
         onTemplatePromptSelected: (_) {},
@@ -326,5 +354,24 @@ void main() {
     expect(collapseTopRight.dy, lessThanOrEqualTo(variableTopLeft.dy));
     expect(collapseTopRight.dy, lessThan(messageTopLeft.dy));
     expect(collapseTopRight.dx, greaterThan(variableTopLeft.dx));
+    final numbers = ['起始', '数量', '轮数']
+        .map(
+          (name) => tester.getTopLeft(
+            find.byKey(ValueKey('template-variable-$name')),
+          ),
+        )
+        .toList();
+    expect(numbers.map((point) => point.dy).toSet(), hasLength(1));
+    expect(
+      tester.getTopLeft(find.byKey(const ValueKey('template-variable-语气'))).dy,
+      variableTopLeft.dy,
+    );
+    expect(
+      tester.getBottomLeft(find.byTooltip('收起输入区')).dy,
+      lessThanOrEqualTo(numbers.first.dy),
+    );
+    await tester.tap(find.byTooltip('增加数量'));
+    expect(variables['数量']!.text, '2');
+    expect(tester.takeException(), isNull);
   });
 }

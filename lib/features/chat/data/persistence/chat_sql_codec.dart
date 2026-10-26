@@ -15,7 +15,7 @@ const kConversationUpsertSql = '''
     id, title, created_at, updated_at,
     selected_model_id, selected_checkpoint_id, selected_preset_prompt_id,
     reasoning_enabled, reasoning_effort, excluded_message_ids_json,
-    auto_retry_enabled, selected_world_book_id
+    auto_retry_enabled, selected_world_book_ids_json
   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   ON CONFLICT(id) DO UPDATE SET
     title = excluded.title,
@@ -27,7 +27,7 @@ const kConversationUpsertSql = '''
     reasoning_effort = excluded.reasoning_effort,
     excluded_message_ids_json = excluded.excluded_message_ids_json,
     auto_retry_enabled = excluded.auto_retry_enabled,
-    selected_world_book_id = excluded.selected_world_book_id
+    selected_world_book_ids_json = excluded.selected_world_book_ids_json
 ''';
 
 const kMessageUpsertSql = '''
@@ -103,7 +103,7 @@ List<Object?> conversationToRowParams(ChatConversation c) => [
   c.reasoningEffort.apiValue,
   jsonEncode(c.excludedMessageIds),
   c.autoRetryEnabled ? 1 : 0,
-  c.selectedWorldBookId,
+  jsonEncode(c.selectedWorldBookIds),
 ];
 
 /// 将 [ChatMessage] 编码为 messages 表行参数。

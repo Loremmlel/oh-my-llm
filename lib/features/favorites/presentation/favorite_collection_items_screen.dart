@@ -421,7 +421,6 @@ class _FavoriteCollectionItemsScreenState
                     onSelect: items.isEmpty
                         ? null
                         : () => setState(() => _selectionRequested = true),
-                    onManage: () => context.go(AppDestination.favorites.path),
                   ),
                 ),
           paginationState: AppPaginationState(

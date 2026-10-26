@@ -168,26 +168,32 @@ void main() {
       'writing',
     );
     final book = TestFixtures.worldBook(name: '群岛世界书');
+    final secondBook = TestFixtures.worldBook(id: 'characters', name: '人物设定');
     await container.read(worldBooksProvider.notifier).upsert(book);
+    await container.read(worldBooksProvider.notifier).upsert(secondBook);
     await tester.pump();
     await tester.tap(find.byTooltip('世界书说明'));
     await tester.pumpAndSettle();
     expect(find.textContaining('当前选择仅用于本对话'), findsOneWidget);
     expect(
-      container.read(activeChatConversationProvider).selectedWorldBookId,
-      isNull,
+      container.read(activeChatConversationProvider).selectedWorldBookIds,
+      isEmpty,
     );
     await tester.tap(find.text('关闭'));
     await tester.pumpAndSettle();
-    await tester.tap(
-      find.widgetWithText(AppDropdownField<String>, '世界书').hitTestable(),
-    );
+    await tester.tap(find.text('不使用世界书'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('群岛世界书').last);
     await tester.pumpAndSettle();
+    await tester.tap(find.text('人物设定'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('上移世界书').last);
+    await tester.pump();
+    await tester.tap(find.text('应用'));
+    await tester.pumpAndSettle();
     expect(
-      container.read(activeChatConversationProvider).selectedWorldBookId,
-      book.id,
+      container.read(activeChatConversationProvider).selectedWorldBookIds,
+      [secondBook.id, book.id],
     );
     await tester.tap(find.byType(Checkbox).at(2));
     await tester.pump();

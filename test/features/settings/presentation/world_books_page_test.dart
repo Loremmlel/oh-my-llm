@@ -101,6 +101,32 @@ void main() {
     await tester.tap(find.text('编辑'));
     await tester.pumpAndSettle();
     await tester.enterText(find.widgetWithText(AppTextField, '正文'), '修改正文');
+    final editableFinder = find.descendant(
+      of: find.widgetWithText(AppTextField, '正文'),
+      matching: find.byType(EditableText),
+    );
+    final originalState = tester.state<EditableTextState>(editableFinder);
+    final originalSize = tester.getSize(editableFinder);
+    const selectedValue = TextEditingValue(
+      text: '修改正文',
+      selection: TextSelection(baseOffset: 1, extentOffset: 3),
+    );
+    tester.testTextInput.updateEditingValue(selectedValue);
+    for (final bottom in [360.0, 0.0]) {
+      tester.view.viewInsets = FakeViewPadding(bottom: bottom);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(
+        tester.state<EditableTextState>(editableFinder),
+        same(originalState),
+      );
+      expect(originalState.widget.focusNode.hasFocus, isTrue);
+      expect(originalState.widget.controller.value, selectedValue);
+      expect(tester.getSize(editableFinder), originalSize);
+      await tester.ensureVisible(editableFinder);
+      expect(editableFinder.hitTestable(), findsOneWidget);
+    }
+    tester.view.resetViewInsets();
     await tester.tap(find.text('保存'));
     await tester.pump();
     expect(find.textContaining('保存失败测试'), findsOneWidget);

@@ -117,9 +117,7 @@ class _WorldBookEditorState extends State<WorldBookEditor>
 
   bool _compact(BoxConstraints constraints) =>
       constraints.maxWidth < AppBreakpoints.formMasterDetail ||
-      MediaQuery.sizeOf(context).height -
-              MediaQuery.viewInsetsOf(context).bottom <
-          640 ||
+      MediaQuery.sizeOf(context).height < 640 ||
       MediaQuery.textScalerOf(context).scale(1) > 1.5;
 
   @override

@@ -27,7 +27,7 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
         selected_model_id,
         selected_checkpoint_id,
         selected_preset_prompt_id,
-        selected_world_book_id,
+        selected_world_book_ids_json,
         reasoning_enabled,
         reasoning_effort,
         excluded_message_ids_json,
@@ -160,7 +160,7 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
         selected_model_id,
         selected_checkpoint_id,
         selected_preset_prompt_id,
-        selected_world_book_id,
+        selected_world_book_ids_json,
         reasoning_enabled,
         reasoning_effort,
         excluded_message_ids_json,
@@ -283,7 +283,10 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
       selectedModelId: row['selected_model_id'] as String?,
       selectedCheckpointId: row['selected_checkpoint_id'] as String?,
       selectedPresetPromptId: row['selected_preset_prompt_id'] as String?,
-      selectedWorldBookId: row['selected_world_book_id'] as String?,
+      selectedWorldBookIds: List<String>.unmodifiable(
+        (jsonDecode(row['selected_world_book_ids_json'] as String) as List)
+            .cast<String>(),
+      ),
       reasoningEnabled: (row['reasoning_enabled'] as int) == 1,
       reasoningEffort: ReasoningEffort.values.firstWhere(
         (effort) => effort.apiValue == row['reasoning_effort'],
