@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'package:oh_my_llm/core/constants/app_animations.dart';
@@ -31,7 +33,7 @@ class MessageAnchorRail extends StatefulWidget {
   ///
   /// 1. 移除 Markdown 语法标记（**、__、#、>）
   /// 2. 在第一个常见标点符号/空格/换行处截断
-  /// 3. 最多保留 15 个字符
+  /// 3. 最多保留 18 个字符，纯标点消息保留原样
   static String extractPreviewText(String rawContent) {
     // 步骤 1: 移除 Markdown 语法标记
     final cleaned = rawContent
@@ -43,18 +45,13 @@ class MessageAnchorRail extends StatefulWidget {
 
     if (cleaned.isEmpty) return '';
 
-    // 步骤 2 & 3: 在第一个标点符号处截断，最多 15 字符
+    // 按字素截断，避免拆开 emoji；开头标点不再生成空预览。
     const punctuation = '.。！？，,﹖﹔；：!?,;:+\n';
-    const limit = 15;
-    for (int i = 0; i < cleaned.length && i < limit; i++) {
-      if (punctuation.contains(cleaned[i])) {
-        if (i == 0) return '';
-        return cleaned.substring(0, i);
-      }
+    final characters = cleaned.characters.take(18).toList();
+    for (var i = 1; i < characters.length; i++) {
+      if (punctuation.contains(characters[i])) return characters.take(i).join();
     }
-
-    // 无标点时取前 15 字符
-    return cleaned.substring(0, limit.clamp(0, cleaned.length));
+    return characters.join();
   }
 }
 
@@ -62,6 +59,8 @@ class _MessageAnchorRailState extends State<MessageAnchorRail> {
   // ── 状态 ────────────────────────────────────────────────────
 
   bool _isExpanded = false;
+  bool _touchExpanded = false;
+  Timer? _collapseTimer;
   final ScrollController _scrollController = ScrollController();
 
   /// rail 祖先焦点节点：只观察 descendant focus（InkWell 的标准焦点
@@ -80,6 +79,7 @@ class _MessageAnchorRailState extends State<MessageAnchorRail> {
 
   @override
   void dispose() {
+    _collapseTimer?.cancel();
     _railFocusNode.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -104,18 +104,25 @@ class _MessageAnchorRailState extends State<MessageAnchorRail> {
 
   /// 折叠当前展开的锚点条。
   void _collapseExpand() {
+    _collapseTimer?.cancel();
+    _touchExpanded = false;
     if (!_isExpanded) return;
     setState(() {
       _isExpanded = false;
     });
   }
 
+  void _scheduleCollapse() {
+    _collapseTimer?.cancel();
+    if (_touchExpanded) {
+      _collapseTimer = Timer(const Duration(seconds: 2), _collapseExpand);
+    }
+  }
+
   @override
   void didUpdateWidget(covariant MessageAnchorRail oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // 父级重建（如 ChatScreen setState 触发）时，若键盘焦点仍在 rail 内
-    // 则保持展开，避免打断正在键盘操作的用户；无焦点时沿用旧行为折叠。
-    if (!_railFocusNode.hasFocus) {
+    if (widget.userMessages.length <= 3) {
       _collapseExpand();
     }
   }
@@ -138,7 +145,11 @@ class _MessageAnchorRailState extends State<MessageAnchorRail> {
         }
       },
       child: GestureDetector(
-        onLongPress: () => _toggleExpand(),
+        onLongPress: () {
+          _touchExpanded = true;
+          _toggleExpand();
+        },
+        onLongPressEnd: (_) => _scheduleCollapse(),
         child: Align(
           alignment: Alignment.centerRight,
           child: MouseRegion(
@@ -149,110 +160,127 @@ class _MessageAnchorRailState extends State<MessageAnchorRail> {
             },
             child: ConstrainedBox(
               constraints: BoxConstraints(maxHeight: widget.maxHeight),
-              child: SizedBox(
-                width: _isExpanded ? 228 : 28,
-                child: DecoratedBox(
-                  key: const ValueKey('message-anchor-rail'), // test-key
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(AppRadii.sm),
-                    color: _isExpanded ? theme.colorScheme.surface : null,
-                    border: _isExpanded
-                        ? Border.all(
-                            color: theme.colorScheme.outlineVariant.withValues(
-                              alpha: 0.4,
-                            ),
-                          )
-                        : null,
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 4,
-                      vertical: 8,
-                    ),
-                    child: ScrollConfiguration(
-                      behavior: ScrollConfiguration.of(context)
-                          .copyWith(scrollbars: false),
-                      child: ListView.separated(
-                        controller: _scrollController,
-                        primary: false,
-                        padding: EdgeInsets.zero,
-                        itemCount: widget.userMessages.length,
-                        separatorBuilder: (context, index) {
-                          return const SizedBox(height: 8);
-                        },
-                        itemBuilder: (context, index) {
-                          final message = widget.userMessages[index];
-                          final isActive = message.id == widget.activeMessageId;
-                          final previewText =
-                              MessageAnchorRail.extractPreviewText(
-                                message.content,
-                              );
+              child: TapRegion(
+                onTapOutside: (_) => _collapseExpand(),
+                child: Listener(
+                  onPointerDown: (_) => _collapseTimer?.cancel(),
+                  onPointerUp: (_) => _scheduleCollapse(),
+                  onPointerCancel: (_) => _scheduleCollapse(),
+                  child: SizedBox(
+                    width: _isExpanded ? 264 : 28,
+                    child: DecoratedBox(
+                      key: const ValueKey('message-anchor-rail'), // test-key
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(AppRadii.sm),
+                        color: _isExpanded ? theme.colorScheme.surface : null,
+                        border: _isExpanded
+                            ? Border.all(
+                                color: theme.colorScheme.outlineVariant
+                                    .withValues(alpha: 0.4),
+                              )
+                            : null,
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 8,
+                        ),
+                        child: ScrollConfiguration(
+                          behavior: ScrollConfiguration.of(context)
+                              .copyWith(scrollbars: false),
+                          child: ListView.separated(
+                            controller: _scrollController,
+                            primary: false,
+                            padding: EdgeInsets.zero,
+                            itemCount: widget.userMessages.length,
+                            separatorBuilder: (context, index) {
+                              return const SizedBox(height: 8);
+                            },
+                            itemBuilder: (context, index) {
+                              final message = widget.userMessages[index];
+                              final isActive =
+                                  message.id == widget.activeMessageId;
+                              final previewText =
+                                  MessageAnchorRail.extractPreviewText(
+                                    message.content,
+                                  );
 
-                          return Semantics(
-                            button: true,
-                            selected: isActive,
-                            value:
-                                '${index + 1} / ${widget.userMessages.length}',
-                            label: previewText.isEmpty
-                                ? '第 ${index + 1} 条用户消息'
-                                : '第 ${index + 1} 条用户消息：$previewText',
-                            child: InkWell(
-                              key: ValueKey('message-anchor-item-${index + 1}'),
-                              borderRadius: BorderRadius.circular(AppRadii.tag),
-                              focusColor: theme.colorScheme.primary.withValues(
-                                alpha: 0.12,
-                              ),
-                              onTap: () => widget.onSelectMessage(message.id),
-                              child: SizedBox(
-                                height: 18,
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    if (_isExpanded && previewText.isNotEmpty)
-                                      Expanded(
-                                        child: Padding(
-                                          padding: const EdgeInsets.only(
-                                            right: 8,
+                              return Semantics(
+                                button: true,
+                                selected: isActive,
+                                value:
+                                    '${index + 1} / ${widget.userMessages.length}',
+                                label: previewText.isEmpty
+                                    ? '第 ${index + 1} 条用户消息'
+                                    : '第 ${index + 1} 条用户消息：$previewText',
+                                child: InkWell(
+                                  key: ValueKey(
+                                    'message-anchor-item-${index + 1}',
+                                  ),
+                                  borderRadius: BorderRadius.circular(
+                                    AppRadii.tag,
+                                  ),
+                                  focusColor: theme.colorScheme.primary
+                                      .withValues(alpha: 0.12),
+                                  onTap: () {
+                                    widget.onSelectMessage(message.id);
+                                    if (_touchExpanded) _collapseExpand();
+                                  },
+                                  child: SizedBox(
+                                    height: 18,
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      mainAxisAlignment: MainAxisAlignment.end,
+                                      children: [
+                                        if (_isExpanded &&
+                                            previewText.isNotEmpty)
+                                          Expanded(
+                                            child: Padding(
+                                              padding: const EdgeInsets.only(
+                                                right: 8,
+                                              ),
+                                              // 预览文本只负责视觉；语义由父节点
+                                              // 的 label 提供，避免展开后重复播报。
+                                              child: ExcludeSemantics(
+                                                child: Text(
+                                                  previewText,
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style:
+                                                      theme.textTheme.bodySmall,
+                                                  textAlign: TextAlign.right,
+                                                ),
+                                              ),
+                                            ),
                                           ),
-                                          // 预览文本只负责视觉；语义由父节点
-                                          // 的 label 提供，避免展开后重复播报。
-                                          child: ExcludeSemantics(
-                                            child: Text(
-                                              previewText,
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: theme.textTheme.bodySmall,
-                                              textAlign: TextAlign.right,
+                                        SizedBox(
+                                          width: 20,
+                                          height: 18,
+                                          child: Center(
+                                            child: AnimatedContainer(
+                                              duration:
+                                                  AppAnimations.quickTransition,
+                                              width: isActive ? 14 : 10,
+                                              height: isActive ? 6 : 4,
+                                              decoration: BoxDecoration(
+                                                color: isActive
+                                                    ? theme.colorScheme.primary
+                                                    : theme.colorScheme.outline,
+                                                borderRadius:
+                                                    BorderRadius.circular(14),
+                                              ),
                                             ),
                                           ),
                                         ),
-                                      ),
-                                    SizedBox(
-                                      width: 20,
-                                      height: 18,
-                                      child: Center(
-                                        child: AnimatedContainer(
-                                          duration:
-                                              AppAnimations.quickTransition,
-                                          width: isActive ? 14 : 10,
-                                          height: isActive ? 6 : 4,
-                                          decoration: BoxDecoration(
-                                            color: isActive
-                                                ? theme.colorScheme.primary
-                                                : theme.colorScheme.outline,
-                                            borderRadius: BorderRadius.circular(
-                                              14,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
+                                      ],
                                     ),
-                                  ],
+                                  ),
                                 ),
-                              ),
-                            ),
-                          );
-                        },
+                              );
+                            },
+                          ),
+                        ),
                       ),
                     ),
                   ),

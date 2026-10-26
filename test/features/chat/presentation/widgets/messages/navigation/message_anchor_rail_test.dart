@@ -83,6 +83,37 @@ Future<void> _pumpRailWithSentinel(
 }
 
 void main() {
+  testWidgets('长按导航两秒后或点击外部收起，纯问号与其他标记均靠右', (tester) async {
+    final messages = [
+      _userMessage(id: 'question', content: '?'),
+      for (var i = 1; i < 5; i++) _userMessage(id: '$i', content: '消息$i'),
+    ];
+    await pumpAnchorRail(tester, userMessages: messages);
+    final rail = find.byKey(const ValueKey('message-anchor-rail'));
+    await tester.longPress(rail);
+    await tester.pump();
+    expect(find.text('?'), findsOneWidget);
+    final markers = find.descendant(
+      of: rail,
+      matching: find.byType(AnimatedContainer),
+    );
+    expect(
+      tester.getCenter(markers.first).dx,
+      tester.getCenter(markers.last).dx,
+    );
+    await tester.pump(const Duration(seconds: 2));
+    expect(find.text('?'), findsNothing);
+    await tester.longPress(rail);
+    await tester.pump();
+    await tester.tapAt(const Offset(10, 10));
+    await tester.pump();
+    expect(find.text('?'), findsNothing);
+    expect(
+      MessageAnchorRail.extractPreviewText('一二三四五六七八九十一二三四五六七八九十'),
+      '一二三四五六七八九十一二三四五六七八',
+    );
+  });
+
   // ── 容器级展开: 悬停交互 ──────────────────────────────────
 
   group('MessageAnchorRail container hover', () {
