@@ -54,13 +54,13 @@ void main() {
       final first = _conversation(
         'first',
         '首次写入',
-      ).copyWith(selectedWorldBookId: 'world-1');
+      ).copyWith(selectedWorldBookIds: ['world-2', 'world-1']);
       await background.saveConversation(first);
       expect(inner.loadAll(), [first]);
       await background.saveConversation(
-        first.copyWith(clearSelectedWorldBookId: true),
+        first.copyWith(selectedWorldBookIds: []),
       );
-      expect(inner.loadConversation(first.id)!.selectedWorldBookId, isNull);
+      expect(inner.loadConversation(first.id)!.selectedWorldBookIds, isEmpty);
       await background.saveConversation(first);
 
       final second = _conversation('second', '下一批写入');

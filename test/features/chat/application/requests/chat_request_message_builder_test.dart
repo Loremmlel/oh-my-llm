@@ -111,14 +111,16 @@ void main() {
       ],
     );
     final history = [TestFixtures.userMessage(id: 'input', content: '无关关键词')];
+    final second = TestFixtures.worldBook(id: 'second', name: '第二本');
     final prepared = buildRequestMessages(
       presetPrompt: preset,
-      worldBook: book,
+      worldBooks: [book, second],
       conversationMessages: history,
     );
     expect(prepared.map((m) => m.content), [
       '前置',
       '<world_book name="城市 &amp; 群岛">\n<entry title="人物 &quot;乙&quot;">\n角色乙\n{{char}}\n</entry>\n<entry title="世界">\n世界规则\n</entry>\n</world_book>',
+      second.promptContent,
       '无关关键词',
       '后置',
     ]);
@@ -127,7 +129,7 @@ void main() {
     expect(
       buildRequestMessages(
         presetPrompt: null,
-        worldBook: book,
+        worldBooks: [book],
         conversationMessages: [],
       ).single.content,
       prepared[1].content,
@@ -135,14 +137,14 @@ void main() {
     expect(
       buildRequestMessages(
         presetPrompt: null,
-        worldBook: book.copyWith(entries: []),
+        worldBooks: [book.copyWith(entries: [])],
         conversationMessages: [],
       ),
       isEmpty,
     );
     final single = buildRequestMessages(
       presetPrompt: preset.copyWith(singleSystemPrompt: true),
-      worldBook: book,
+      worldBooks: [book, second],
       conversationMessages: history,
     );
     expect(single.map((m) => m.content), prepared.map((m) => m.content));

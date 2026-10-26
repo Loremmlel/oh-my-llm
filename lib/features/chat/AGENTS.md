@@ -25,7 +25,7 @@
 
 1. 检查点记忆（system）
 2. 模板 placement == before
-3. 对话选定世界书的启用且正文非空条目，按保存顺序全量注入（system，XML 分隔）
+3. 对话选定的多本世界书，按对话保存的书籍顺序、书内条目顺序，全量注入启用且正文非空的条目（system，XML 分隔）
 4. 经 request_message_filter 过滤的有效历史，不含本次最新输入
 5. 模板 placement == beforeLatestInput
 6. 显式指定的本次最新用户输入

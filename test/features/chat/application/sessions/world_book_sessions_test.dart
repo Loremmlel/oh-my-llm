@@ -24,15 +24,20 @@ void main() {
     final book = TestFixtures.worldBook();
     await container.read(worldBooksProvider.notifier).upsert(book);
     expect(
-      container.read(activeChatConversationProvider).selectedWorldBookId,
-      isNull,
+      container.read(activeChatConversationProvider).selectedWorldBookIds,
+      isEmpty,
     );
-    container.read(chatComposerCommandProvider).selectWorldBook(book.id);
+    final second = TestFixtures.worldBook(id: 'second', name: '第二本');
+    await container.read(worldBooksProvider.notifier).upsert(second);
+    container.read(chatComposerCommandProvider).selectWorldBooks([
+      book.id,
+      second.id,
+    ]);
     final original = container.read(activeChatConversationProvider);
     final preview = previewChatContext(
       conversation: original,
       presetPrompt: null,
-      worldBook: book,
+      worldBooks: [book, second],
       body: '开场',
     );
     final stream = harness.fakeClient.enqueueControlledStream();
@@ -46,6 +51,10 @@ void main() {
       entries: [book.entries.single.copyWith(content: '新世界规则')],
     );
     await container.read(worldBooksProvider.notifier).upsert(changed);
+    container.read(chatComposerCommandProvider).selectWorldBooks([
+      second.id,
+      book.id,
+    ]);
     expect(
       harness.fakeClient.lastRequestMessages.first.content,
       book.promptContent,
@@ -56,23 +65,23 @@ void main() {
     harness.fakeClient.enqueueChunks(['新请求结束']);
     await controller.retryLatestAssistant();
     expect(
-      harness.fakeClient.lastRequestMessages.first.content,
-      changed.promptContent,
+      harness.fakeClient.lastRequestMessages.take(2).map((m) => m.content),
+      [second.promptContent, changed.promptContent],
     );
     await controller.createConversation();
     expect(
-      container.read(activeChatConversationProvider).selectedWorldBookId,
-      isNull,
+      container.read(activeChatConversationProvider).selectedWorldBookIds,
+      isEmpty,
     );
     controller.selectConversation(original.id);
     expect(
-      container.read(activeChatConversationProvider).selectedWorldBookId,
-      book.id,
+      container.read(activeChatConversationProvider).selectedWorldBookIds,
+      [second.id, book.id],
     );
-    container.read(chatComposerCommandProvider).selectWorldBook(null);
+    container.read(chatComposerCommandProvider).selectWorldBooks([]);
     expect(
-      container.read(activeChatConversationProvider).selectedWorldBookId,
-      isNull,
+      container.read(activeChatConversationProvider).selectedWorldBookIds,
+      isEmpty,
     );
   });
 
@@ -80,12 +89,14 @@ void main() {
     final container = harness.container;
     final controller = container.read(chatSessionsProvider.notifier);
     final book = TestFixtures.worldBook();
+    final second = TestFixtures.worldBook(id: 'second', name: '仍启用的世界书');
     final preset = TestFixtures.presetPrompt(id: 'custom')
         .copyWith(customReasoningTag: 'thinking_diy');
     await container.read(worldBooksProvider.notifier).upsert(book);
+    await container.read(worldBooksProvider.notifier).upsert(second);
     await container.read(presetPromptsProvider.notifier).upsert(preset);
     controller.updateActiveConversationPreferences(
-      selectedWorldBookId: book.id,
+      selectedWorldBookIds: [book.id, second.id],
       selectedPresetPromptId: preset.id,
     );
     harness.fakeClient.enqueueChunks(['内容']);
@@ -115,10 +126,10 @@ void main() {
     harness.fakeClient.enqueueChunks(['下一轮']);
     await harness.sendMsg('继续');
     expect(
-      harness.fakeClient.lastRequestMessages.any(
-        (m) => m.content.contains('<world_book'),
-      ),
-      isFalse,
+      harness.fakeClient.lastRequestMessages
+          .where((m) => m.content.contains('<world_book'))
+          .map((m) => m.content),
+      [second.promptContent],
     );
   });
 }

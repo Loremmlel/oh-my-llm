@@ -53,7 +53,7 @@ void main() {
           .map((row) => row['name'] as String)
           .toList();
       expect(conversationColumns, contains('selected_preset_prompt_id'));
-      expect(conversationColumns, contains('selected_world_book_id'));
+      expect(conversationColumns, contains('selected_world_book_ids_json'));
       final presetColumns = database.connection
           .select('PRAGMA table_info(preset_prompts);')
           .map((row) => row['name'] as String)

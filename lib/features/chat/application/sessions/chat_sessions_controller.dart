@@ -451,21 +451,19 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     String? selectedModelId,
     String? selectedCheckpointId,
     String? selectedPresetPromptId,
-    String? selectedWorldBookId,
+    List<String>? selectedWorldBookIds,
     bool? reasoningEnabled,
     ReasoningEffort? reasoningEffort,
     bool? autoRetryEnabled,
     bool clearSelectedCheckpointId = false,
     bool clearSelectedPresetPromptId = false,
-    bool clearSelectedWorldBookId = false,
   }) {
     updateActiveConversation(
       state.activeConversation.copyWith(
         selectedModelId: selectedModelId,
         selectedCheckpointId: selectedCheckpointId,
         selectedPresetPromptId: selectedPresetPromptId,
-        selectedWorldBookId: selectedWorldBookId,
-        clearSelectedWorldBookId: clearSelectedWorldBookId,
+        selectedWorldBookIds: selectedWorldBookIds,
         reasoningEnabled: reasoningEnabled,
         reasoningEffort: reasoningEffort,
         autoRetryEnabled: autoRetryEnabled,
@@ -570,7 +568,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
         conversationMessages: summaryMessages,
         checkpointChain: sourceContext.checkpointChain,
         presetPrompt: presetPrompt,
-        worldBook: resolveConversationWorldBook(currentConversation),
+        worldBooks: resolveConversationWorldBooks(currentConversation),
         filter: ExcludeByIdMessageFilter(
           currentConversation.excludedMessageIds.toSet(),
         ),
@@ -684,9 +682,9 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     required ReasoningEffort reasoningEffort,
     Duration? retryDelay,
   }) async {
-    final worldBook = resolveConversationWorldBook(conversation);
+    final worldBooks = resolveConversationWorldBooks(conversation);
     final checked = prepareChatContext(
-      worldBook: worldBook,
+      worldBooks: worldBooks,
       presetPrompt: presetPrompt,
       conversationMessages: requestContext.tailMessages,
       latestInputMessageId: parentMessageId,
@@ -702,7 +700,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       settings: ref.read(autoRetrySettingsProvider),
     );
     final command = ChatGenerationCommand(
-      worldBook: worldBook,
+      worldBooks: worldBooks,
       conversation: conversation,
       modelConfig: modelConfig,
       presetPrompt: presetPrompt,
@@ -791,7 +789,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       return ChatPrepareFailure(pendingError);
     }
     final preparedContext = prepareChatContext(
-      worldBook: command.worldBook,
+      worldBooks: command.worldBooks,
       presetPrompt: command.presetPrompt,
       conversationMessages: command.requestContext.tailMessages,
       latestInputMessageId: command.parentMessageId,

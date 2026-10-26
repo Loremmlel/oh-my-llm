@@ -210,11 +210,13 @@ mixin ChatSessionsControllerSupport on Notifier<ChatSessionsState> {
     }).firstOrNull;
   }
 
-  WorldBook? resolveConversationWorldBook(ChatConversation conversation) {
-    final id = conversation.selectedWorldBookId;
-    return id == null
-        ? null
-        : resolveWorldBook(ref.read(worldBooksProvider), id);
+  List<WorldBook> resolveConversationWorldBooks(ChatConversation conversation) {
+    if (conversation.selectedWorldBookIds.isEmpty) return const [];
+    final books = ref.read(worldBooksProvider);
+    return List.unmodifiable([
+      for (final id in conversation.selectedWorldBookIds)
+        ?resolveWorldBook(books, id),
+    ]);
   }
 
   void setErrorMessage(String message) {
