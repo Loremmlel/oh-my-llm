@@ -85,13 +85,21 @@ class ChatComposerCard extends ConsumerWidget {
       child: Padding(
         padding: EdgeInsets.symmetric(
           horizontal: AppBreakpoints.isCompactShell(context) ? 10 : 14,
-          vertical: AppBreakpoints.isCompactShell(context) ? 8 : 10,
+          vertical: AppSpacing.xxs,
         ),
         child: Row(
           children: [
             Expanded(child: Text('输入区已隐藏', style: theme.textTheme.bodyMedium)),
             IconButton(
               tooltip: '展开输入区',
+              style: IconButton.styleFrom(
+                padding: EdgeInsets.zero,
+                minimumSize: const Size(
+                  AppInteractionSizes.minimumHitTarget,
+                  AppInteractionSizes.compactVisualControl,
+                ),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
               onPressed: bindings.onToggleComposerCollapsed,
               icon: const Icon(Icons.keyboard_arrow_up_rounded),
             ),
@@ -128,7 +136,12 @@ class ChatComposerCard extends ConsumerWidget {
                 side: BorderSide(color: theme.colorScheme.outlineVariant),
               ),
               child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.xs),
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.xs,
+                  AppSpacing.xxs,
+                  AppSpacing.xs,
+                  AppSpacing.xs,
+                ),
                 // 变量/正文控制器变化不经过 Riverpod，用 ListenableBuilder 合并监听：
                 // 任一变化都重新求值可见分支与值错误，并联动发送可用性。
                 child: ListenableBuilder(
@@ -152,6 +165,14 @@ class ChatComposerCard extends ConsumerWidget {
                           alignment: Alignment.centerRight,
                           child: IconButton(
                             tooltip: '收起输入区',
+                            style: IconButton.styleFrom(
+                              padding: EdgeInsets.zero,
+                              minimumSize: const Size(
+                                AppInteractionSizes.minimumHitTarget,
+                                AppInteractionSizes.compactVisualControl,
+                              ),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
                             onPressed: bindings.onToggleComposerCollapsed,
                             icon: const Icon(
                               Icons.keyboard_arrow_down_rounded,
@@ -232,7 +253,6 @@ class ChatComposerCard extends ConsumerWidget {
                                       ),
                                     ),
                                   if (selectedTemplate != null) ...[
-                                    const SizedBox(height: 10),
                                     // program 为 null 也并入诊断分支：不依赖「编译失败必有
                                     // 诊断」的编译器不变量，编译器违约时同样不触碰 program
                                     // 字段，消除空安全 NPE 风险。

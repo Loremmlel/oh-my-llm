@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
 import 'package:oh_my_llm/core/widgets/app_text_field.dart';
 
 import 'package:oh_my_llm/features/settings/domain/models/prompts/template_prompt.dart';
@@ -56,7 +57,10 @@ class ComposerTemplateVariableFields extends StatelessWidget {
         return SizedBox(
           width: constraints.maxWidth,
           child: Wrap(
-            alignment: WrapAlignment.spaceBetween,
+            alignment:
+                AppBreakpoints.useCompactFormActions(constraints.maxWidth)
+                ? WrapAlignment.spaceAround
+                : WrapAlignment.start,
             spacing: gap,
             runSpacing: gap,
             children: [

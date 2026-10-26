@@ -114,7 +114,7 @@ Future<void> _pumpComposer(
 }
 
 void main() {
-  testWidgets('模板字段不足一行时占满可用宽度并两端排列，换行后同样生效', (tester) async {
+  testWidgets('模板字段窄屏四周分配余量，末行同样生效，宽屏靠左排列', (tester) async {
     tester.view.physicalSize = const Size(1100, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -166,8 +166,17 @@ void main() {
       }
       expect(rows.length, count == 5 ? 2 : 1);
       for (final row in rows.values) {
-        expect(row.first.left, closeTo(container.left, 0.01));
-        expect(row.last.right, closeTo(container.right, 0.01));
+        if (width == 960) {
+          expect(row.first.left, closeTo(container.left, 0.01));
+          expect(row[1].left - row.first.right, closeTo(6, 0.01));
+        } else {
+          final outerGap = row.first.left - container.left;
+          expect(container.right - row.last.right, closeTo(outerGap, 0.01));
+          expect(
+            row[1].left - row.first.right,
+            closeTo(outerGap * 2 + 6, 0.01),
+          );
+        }
       }
       expect(tester.takeException(), isNull);
     }
