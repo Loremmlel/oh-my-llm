@@ -12,7 +12,6 @@ class FavoriteBrowseToolbar extends StatelessWidget {
     required this.collectionId,
     required this.onCollectionChanged,
     required this.onSelect,
-    required this.onManage,
     super.key,
   });
 
@@ -20,7 +19,6 @@ class FavoriteBrowseToolbar extends StatelessWidget {
   final String collectionId;
   final ValueChanged<String> onCollectionChanged;
   final VoidCallback? onSelect;
-  final VoidCallback onManage;
 
   @override
   Widget build(BuildContext context) => SizedBox(
@@ -32,37 +30,38 @@ class FavoriteBrowseToolbar extends StatelessWidget {
       children: [
         SizedBox(
           width: 216,
-          child: AppDropdownField<String>(
-            initialValue: collections.any((c) => c.id == collectionId)
-                ? collectionId
-                : null,
-            isExpanded: true,
-            decoration: const InputDecoration(labelText: '收藏夹', isDense: true),
-            items: [
-              for (final c in collections)
-                DropdownMenuItem(
-                  value: c.id,
-                  child: Text(
-                    c.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+          child: Semantics(
+            label: '收藏夹',
+            child: AppDropdownField<String>(
+              initialValue: collections.any((c) => c.id == collectionId)
+                  ? collectionId
+                  : null,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                hintText: '选择收藏夹',
+                isDense: true,
+              ),
+              items: [
+                for (final c in collections)
+                  DropdownMenuItem(
+                    value: c.id,
+                    child: Text(
+                      c.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                ),
-            ],
-            onChanged: (id) {
-              if (id != null && id != collectionId) onCollectionChanged(id);
-            },
+              ],
+              onChanged: (id) {
+                if (id != null && id != collectionId) onCollectionChanged(id);
+              },
+            ),
           ),
         ),
         OutlinedButton.icon(
           onPressed: onSelect,
           icon: const Icon(Icons.checklist),
           label: const Text('批量选择'),
-        ),
-        TextButton.icon(
-          onPressed: onManage,
-          icon: const Icon(Icons.folder_outlined),
-          label: const Text('管理收藏夹'),
         ),
       ],
     ),
