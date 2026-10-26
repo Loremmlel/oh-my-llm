@@ -122,9 +122,14 @@ void main() {
       );
       expect(originalState.widget.focusNode.hasFocus, isTrue);
       expect(originalState.widget.controller.value, selectedValue);
-      expect(tester.getSize(editableFinder), originalSize);
-      await tester.ensureVisible(editableFinder);
-      expect(editableFinder.hitTestable(), findsOneWidget);
+      expect(tester.getSize(editableFinder).width, originalSize.width);
+      final render = originalState.renderEditable;
+      final caret = render.getLocalRectForCaret(selectedValue.selection.extent);
+      expect(
+        render.localToGlobal(caret.bottomRight).dy,
+        lessThan(760 - bottom),
+      );
+      expect(render.localToGlobal(caret.topLeft).dy, greaterThan(56));
     }
     tester.view.resetViewInsets();
     await tester.tap(find.text('保存'));

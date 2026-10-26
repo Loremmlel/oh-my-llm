@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
 import 'package:oh_my_llm/core/widgets/app_text_field.dart';
 
 import 'package:oh_my_llm/features/settings/domain/models/prompts/template_prompt.dart';
@@ -52,47 +53,53 @@ class ComposerTemplateVariableFields extends StatelessWidget {
           (constraints.maxWidth - gap * (textColumns - 1)) / textColumns,
         );
 
-        return Wrap(
-          alignment: constraints.maxWidth < 600
-              ? WrapAlignment.spaceBetween
-              : WrapAlignment.start,
-          spacing: gap,
-          runSpacing: gap,
-          children: [
-            for (final variable in program.inputVariables)
-              if (activeInputVariableNames.contains(variable.name))
-                switch (variable.type) {
-                  TemplatePromptVariableType.number => NumberVariableField(
-                    width: numberWidth,
-                    key: ValueKey('number-variable-${variable.name}'),
-                    controller: templateVariableControllers[variable.name]!,
-                    labelText: variable.name,
-                    errorText: valueErrorsByVariable[variable.name]?.message,
-                  ),
-                  TemplatePromptVariableType.select => SizedBox(
-                    width: itemWidth,
-                    child: SelectVariableField(
-                      key: ValueKey('select-variable-${variable.name}'),
+        // 父 Column 按起点对齐，必须占满宽度才能把余量分配到字段之间。
+        return SizedBox(
+          width: constraints.maxWidth,
+          child: Wrap(
+            alignment:
+                AppBreakpoints.useCompactFormActions(constraints.maxWidth)
+                ? WrapAlignment.spaceAround
+                : WrapAlignment.start,
+            spacing: gap,
+            runSpacing: gap,
+            children: [
+              for (final variable in program.inputVariables)
+                if (activeInputVariableNames.contains(variable.name))
+                  switch (variable.type) {
+                    TemplatePromptVariableType.number => NumberVariableField(
+                      width: numberWidth,
+                      key: ValueKey('number-variable-${variable.name}'),
                       controller: templateVariableControllers[variable.name]!,
-                      variable: variable,
+                      labelText: variable.name,
                       errorText: valueErrorsByVariable[variable.name]?.message,
                     ),
-                  ),
-                  TemplatePromptVariableType.text => SizedBox(
-                    width: itemWidth,
-                    child: AppTextField(
-                      key: ValueKey('template-variable-${variable.name}'),
-                      controller: templateVariableControllers[variable.name]!,
-                      decoration: InputDecoration(
-                        labelText: variable.name,
-                        hintText: variable.defaultValue.isEmpty
-                            ? '未设置默认值'
-                            : variable.defaultValue,
+                    TemplatePromptVariableType.select => SizedBox(
+                      width: itemWidth,
+                      child: SelectVariableField(
+                        key: ValueKey('select-variable-${variable.name}'),
+                        controller: templateVariableControllers[variable.name]!,
+                        variable: variable,
+                        errorText:
+                            valueErrorsByVariable[variable.name]?.message,
                       ),
                     ),
-                  ),
-                },
-          ],
+                    TemplatePromptVariableType.text => SizedBox(
+                      width: itemWidth,
+                      child: AppTextField(
+                        key: ValueKey('template-variable-${variable.name}'),
+                        controller: templateVariableControllers[variable.name]!,
+                        decoration: InputDecoration(
+                          labelText: variable.name,
+                          hintText: variable.defaultValue.isEmpty
+                              ? '未设置默认值'
+                              : variable.defaultValue,
+                        ),
+                      ),
+                    ),
+                  },
+            ],
+          ),
         );
       },
     );

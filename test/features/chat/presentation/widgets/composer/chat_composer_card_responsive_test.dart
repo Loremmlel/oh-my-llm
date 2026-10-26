@@ -7,10 +7,12 @@ import 'package:oh_my_llm/core/llm/llm_usage_summary.dart';
 import 'package:oh_my_llm/features/chat/application/workspace/chat_workspace_view_state.dart';
 import 'package:oh_my_llm/features/chat/presentation/widgets/composer/chat_composer_card.dart';
 import 'package:oh_my_llm/features/chat/presentation/widgets/composer/composer_helpers.dart';
+import 'package:oh_my_llm/features/chat/presentation/widgets/composer/fields/composer_template_variable_fields.dart';
 import 'package:oh_my_llm/features/chat/presentation/widgets/composer/controls/thinking_toggle.dart';
 import 'package:oh_my_llm/features/chat/presentation/widgets/composer/controls/composer_send_button.dart';
 import 'package:oh_my_llm/features/chat/presentation/widgets/workspace/chat_workspace_bindings.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/template_prompt.dart';
+import 'package:oh_my_llm/features/settings/domain/template_prompt_language/template_prompt_compiler.dart';
 
 ChatWorkspaceComposerState _composerState({
   double? cacheHitRate,
@@ -112,6 +114,74 @@ Future<void> _pumpComposer(
 }
 
 void main() {
+  testWidgets('模板字段窄屏四周分配余量，末行同样生效，宽屏靠左排列', (tester) async {
+    tester.view.physicalSize = const Size(1100, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    for (final (width, count) in [(360.0, 2), (960.0, 2), (360.0, 5)]) {
+      final controllers = {
+        for (var i = 0; i < count; i++)
+          '数值$i': TextEditingController(text: '1'),
+      };
+      addTearDown(() {
+        for (final controller in controllers.values) {
+          controller.dispose();
+        }
+      });
+      final program = compileTemplatePromptContent(
+        controllers.keys.map((name) => '{{$name:number}}').join(),
+      ).program!;
+      const containerKey = ValueKey('template-fields-container');
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: SizedBox(
+                key: containerKey,
+                width: width,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ComposerTemplateVariableFields(
+                      program: program,
+                      activeInputVariableNames: controllers.keys.toSet(),
+                      templateVariableControllers: controllers,
+                      valueErrorsByVariable: const {},
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      final container = tester.getRect(find.byKey(containerKey));
+      final rows = <double, List<Rect>>{};
+      for (final name in controllers.keys) {
+        final rect = tester.getRect(
+          find.byKey(ValueKey('template-variable-$name')),
+        );
+        rows.putIfAbsent(rect.top, () => []).add(rect);
+      }
+      expect(rows.length, count == 5 ? 2 : 1);
+      for (final row in rows.values) {
+        if (width == 960) {
+          expect(row.first.left, closeTo(container.left, 0.01));
+          expect(row[1].left - row.first.right, closeTo(6, 0.01));
+        } else {
+          final outerGap = row.first.left - container.left;
+          expect(container.right - row.last.right, closeTo(outerGap, 0.01));
+          expect(
+            row[1].left - row.first.right,
+            closeTo(outerGap * 2 + 6, 0.01),
+          );
+        }
+      }
+      expect(tester.takeException(), isNull);
+    }
+  });
+
   testWidgets('校验阻止发送时禁用按钮，但运行中的停止仍然可用', (tester) async {
     var stopped = false;
     Future<void> pumpButton({required bool streaming}) => tester.pumpWidget(
@@ -241,20 +311,32 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('收起输入区时隐藏会话总 Token', (tester) async {
+  testWidgets('收起输入区时隐藏会话总 Token，只保留一个可点击的向上展开箭头', (tester) async {
     final controller = TextEditingController();
     final focusNode = FocusNode();
     addTearDown(controller.dispose);
     addTearDown(focusNode.dispose);
+    var expanded = false;
 
     await _pumpComposer(
       tester,
       680,
       state: _composerState(cacheHitRate: 0.375, isCollapsed: true),
-      bindings: _bindings(controller: controller, focusNode: focusNode),
+      bindings: _bindings(
+        controller: controller,
+        focusNode: focusNode,
+        onToggleComposerCollapsed: () => expanded = true,
+      ),
     );
 
     expect(find.textContaining('总 Token').hitTestable(), findsNothing);
+    expect(find.text('展开'), findsNothing);
+    final expandArrow = find
+        .byIcon(Icons.keyboard_arrow_up_rounded)
+        .hitTestable();
+    expect(expandArrow, findsOneWidget);
+    await tester.tap(expandArrow);
+    expect(expanded, isTrue);
   });
 
   testWidgets('手机模板区独立收起行，数字三列、普通字段两列', (tester) async {
@@ -344,6 +426,7 @@ void main() {
     );
 
     final collapseTopRight = tester.getTopRight(find.byTooltip('收起输入区'));
+    expect(find.text('收起输入区'), findsNothing);
     final variableTopLeft = tester.getTopLeft(
       find.byKey(const ValueKey('template-variable-目标语言')),
     );

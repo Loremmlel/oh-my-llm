@@ -79,26 +79,29 @@ class ChatComposerCard extends ConsumerWidget {
     );
   }
 
-  /// 折叠态：仅显示一行提示与展开按钮。
+  /// 折叠态：仅显示一行提示与可点击的向上箭头。
   Widget _buildCollapsed(BuildContext context, ThemeData theme) {
     return Card(
       child: Padding(
         padding: EdgeInsets.symmetric(
           horizontal: AppBreakpoints.isCompactShell(context) ? 10 : 14,
-          vertical: AppBreakpoints.isCompactShell(context) ? 8 : 10,
+          vertical: AppSpacing.xxs,
         ),
         child: Row(
           children: [
-            const Icon(Icons.keyboard_arrow_up_rounded),
-            const SizedBox(width: 8),
             Expanded(child: Text('输入区已隐藏', style: theme.textTheme.bodyMedium)),
-            Tooltip(
-              message: '展开输入区',
-              child: OutlinedButton.icon(
-                onPressed: bindings.onToggleComposerCollapsed,
-                icon: const Icon(Icons.keyboard_arrow_down_rounded),
-                label: const Text('展开'),
+            IconButton(
+              tooltip: '展开输入区',
+              style: IconButton.styleFrom(
+                padding: EdgeInsets.zero,
+                minimumSize: const Size(
+                  AppInteractionSizes.minimumHitTarget,
+                  AppInteractionSizes.compactVisualControl,
+                ),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
+              onPressed: bindings.onToggleComposerCollapsed,
+              icon: const Icon(Icons.keyboard_arrow_up_rounded),
             ),
           ],
         ),
@@ -133,7 +136,12 @@ class ChatComposerCard extends ConsumerWidget {
                 side: BorderSide(color: theme.colorScheme.outlineVariant),
               ),
               child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.xs),
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.xs,
+                  AppSpacing.xxs,
+                  AppSpacing.xs,
+                  AppSpacing.xs,
+                ),
                 // 变量/正文控制器变化不经过 Riverpod，用 ListenableBuilder 合并监听：
                 // 任一变化都重新求值可见分支与值错误，并联动发送可用性。
                 child: ListenableBuilder(
@@ -155,15 +163,20 @@ class ChatComposerCard extends ConsumerWidget {
                       children: [
                         Align(
                           alignment: Alignment.centerRight,
-                          child: Tooltip(
-                            message: '收起输入区',
-                            child: TextButton.icon(
-                              onPressed: bindings.onToggleComposerCollapsed,
-                              icon: const Icon(
-                                Icons.keyboard_arrow_down_rounded,
-                                size: 20,
+                          child: IconButton(
+                            tooltip: '收起输入区',
+                            style: IconButton.styleFrom(
+                              padding: EdgeInsets.zero,
+                              minimumSize: const Size(
+                                AppInteractionSizes.minimumHitTarget,
+                                AppInteractionSizes.compactVisualControl,
                               ),
-                              label: const Text('收起输入区'),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            onPressed: bindings.onToggleComposerCollapsed,
+                            icon: const Icon(
+                              Icons.keyboard_arrow_down_rounded,
+                              size: 20,
                             ),
                           ),
                         ),
@@ -240,7 +253,6 @@ class ChatComposerCard extends ConsumerWidget {
                                       ),
                                     ),
                                   if (selectedTemplate != null) ...[
-                                    const SizedBox(height: 10),
                                     // program 为 null 也并入诊断分支：不依赖「编译失败必有
                                     // 诊断」的编译器不变量，编译器违约时同样不触碰 program
                                     // 字段，消除空安全 NPE 风险。

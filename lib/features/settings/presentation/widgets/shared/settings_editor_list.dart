@@ -148,7 +148,7 @@ class SettingsEditorListTile extends StatelessWidget {
   }
 }
 
-/// 在有界视口下自动填满剩余高度的多行编辑器字段。
+/// 有界时在正文内滚动；短视口下按内容展开，交给表单统一滚动。
 class SettingsExpandedTextField extends StatelessWidget {
   const SettingsExpandedTextField({
     required this.controller,
@@ -158,7 +158,6 @@ class SettingsExpandedTextField extends StatelessWidget {
     this.readOnly = false,
     this.validator,
     this.minLines = 6,
-    this.maxLines = 12,
     super.key,
   });
 
@@ -169,7 +168,6 @@ class SettingsExpandedTextField extends StatelessWidget {
   final bool readOnly;
   final FormFieldValidator<String>? validator;
   final int minLines;
-  final int maxLines;
 
   @override
   Widget build(BuildContext context) {
@@ -179,7 +177,7 @@ class SettingsExpandedTextField extends StatelessWidget {
             controller: controller,
             readOnly: readOnly,
             minLines: expand ? null : minLines,
-            maxLines: expand ? null : maxLines,
+            maxLines: null,
             expands: expand,
             textAlignVertical: TextAlignVertical.top,
             decoration: decoration,
@@ -190,7 +188,7 @@ class SettingsExpandedTextField extends StatelessWidget {
             controller: controller,
             readOnly: readOnly,
             minLines: expand ? null : minLines,
-            maxLines: expand ? null : maxLines,
+            maxLines: null,
             expands: expand,
             textAlignVertical: TextAlignVertical.top,
             decoration: decoration,
