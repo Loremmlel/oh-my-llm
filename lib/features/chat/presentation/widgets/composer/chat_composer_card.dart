@@ -79,7 +79,7 @@ class ChatComposerCard extends ConsumerWidget {
     );
   }
 
-  /// 折叠态：仅显示一行提示与展开按钮。
+  /// 折叠态：仅显示一行提示与可点击的向上箭头。
   Widget _buildCollapsed(BuildContext context, ThemeData theme) {
     return Card(
       child: Padding(
@@ -89,16 +89,11 @@ class ChatComposerCard extends ConsumerWidget {
         ),
         child: Row(
           children: [
-            const Icon(Icons.keyboard_arrow_up_rounded),
-            const SizedBox(width: 8),
             Expanded(child: Text('输入区已隐藏', style: theme.textTheme.bodyMedium)),
-            Tooltip(
-              message: '展开输入区',
-              child: OutlinedButton.icon(
-                onPressed: bindings.onToggleComposerCollapsed,
-                icon: const Icon(Icons.keyboard_arrow_down_rounded),
-                label: const Text('展开'),
-              ),
+            IconButton(
+              tooltip: '展开输入区',
+              onPressed: bindings.onToggleComposerCollapsed,
+              icon: const Icon(Icons.keyboard_arrow_up_rounded),
             ),
           ],
         ),
@@ -155,15 +150,12 @@ class ChatComposerCard extends ConsumerWidget {
                       children: [
                         Align(
                           alignment: Alignment.centerRight,
-                          child: Tooltip(
-                            message: '收起输入区',
-                            child: TextButton.icon(
-                              onPressed: bindings.onToggleComposerCollapsed,
-                              icon: const Icon(
-                                Icons.keyboard_arrow_down_rounded,
-                                size: 20,
-                              ),
-                              label: const Text('收起输入区'),
+                          child: IconButton(
+                            tooltip: '收起输入区',
+                            onPressed: bindings.onToggleComposerCollapsed,
+                            icon: const Icon(
+                              Icons.keyboard_arrow_down_rounded,
+                              size: 20,
                             ),
                           ),
                         ),
