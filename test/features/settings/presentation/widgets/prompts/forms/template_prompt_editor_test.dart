@@ -105,10 +105,11 @@ void main() {
           isTemplate ? '模板提示词' : '记忆总结提示词',
         );
         await tester.showKeyboard(field);
-        const value = TextEditingValue(
-          text: '正在编辑',
-          selection: TextSelection.collapsed(offset: 4),
-          composing: TextRange(start: 2, end: 4),
+        final content = List.generate(40, (i) => '第 $i 行正文').join('\n');
+        final value = TextEditingValue(
+          text: content,
+          selection: TextSelection.collapsed(offset: content.length),
+          composing: TextRange(start: content.length - 2, end: content.length),
         );
         tester.testTextInput.updateEditingValue(value);
         await tester.pump();
@@ -132,6 +133,13 @@ void main() {
             same(originalState),
           );
           expect(find.text('保存').hitTestable(), findsOneWidget);
+          final render = originalState.renderEditable;
+          final caret = render.getLocalRectForCaret(value.selection.extent);
+          expect(
+            render.localToGlobal(caret.bottomRight).dy,
+            lessThan(844 - bottom),
+          );
+          expect(render.localToGlobal(caret.topLeft).dy, greaterThan(56));
           expect(tester.takeException(), isNull);
         }
       });

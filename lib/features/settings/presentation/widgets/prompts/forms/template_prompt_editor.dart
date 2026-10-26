@@ -135,7 +135,6 @@ class _TemplatePromptEditorState extends State<TemplatePromptEditor>
             controller: _contentController,
             expand: expand,
             minLines: 5,
-            maxLines: 10,
             readOnly: isSaving,
             validator: validateRequired,
             decoration: const InputDecoration(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
 import 'package:oh_my_llm/core/widgets/app_help_button.dart';
 import 'package:oh_my_llm/core/widgets/dialogs/app_dialog_actions.dart';
 
@@ -57,8 +58,8 @@ class SettingsFormDialogScaffold extends StatelessWidget {
         },
         child: fullPage
             ? Scaffold(
-                // 键盘只缩小外层滚动视口，不重新分配正文高度和改变选区布局。
-                resizeToAvoidBottomInset: false,
+                // 正文内部的滚动视口也必须避让键盘，否则滚到末尾仍会被遮住。
+                resizeToAvoidBottomInset: true,
                 appBar: AppBar(
                   title: helpText == null
                       ? Text(title)
@@ -138,25 +139,19 @@ class SettingsFormDialogScaffold extends StatelessWidget {
 
   Widget _buildForm(BuildContext context, BoxConstraints constraints) {
     // 键盘改变可用高度时只切换约束，避免增删滚动容器卸载输入框、关闭输入法。
+    // 手机始终由表单滚动，键盘开合不切换正文滚动归属或重置正文滚动位置。
+    final scrollContent =
+        shouldScrollContent(constraints) ||
+        (fullPage && constraints.maxWidth < AppBreakpoints.formMasterDetail);
     return Form(
       key: formKey,
-      child: Padding(
-        padding: EdgeInsets.only(
-          bottom: fullPage
-              ? MediaQuery.viewInsetsOf(context).bottom
-                    .clamp(0.0, constraints.maxHeight)
-              : 0,
-        ),
-        child: SingleChildScrollView(
-          key: const ValueKey('settings-form-dialog-outer-scroll-view'),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxHeight: shouldScrollContent(constraints)
-                  ? double.infinity
-                  : constraints.maxHeight,
-            ),
-            child: child,
+      child: SingleChildScrollView(
+        key: const ValueKey('settings-form-dialog-outer-scroll-view'),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: scrollContent ? double.infinity : constraints.maxHeight,
           ),
+          child: child,
         ),
       ),
     );

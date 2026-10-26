@@ -92,23 +92,25 @@ void main() {
     expect(editor, findsNothing);
   }, variant: TargetPlatformVariant.only(TargetPlatform.android));
 
-  testWidgets('手机键盘改变高度时预设正文保留选区、焦点和输入框身份', (tester) async {
+  testWidgets('手机键盘改变高度时长正文选区自动可见并保留焦点和输入框身份', (tester) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
+    final content = List.generate(60, (i) => '第 $i 行：用于检查键盘避让的长正文。').join('\n');
     await tester.pumpWidget(
       MaterialApp(
+        theme: AppTheme.lightTheme(),
         home: PresetPromptEditor(
           initialValue: PresetPrompt(
             id: 'p',
             name: '预设',
             updatedAt: DateTime(2026),
-            messages: const [
+            messages: [
               PromptMessage(
                 id: 'm',
                 title: '规则',
                 role: PromptMessageRole.system,
-                content: '选中这段正文',
+                content: content,
               ),
             ],
           ),
@@ -122,25 +124,63 @@ void main() {
       matching: find.byType(EditableText),
     );
     await tester.showKeyboard(field);
-    const value = TextEditingValue(
-      text: '选中这段正文',
-      selection: TextSelection(baseOffset: 2, extentOffset: 4),
+    final value = TextEditingValue(
+      text: content,
+      selection: const TextSelection.collapsed(offset: 0),
     );
     tester.testTextInput.updateEditingValue(value);
+    await tester.pump(const Duration(milliseconds: 16));
     final original = tester.state<EditableTextState>(editable);
     final originalSize = tester.getSize(editable);
-    for (final bottom in [340.0, 440.0, 0.0]) {
+    for (final bottom in [80.0, 160.0, 240.0, 340.0, 440.0]) {
       tester.view.viewInsets = FakeViewPadding(bottom: bottom);
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 32));
+      await tester.pump();
       expect(tester.takeException(), isNull);
       expect(tester.state<EditableTextState>(editable), same(original));
       expect(original.widget.focusNode.hasFocus, isTrue);
       expect(original.widget.controller.value, value);
-      expect(tester.getSize(editable), originalSize);
+      expect(tester.getSize(editable).width, originalSize.width);
       expect(find.text('保存').hitTestable(), findsOneWidget);
-      await tester.ensureVisible(editable);
-      expect(editable.hitTestable(), findsOneWidget);
+      final render = original.renderEditable;
+      final caret = render.getLocalRectForCaret(value.selection.extent);
+      expect(
+        render.localToGlobal(caret.bottomRight).dy,
+        lessThan(844 - bottom),
+        reason: '键盘高 $bottom 时选区末端应自动出现在键盘上方',
+      );
+      expect(render.localToGlobal(caret.topLeft).dy, greaterThan(56));
     }
+    // 从可见正文拖到末尾，不能停在键盘后面的内部滚动底部。
+    final render = original.renderEditable;
+    final start = render.localToGlobal(
+      render.getLocalRectForCaret(value.selection.extent).center,
+    );
+    await tester.dragFrom(start + const Offset(40, 0), const Offset(0, -4000));
+    await tester.pumpAndSettle();
+    final end = render.getLocalRectForCaret(
+      TextPosition(offset: content.length),
+    );
+    expect(render.localToGlobal(end.bottomRight).dy, lessThan(844 - 440));
+    expect(render.localToGlobal(end.topLeft).dy, greaterThan(56));
+    final editedValue = TextEditingValue(
+      text: '$content\n继续编辑',
+      selection: TextSelection.collapsed(offset: content.length + 5),
+      composing: TextRange(start: content.length + 1, end: content.length + 5),
+    );
+    tester.testTextInput.updateEditingValue(editedValue);
+    await tester.pumpAndSettle();
+    final editedCaret = render.getLocalRectForCaret(
+      editedValue.selection.extent,
+    );
+    expect(
+      render.localToGlobal(editedCaret.bottomRight).dy,
+      lessThan(844 - 440),
+    );
+    tester.view.resetViewInsets();
+    await tester.pumpAndSettle();
+    expect(tester.state<EditableTextState>(editable), same(original));
+    expect(original.widget.controller.value, editedValue);
   });
 
   testWidgets('预设页面保存失败保留输入，返回确认取消后继续编辑', (tester) async {
