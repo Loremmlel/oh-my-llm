@@ -247,7 +247,12 @@ class SettingsWorkspace extends StatelessWidget {
               Align(
                 alignment: AlignmentDirectional.centerEnd,
                 child: Padding(
-                  padding: const EdgeInsets.only(top: AppSpacing.xs),
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.md,
+                    AppSpacing.xs,
+                    AppSpacing.md,
+                    AppSpacing.xs,
+                  ),
                   child: providerAction,
                 ),
               ),
