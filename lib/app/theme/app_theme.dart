@@ -115,6 +115,13 @@ final class AppTheme {
       useMaterial3: true,
       brightness: brightness,
       colorScheme: colorScheme,
+      pageTransitionsTheme: PageTransitionsTheme(
+        builders: {
+          ...const PageTransitionsTheme().builders,
+          TargetPlatform.android: const PredictiveBackPageTransitionsBuilder(),
+          TargetPlatform.windows: const FadeForwardsPageTransitionsBuilder(),
+        },
+      ),
       extensions: [
         AppUiColors(
           selection: selection,

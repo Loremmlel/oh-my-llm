@@ -57,6 +57,8 @@ class SettingsFormDialogScaffold extends StatelessWidget {
         },
         child: fullPage
             ? Scaffold(
+                // 键盘只缩小外层滚动视口，不重新分配正文高度和改变选区布局。
+                resizeToAvoidBottomInset: false,
                 appBar: AppBar(
                   title: helpText == null
                       ? Text(title)
@@ -138,15 +140,23 @@ class SettingsFormDialogScaffold extends StatelessWidget {
     // 键盘改变可用高度时只切换约束，避免增删滚动容器卸载输入框、关闭输入法。
     return Form(
       key: formKey,
-      child: SingleChildScrollView(
-        key: const ValueKey('settings-form-dialog-outer-scroll-view'),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: shouldScrollContent(constraints)
-                ? double.infinity
-                : constraints.maxHeight,
+      child: Padding(
+        padding: EdgeInsets.only(
+          bottom: fullPage
+              ? MediaQuery.viewInsetsOf(context).bottom
+                    .clamp(0.0, constraints.maxHeight)
+              : 0,
+        ),
+        child: SingleChildScrollView(
+          key: const ValueKey('settings-form-dialog-outer-scroll-view'),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: shouldScrollContent(constraints)
+                  ? double.infinity
+                  : constraints.maxHeight,
+            ),
+            child: child,
           ),
-          child: child,
         ),
       ),
     );

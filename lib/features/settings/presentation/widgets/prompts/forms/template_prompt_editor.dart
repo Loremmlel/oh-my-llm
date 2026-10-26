@@ -110,6 +110,7 @@ class _TemplatePromptEditorState extends State<TemplatePromptEditor>
     helpText: TemplatePromptSyntaxHelp.message,
     submitEnabled: _compilation.isValid,
     snapshotBuilder: _snapshot,
+    additionalControllers: _variableControllers.values,
     shouldScrollContent: (constraints) => constraints.maxHeight < 260,
     onSubmit: _handleSubmit,
     builder: (context, constraints, _) {

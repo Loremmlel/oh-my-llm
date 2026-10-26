@@ -195,7 +195,7 @@ class SettingsExpandedTextField extends StatelessWidget {
             textAlignVertical: TextAlignVertical.top,
             decoration: decoration,
           );
-    return expand ? Expanded(child: field) : field;
+    return Flexible(fit: expand ? FlexFit.tight : FlexFit.loose, child: field);
   }
 }
 
@@ -445,7 +445,10 @@ mixin SettingsItemListEditorMixin<T extends StatefulWidget, E>
                   ],
                 ),
               const SizedBox(height: AppSpacing.sm),
-              if (expandDetail) Expanded(child: detail) else detail,
+              Flexible(
+                fit: expandDetail ? FlexFit.tight : FlexFit.loose,
+                child: detail,
+              ),
             ],
           );
         }

@@ -79,31 +79,40 @@ mixin SettingsFormDialogStateMixin<T extends StatefulWidget> on State<T> {
     bool submitEnabled = true,
     double minExpandedHeight = 420,
     bool Function(BoxConstraints constraints)? shouldScrollContent,
+    Iterable<TextEditingController> additionalControllers = const [],
   }) {
     final resolveScroll =
         shouldScrollContent ??
         (constraints) =>
             constraints.maxWidth < AppBreakpoints.formMasterDetail &&
             constraints.maxHeight < minExpandedHeight;
-    return SettingsFormDialogScaffold(
-      fullPage: true,
-      canPopPage: leaveAllowed,
-      onRequestLeave: () => requestPageLeave(
-        currentSnapshot: snapshotBuilder(),
-        targetName: targetName,
+    // 只更新返回保护；正文子树保持身份，文本或条目变动完成后再比较快照。
+    return ListenableBuilder(
+      listenable: Listenable.merge([
+        ..._managedControllers,
+        ...additionalControllers,
+      ]),
+      builder: (context, child) => SettingsFormDialogScaffold(
+        fullPage: true,
+        canPopPage: leaveAllowed || snapshotBuilder() == _initialSnapshot,
+        onRequestLeave: () => requestPageLeave(
+          currentSnapshot: snapshotBuilder(),
+          targetName: targetName,
+        ),
+        errorText: saveError,
+        title: title,
+        helpText: helpText,
+        formKey: formKey,
+        isSaving: isSaving,
+        submitEnabled: submitEnabled,
+        onSubmit: onSubmit,
+        width: width,
+        shouldScrollContent: resolveScroll,
+        child: child!,
       ),
-      errorText: saveError,
-      title: title,
-      helpText: helpText,
-      formKey: formKey,
-      isSaving: isSaving,
-      submitEnabled: submitEnabled,
-      onSubmit: onSubmit,
-      width: width,
-      shouldScrollContent: resolveScroll,
       child: LayoutBuilder(
         builder: (context, constraints) =>
-            builder(context, constraints, resolveScroll(constraints)),
+            builder(context, constraints, !constraints.hasBoundedHeight),
       ),
     );
   }
