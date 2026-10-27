@@ -273,14 +273,17 @@ void main() {
         '',
         '',
         '',
+        '',
       ]);
       expect(chunks.map((chunk) => chunk.contentDelta).toList(), [
         '',
         '第一段 ',
         '第二段',
         '',
+        '',
       ]);
       expect(chunks.last.finishReason, 'stop');
+      expect(chunks.last.usage?.timeToFirstToken, isNotNull);
     });
 
     test('原生两阶段 usage 经 client 与 complete 合并为完整用量', () async {

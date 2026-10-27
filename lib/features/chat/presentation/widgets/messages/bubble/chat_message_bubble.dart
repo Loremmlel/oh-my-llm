@@ -167,7 +167,8 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
         (usage.inputTokens != null ||
             usage.cachedInputTokens != null ||
             usage.cacheWriteInputTokens != null ||
-            usage.outputTokens != null);
+            usage.outputTokens != null ||
+            usage.timeToFirstToken != null);
     final needsCollapse = shouldCollapseUserMessage(message);
     final isUserCollapsed = needsCollapse && _isUserMessageCollapsed;
     final userContent = isUserCollapsed

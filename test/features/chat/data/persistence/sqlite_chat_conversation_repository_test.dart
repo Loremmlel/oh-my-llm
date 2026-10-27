@@ -62,6 +62,7 @@ void main() {
             cachedInputTokens: 1500,
             cacheWriteInputTokens: 800,
             outputDuration: Duration(seconds: 30),
+            timeToFirstToken: Duration(milliseconds: 1250),
           ),
         ),
       ],
