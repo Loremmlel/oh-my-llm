@@ -30,7 +30,7 @@ void main() {
     );
   });
 
-  test('速度使用已报告输出和首段输出后的耗时，保存重开后保持一致', () {
+  test('速度使用已报告输出和请求耗时，首字时间保存重开后保持一致', () {
     const usage = LlmUsage(
       inputTokens: 100,
       cachedInputTokens: 40,
@@ -38,6 +38,7 @@ void main() {
       outputTokens: 30,
       reasoningTokens: 10,
       outputDuration: Duration(seconds: 2),
+      timeToFirstToken: Duration(milliseconds: 500),
     );
     expect(usage.tokensPerSecond, 15);
     expect(usage.uncachedInputTokens, 60);

@@ -302,14 +302,17 @@ void main() {
         '',
         '',
         '',
+        '',
       ]);
       expect(chunks.map((chunk) => chunk.contentDelta).toList(), [
         '',
         '第一段 ',
         '第二段',
         '',
+        '',
       ]);
       expect(chunks.last.finishReason, 'stop');
+      expect(chunks.last.usage?.timeToFirstToken, isNotNull);
     });
 
     test('.done 带完整文本不重复累计（最终内容等于 delta 之和）', () async {

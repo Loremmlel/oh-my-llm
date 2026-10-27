@@ -109,9 +109,7 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
                 builder: (context, constraints) {
                   return Align(
                     alignment: Alignment.centerRight,
-                    // 锚点高亮随滚动局部刷新，不触发整页重建；
-                    // ValueListenableBuilder 重建 MessageAnchorRail 时其
-                    // didUpdateWidget 会折叠预览，保持滚动中紧凑体验。
+                    // 锚点高亮随滚动局部刷新，不触发整页重建或打断展开预览。
                     child: ValueListenableBuilder<String?>(
                       valueListenable:
                           widget.scrollBindings.activeAnchorMessageIdListenable,

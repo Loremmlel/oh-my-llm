@@ -9,6 +9,7 @@ class LlmUsage extends Equatable {
     this.cachedInputTokens,
     this.cacheWriteInputTokens,
     this.outputDuration,
+    this.timeToFirstToken,
   });
 
   final int? inputTokens;
@@ -17,8 +18,11 @@ class LlmUsage extends Equatable {
   final int? cachedInputTokens;
   final int? cacheWriteInputTokens;
 
-  /// 从首段正文或思考到生成终态的本地耗时，不包含首段输出前的等待。
+  /// 从发起网络请求到生成终态的本地耗时，包含连接与首字等待。
   final Duration? outputDuration;
+
+  /// 从发起网络请求到首段正文或思考的本地耗时。
+  final Duration? timeToFirstToken;
 
   double? get tokensPerSecond =>
       outputTokens == null ||
@@ -46,7 +50,8 @@ class LlmUsage extends Equatable {
       outputTokens != null ||
       reasoningTokens != null ||
       cachedInputTokens != null ||
-      cacheWriteInputTokens != null;
+      cacheWriteInputTokens != null ||
+      timeToFirstToken != null;
 
   /// 合并分散在多个协议事件中的用量；新事件的已知字段优先。
   LlmUsage merge(LlmUsage newer) {
@@ -58,6 +63,7 @@ class LlmUsage extends Equatable {
       cacheWriteInputTokens:
           newer.cacheWriteInputTokens ?? cacheWriteInputTokens,
       outputDuration: newer.outputDuration ?? outputDuration,
+      timeToFirstToken: newer.timeToFirstToken ?? timeToFirstToken,
     );
   }
 
@@ -85,6 +91,8 @@ class LlmUsage extends Equatable {
     'cacheWriteInputTokens': cacheWriteInputTokens,
     if (outputDuration != null)
       'outputDurationMicros': outputDuration!.inMicroseconds,
+    if (timeToFirstToken != null)
+      'timeToFirstTokenMicros': timeToFirstToken!.inMicroseconds,
   };
 
   /// 从协议或持久化 JSON 恢复；无任何有效值时返回 null。
@@ -97,6 +105,12 @@ class LlmUsage extends Equatable {
       cachedInputTokens: _nonNegativeInt(json['cachedInputTokens']),
       cacheWriteInputTokens: _nonNegativeInt(json['cacheWriteInputTokens']),
       outputDuration: switch (_nonNegativeInt(json['outputDurationMicros'])) {
+        final micros? => Duration(microseconds: micros),
+        null => null,
+      },
+      timeToFirstToken: switch (_nonNegativeInt(
+        json['timeToFirstTokenMicros'],
+      )) {
         final micros? => Duration(microseconds: micros),
         null => null,
       },
@@ -116,5 +130,6 @@ class LlmUsage extends Equatable {
     cachedInputTokens,
     cacheWriteInputTokens,
     outputDuration,
+    timeToFirstToken,
   ];
 }

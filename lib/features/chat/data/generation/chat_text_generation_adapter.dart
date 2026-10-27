@@ -157,6 +157,7 @@ class ChatTextGenerationAdapter extends ChatGenerationClient {
     );
     var hadContent = false;
     String? diagnosticBody;
+    String? finishReason;
     try {
       await for (final event in client.streamCompletion(
         llmRequest,
@@ -165,7 +166,10 @@ class ChatTextGenerationAdapter extends ChatGenerationClient {
         if (event is LlmCompleted) {
           diagnosticBody = event.result.diagnosticBody;
           if (event.usage != null) {
-            yield ChatGenerationChunk(usage: event.usage);
+            yield ChatGenerationChunk(
+              finishReason: finishReason ?? event.finishReason,
+              usage: event.usage,
+            );
           }
           continue;
         }
@@ -178,6 +182,7 @@ class ChatTextGenerationAdapter extends ChatGenerationClient {
           finishReason: event.finishReason,
           usage: event.usage,
         );
+        finishReason = event.finishReason ?? finishReason;
         hadContent |= !chunk.isEmpty;
         yield chunk;
       }

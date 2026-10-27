@@ -3,7 +3,7 @@ import '../llm_event.dart';
 import '../llm_request.dart';
 import '../llm_usage.dart';
 
-/// 每个请求独占累积器，增量显示与完整结果共享一次折叠。
+/// 发起网络请求前创建独占累积器，增量显示与完整结果共享计时和折叠。
 class LlmResponseAccumulator {
   LlmResponseAccumulator({this.elapsed});
 
@@ -58,14 +58,15 @@ class LlmResponseAccumulator {
                 )))) {
       throw const LlmException('返回的工具调用违反请求选择约束');
     }
+    final usage = _usage ?? (_firstOutputAt == null ? null : const LlmUsage());
     return LlmResult(
       requestId: requestId,
       content: completedText ?? _content.toString(),
       reasoningContent: _reasoning.toString(),
       finishReason: rawFinishReason ?? _finishReason,
-      usage: _firstOutputAt == null
-          ? _usage
-          : _usage?.merge(LlmUsage(outputDuration: _now - _firstOutputAt!)),
+      usage: usage?.merge(
+        LlmUsage(outputDuration: _now, timeToFirstToken: _firstOutputAt),
+      ),
       diagnosticBody: _content.isEmpty && _reasoning.isEmpty
           ? diagnosticBody
           : null,

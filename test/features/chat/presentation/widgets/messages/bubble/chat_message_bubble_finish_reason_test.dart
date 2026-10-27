@@ -59,6 +59,20 @@ void main() {
   });
 
   group('Token 用量', () {
+    testWidgets('服务商未报告 Token 时仍显示首字时间', (tester) async {
+      await _pumpBubble(
+        tester,
+        _assistantMessage(
+          tokenUsage: const LlmUsage(
+            timeToFirstToken: Duration(milliseconds: 750),
+          ),
+        ),
+        width: 320,
+      );
+      expect(find.text('TPS —'), findsOneWidget);
+      expect(find.text('· 首字 0.75 s'), findsOneWidget);
+    });
+
     testWidgets('终态助手消息按固定顺序显示已知值并保留显式 0', (tester) async {
       for (final width in [320.0, 800.0]) {
         await _pumpBubble(
@@ -70,6 +84,7 @@ void main() {
               cacheWriteInputTokens: 800,
               outputTokens: 0,
               outputDuration: Duration(seconds: 2),
+              timeToFirstToken: Duration(milliseconds: 1250),
             ),
           ),
           width: width,
@@ -80,6 +95,7 @@ void main() {
         expect(find.text('· 缓存写入 800'), findsOneWidget, reason: '$width');
         expect(find.text('· 输出 0'), findsOneWidget, reason: '$width');
         expect(find.text('· TPS 0.0'), findsOneWidget, reason: '$width');
+        expect(find.text('· 首字 1.25 s'), findsOneWidget, reason: '$width');
         expect(find.textContaining('推理'), findsNothing, reason: '$width');
         expect(tester.takeException(), isNull, reason: '$width');
       }

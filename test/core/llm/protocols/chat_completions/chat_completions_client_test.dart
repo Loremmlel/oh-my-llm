@@ -294,14 +294,17 @@ void main() {
         '继续思考',
         '',
         '',
+        '',
       ]);
       expect(chunks.map((chunk) => chunk.contentDelta).toList(), [
         '',
         '',
         '第一段 ',
         '第二段',
+        '',
       ]);
       expect(chunks.last.finishReason, 'stop');
+      expect(chunks.last.usage?.timeToFirstToken, isNotNull);
     });
 
     test('内联标签跨 chunk 经完整链路分流', () async {

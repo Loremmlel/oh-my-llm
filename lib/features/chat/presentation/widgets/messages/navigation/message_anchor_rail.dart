@@ -95,8 +95,7 @@ class _MessageAnchorRailState extends State<MessageAnchorRail> {
 
   /// 展开锚点条。
   void _toggleExpand() {
-    // ≤3 条消息时不展开，保持紧凑模式
-    if (widget.userMessages.length <= 3) return;
+    if (widget.userMessages.isEmpty) return;
     setState(() {
       _isExpanded = true;
     });
@@ -122,7 +121,7 @@ class _MessageAnchorRailState extends State<MessageAnchorRail> {
   @override
   void didUpdateWidget(covariant MessageAnchorRail oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.userMessages.length <= 3) {
+    if (widget.userMessages.isEmpty) {
       _collapseExpand();
     }
   }
