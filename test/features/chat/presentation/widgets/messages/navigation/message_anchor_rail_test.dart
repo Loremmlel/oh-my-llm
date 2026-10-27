@@ -90,7 +90,7 @@ void main() {
     ];
     await pumpAnchorRail(tester, userMessages: messages);
     final rail = find.byKey(const ValueKey('message-anchor-rail'));
-    await tester.longPress(rail);
+    await tester.longPress(_firstAnchor('?'));
     await tester.pump();
     expect(find.text('?'), findsOneWidget);
     final markers = find.descendant(
@@ -112,6 +112,34 @@ void main() {
       MessageAnchorRail.extractPreviewText('一二三四五六七八九十一二三四五六七八九十'),
       '一二三四五六七八九十一二三四五六七八',
     );
+  });
+
+  testWidgets('手机端少量消息也能长按锚点展开并选择消息', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final selected = <String>[];
+    await pumpAnchorRail(
+      tester,
+      userMessages: [_userMessage(id: 'first', content: '第一条消息')],
+      onSelectMessage: selected.add,
+    );
+    await tester.longPress(_firstAnchor('第一条消息'));
+    await tester.pump();
+    expect(find.text('第一条消息'), findsOneWidget);
+    expect(selected, isEmpty);
+    await pumpAnchorRail(
+      tester,
+      userMessages: [_userMessage(id: 'first', content: '第一条消息')],
+      activeMessageId: 'first',
+      onSelectMessage: selected.add,
+    );
+    expect(find.text('第一条消息'), findsOneWidget);
+    await tester.tap(find.text('第一条消息'));
+    await tester.pump();
+    expect(selected, ['first']);
+    expect(find.text('第一条消息'), findsNothing);
   });
 
   // ── 容器级展开: 悬停交互 ──────────────────────────────────
