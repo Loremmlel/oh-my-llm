@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:oh_my_llm/features/media/application/directory_weighted_shuffle.dart';
 import 'package:oh_my_llm/features/media/application/media_library_session_controller.dart';
 import 'package:oh_my_llm/features/media/application/models/media_library_failure.dart';
 import 'package:oh_my_llm/features/media/application/models/media_library_source.dart';
@@ -17,6 +19,18 @@ List<VideoItem> _videos(int count) => List.generate(
   count,
   (i) => VideoItem(name: 'v$i.mp4', relativePath: '/dir/v$i.mp4'),
 );
+
+class _FixedRandom implements Random {
+  _FixedRandom(this.value);
+
+  final double value;
+
+  @override
+  double nextDouble() => value;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
 
 /// listVideosRecursively 抛未知异常的库：验证不泄露原始错误。
 final class _BoomVideoLibrary implements MediaLibrary {
@@ -39,6 +53,44 @@ final class _BoomVideoLibrary implements MediaLibrary {
 }
 
 void main() {
+  test('最近目录按亲疏降权，随着新抽取逐步恢复，重新开始时等权', () {
+    const recent = [VideoItem(name: 'A', relativePath: '/ROOT/F1/F2/F3/A')];
+    const unrelated = [VideoItem(name: 'X', relativePath: '/ROOT/X')];
+    const candidates = [
+      VideoItem(name: 'B', relativePath: '/ROOT/F1/F2/F3/B'),
+      VideoItem(name: 'C', relativePath: '/ROOT/F1/F2/F30/C'),
+      VideoItem(name: 'D', relativePath: '/ROOT/F1/F20/D'),
+      VideoItem(name: 'E', relativePath: '/ROOT/F10/E'),
+    ];
+
+    List<int> countsAfter(int? cooldown) {
+      final counts = List.filled(candidates.length, 0);
+      // 均匀覆盖随机票区间，确定性验证分布，不依赖随机种子或概率容差。
+      for (var i = 0; i < 260; i++) {
+        final shuffle = DirectoryWeightedShuffle(
+          '/ROOT',
+          random: _FixedRandom((i + 0.5) / 260),
+        );
+        if (cooldown != null) {
+          shuffle.pickIndex(recent);
+          for (var j = 0; j < cooldown; j++) {
+            shuffle.pickIndex(unrelated);
+          }
+        }
+        counts[shuffle.pickIndex(candidates)]++;
+      }
+      return counts;
+    }
+
+    expect(countsAfter(null), [65, 65, 65, 65]);
+    expect(countsAfter(0), [20, 60, 80, 100]);
+    final recovering = countsAfter(4);
+    expect(recovering.first, greaterThan(20));
+    expect(recovering.first, lessThan(65));
+    expect(recovering.last, lessThan(100));
+    expect(countsAfter(20), [65, 65, 65, 65]);
+  });
+
   group('ShufflePlaybackController.startShuffle', () {
     test('startShuffle loads videos and returns first relative path', () async {
       final library = FakeMediaLibrary()
@@ -167,12 +219,14 @@ void main() {
       // 首位：previous 返回 null
       expect(controller.playPrevious(), isNull);
 
-      // next 推进到 index 1，返回新位置的相对路径
-      expect(controller.playNext(), active.playlist[1].relativePath);
+      // next 抽取新项，previous 再 next 应回到同一条历史。
+      final second = controller.playNext();
       var state = container.read(
         shufflePlaybackControllerProvider,
       ) as ShufflePlaybackActive;
       expect(state.currentIndex, 1);
+      expect(second, state.currentVideo.relativePath);
+      expect(second, isNot(active.currentVideo.relativePath));
 
       // previous 回到 index 0，返回新位置的相对路径
       expect(controller.playPrevious(), state.playlist[0].relativePath);
@@ -182,9 +236,21 @@ void main() {
       expect(state.currentIndex, 0);
 
       // 推进到末尾：next 返回 null
-      controller.playNext();
-      controller.playNext();
+      expect(controller.playNext(), second);
+      final third = controller.playNext();
+      expect({
+        active.currentVideo.relativePath,
+        second,
+        third,
+      }, _videos(3).map((video) => video.relativePath).toSet());
       expect(controller.playNext(), isNull);
+      expect(library.recursiveVideoResults['/dir'], _videos(3));
+
+      // 重新开始丢弃旧历史，候选仍可完整抽取。
+      final restarted = <String?>{await controller.startShuffle('/dir')};
+      restarted.add(controller.playNext());
+      restarted.add(controller.playNext());
+      expect(restarted, _videos(3).map((video) => video.relativePath).toSet());
     });
   });
 
