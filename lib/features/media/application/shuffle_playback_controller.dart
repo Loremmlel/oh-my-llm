@@ -1,11 +1,10 @@
-import 'dart:math';
-
 import 'package:equatable/equatable.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:oh_my_llm/features/media/application/media_library_session_controller.dart';
-import 'package:oh_my_llm/features/media/application/models/media_library_failure.dart';
-import 'package:oh_my_llm/features/media/domain/models/video_item.dart';
+import '../domain/models/video_item.dart';
+import 'directory_weighted_shuffle.dart';
+import 'media_library_session_controller.dart';
+import 'models/media_library_failure.dart';
 
 // ── 状态定义 ────────────────────────────────────────────
 
@@ -64,13 +63,13 @@ final shufflePlaybackControllerProvider =
 class ShufflePlaybackController extends Notifier<ShufflePlaybackState> {
   int _operationGeneration = 0;
   int _sessionGeneration = 0;
+  int _drawnCount = 0;
+  late DirectoryWeightedShuffle _shuffle;
 
   @override
   ShufflePlaybackState build() => const ShufflePlaybackIdle();
 
-  final _random = Random();
-
-  /// 从活动会话递归获取视频列表、shuffle、设为 Active。
+  /// 从活动会话递归获取视频列表，抽取第一部并设为 Active。
   ///
   /// 返回第一个视频的相对路径，或 null（会话不可用 / 无视频 / 请求失败）。
   Future<String?> startShuffle(String directoryPath) async {
@@ -81,18 +80,21 @@ class ShufflePlaybackController extends Notifier<ShufflePlaybackState> {
     state = const ShufflePlaybackLoading();
 
     try {
-      final list = await session.library.listVideosRecursively(directoryPath);
+      final videos = await session.library.listVideosRecursively(directoryPath);
       if (!_isCurrent(session, generation)) return null;
 
-      if (list.isEmpty) {
+      if (videos.isEmpty) {
         state = const ShufflePlaybackIdle();
         return null;
       }
 
-      // Fisher-Yates shuffle（只对 ≥2 个项有意义）
-      if (list.length >= 2) list.shuffle(_random);
-
-      if (!_isCurrent(session, generation)) return null;
+      final list = List<VideoItem>.of(videos);
+      _shuffle = DirectoryWeightedShuffle(directoryPath);
+      final selected = _shuffle.pickIndex(list);
+      final first = list[selected];
+      list[selected] = list.first;
+      list[0] = first;
+      _drawnCount = 1;
 
       state = ShufflePlaybackActive(
         playlist: list,
@@ -119,12 +121,22 @@ class ShufflePlaybackController extends Notifier<ShufflePlaybackState> {
     if (s is! ShufflePlaybackActive) return null;
     if (s.isLast) return null;
     final newIndex = s.currentIndex + 1;
+    var playlist = s.playlist;
+    if (newIndex == _drawnCount) {
+      // 前缀是已抽取的历史，后缀是候选池；只抽新项，前后导航不重新抽签。
+      playlist = List<VideoItem>.of(playlist);
+      final selected = _shuffle.pickIndex(playlist, startIndex: newIndex);
+      final next = playlist[selected];
+      playlist[selected] = playlist[newIndex];
+      playlist[newIndex] = next;
+      _drawnCount++;
+    }
     state = ShufflePlaybackActive(
-      playlist: s.playlist,
+      playlist: playlist,
       currentIndex: newIndex,
       directoryPath: s.directoryPath,
     );
-    return s.playlist[newIndex].relativePath;
+    return playlist[newIndex].relativePath;
   }
 
   /// 播放上一个视频。返回新位置视频的相对路径，若已是第一个则返回 null。
