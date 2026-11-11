@@ -1310,6 +1310,54 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     );
   }
 
+  ChatConversation? _conversationForAssistantEdit(String conversationId) =>
+      state.conversations.where((c) => c.id == conversationId).firstOrNull ??
+      repository.loadConversation(conversationId);
+
+  ChatMessage? findAssistantMessage(String conversationId, String messageId) =>
+      _conversationForAssistantEdit(conversationId)?.messageNodes.where((m) {
+        return m.id == messageId && m.role == ChatMessageRole.assistant;
+      }).firstOrNull;
+
+  /// 保存助手正文，保留原节点及其后代，并在落盘后更新聊天视图。
+  Future<void> editAssistantMessage({
+    required String conversationId,
+    required String messageId,
+    required String content,
+  }) async {
+    if (_isBusy) throw StateError('请等当前聊天操作结束后再保存');
+    final message = findAssistantMessage(conversationId, messageId);
+    if (message == null || message.isStreaming) {
+      throw StateError('助手消息不可编辑');
+    }
+    if (message.content == content) return;
+
+    await repository.updateAssistantMessageContent(
+      conversationId: conversationId,
+      messageId: messageId,
+      content: content,
+    );
+    if (_disposed) return;
+
+    final conversation = _conversationForAssistantEdit(conversationId);
+    if (conversation == null) return;
+    final tree = replaceAssistantMessageInTree(
+      treeState: resolveMessageTreeState(conversation),
+      assistantMessageId: messageId,
+      nextContent: content,
+    );
+    state = state.copyWith(
+      conversations: replaceConversation(
+        conversation.copyWith(messageNodes: tree.nodes),
+      ),
+      clearErrorMessage:
+          content.trim().isNotEmpty &&
+          state.errorMessageAssistantId == messageId,
+      clearEmptyReply:
+          content.trim().isNotEmpty && state.emptyReplyAssistantId == messageId,
+    );
+  }
+
   /// 删除一条当前可见消息；当 [scope] 为全部版本时，会删除同父节点下所有兄弟分支。
   Future<void> deleteMessage({
     required String messageId,

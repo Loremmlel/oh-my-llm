@@ -6,8 +6,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:oh_my_llm/app/navigation/app_destination.dart';
 import 'package:oh_my_llm/app/router/app_router.dart';
 import 'package:oh_my_llm/core/persistence/app_database.dart';
+import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client.dart';
 import 'package:oh_my_llm/features/chat/application/sessions/chat_sessions_controller.dart';
+import 'package:oh_my_llm/features/chat/data/persistence/sqlite_chat_conversation_repository.dart';
+import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
+import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
+import 'package:oh_my_llm/features/chat/presentation/widgets/messages/bubble/chat_message_bubble.dart';
 import 'package:oh_my_llm/features/favorites/data/sqlite_favorites_repository.dart';
 import 'package:oh_my_llm/features/history/presentation/history_screen.dart';
 import 'package:oh_my_llm/features/media/presentation/pages/video_player_platform_bindings.dart';
@@ -15,6 +20,7 @@ import 'package:oh_my_llm/features/media/presentation/pages/video_player_platfor
 import '../../features/favorites/favorites_screen_test_helpers.dart';
 import '../../features/history/history_screen/history_screen_test_helpers.dart';
 import '../../features/media/helpers/fake_video_player_platform_bindings.dart';
+import '../../helpers/chat/fake_chat_generation_client.dart';
 import '../../helpers/fixtures.dart';
 import '../../helpers/test_harness.dart';
 
@@ -27,6 +33,89 @@ VideoPlayerPlatformBindings _mobileTestBindings() =>
     MobileVideoPlayerBindings(systemUi: FakeMobileVideoSystemUiController());
 
 void main() {
+  testWidgets('编辑较早的助手回复只保存正文，保留原分支和后续消息', (tester) async {
+    final db = AppDatabase.inMemory();
+    addTearDown(db.close);
+    final prefs = await _testPrefs(db);
+    final repository = SqliteChatConversationRepository(db);
+    final now = DateTime(2026, 11, 11);
+    final question = ChatMessage(
+      id: 'question',
+      role: ChatMessageRole.user,
+      content: '最初的问题',
+      createdAt: now,
+      parentId: rootConversationParentId,
+    );
+    final reply = ChatMessage(
+      id: 'reply',
+      role: ChatMessageRole.assistant,
+      content: '原来的正文',
+      reasoningContent: '原来的思考',
+      createdAt: now,
+      parentId: question.id,
+      finishReason: 'stop',
+    );
+    final sibling = reply.copyWith(id: 'sibling', content: '另一个版本');
+    final followUp = question.copyWith(
+      id: 'follow-up',
+      parentId: reply.id,
+      content: '后续的问题',
+    );
+    final conversation = ChatConversation(
+      id: 'edit-reply',
+      createdAt: now,
+      updatedAt: now,
+      messageNodes: [question, sibling, reply, followUp],
+      selectedChildByParentId: {
+        rootConversationParentId: question.id,
+        question.id: reply.id,
+        reply.id: followUp.id,
+      },
+    );
+    await repository.saveConversation(conversation);
+    final client = FakeChatGenerationClient();
+    final router = createAppRouter(
+      videoPlayerBindingsFactory: _mobileTestBindings,
+    );
+    addTearDown(router.dispose);
+    await pumpTestApp(
+      tester,
+      database: db,
+      preferences: prefs,
+      router: router,
+      viewportSize: const Size(430, 900),
+      extraOverrides: [chatGenerationClientProvider.overrideWithValue(client)],
+    );
+
+    await tester.tap(find.byTooltip('编辑助手消息'));
+    await tester.pumpAndSettle();
+    final field = find.byType(TextField);
+    expect(field, findsOneWidget);
+    expect(tester.widget<TextField>(field).controller!.text, reply.content);
+    await tester.enterText(field, '改好的正文\n第二行');
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('编辑助手消息'), findsNothing);
+    expect(find.textContaining('改好的正文', findRichText: true), findsWidgets);
+    expect(
+      find.widgetWithText(ChatMessageBubble, followUp.content),
+      findsOneWidget,
+    );
+    expect(client.requestHistory, isEmpty);
+    expect(
+      repository.loadConversation(conversation.id),
+      conversation.copyWith(
+        messageNodes: [
+          question,
+          sibling,
+          reply.copyWith(content: '改好的正文\n第二行'),
+          followUp,
+        ],
+      ),
+    );
+  });
+
   testWidgets('路由重建后同一收藏详情 URL 仍可恢复内容', (tester) async {
     final db = AppDatabase.inMemory();
     addTearDown(db.close);

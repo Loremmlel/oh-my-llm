@@ -35,8 +35,8 @@ ChatMessageTreeState replaceAssistantMessageInTree({
   required ChatMessageTreeState treeState,
   required String assistantMessageId,
   required String nextContent,
-  required String nextReasoningContent,
-  required bool isStreaming,
+  String? nextReasoningContent,
+  bool? isStreaming,
   String? finishReason,
 }) {
   final nextNodes = treeState.nodes
@@ -49,7 +49,7 @@ ChatMessageTreeState replaceAssistantMessageInTree({
           content: nextContent,
           reasoningContent: nextReasoningContent,
           isStreaming: isStreaming,
-          finishReason: finishReason ?? message.finishReason,
+          finishReason: finishReason,
         );
       })
       .toList(growable: false);

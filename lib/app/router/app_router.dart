@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:oh_my_llm/features/agent/presentation/agent_screen.dart';
 import 'package:oh_my_llm/features/agent/presentation/agent_run_screen.dart';
+import 'package:oh_my_llm/features/chat/presentation/chat_assistant_message_editor_screen.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_screen.dart';
 import 'package:oh_my_llm/features/chat/presentation/chat_image_preview_page.dart';
 import 'package:oh_my_llm/features/favorites/presentation/favorite_collection_items_screen.dart';
@@ -56,11 +57,29 @@ GoRouter createAppRouter({
       appMaterialRoute(
         path: AppDestination.chat.path,
         name: AppDestination.chat.name,
-        // 只消费 query 中的可序列化会话 ID；不传 state.extra 实体。
         builder: (context, state) => ChatScreen(
           initialConversationId:
+              state.pathParameters[AppRouteParameter.conversationId] ??
               state.uri.queryParameters[AppRouteParameter.conversationId],
         ),
+        routes: [
+          appMaterialRoute(
+            path:
+                'conversations/:${AppRouteParameter.conversationId}/messages/:${AppRouteParameter.messageId}/edit',
+            name: AppRouteName.chatAssistantMessageEditor,
+            builder: (_, state) {
+              final conversationId =
+                  state.pathParameters[AppRouteParameter.conversationId]!;
+              final messageId =
+                  state.pathParameters[AppRouteParameter.messageId]!;
+              return ChatAssistantMessageEditorScreen(
+                key: ValueKey((conversationId, messageId)),
+                conversationId: conversationId,
+                messageId: messageId,
+              );
+            },
+          ),
+        ],
       ),
       appMaterialRoute(
         path: AppDestination.history.path,

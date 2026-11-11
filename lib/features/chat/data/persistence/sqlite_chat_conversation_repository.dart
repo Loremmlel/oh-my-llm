@@ -465,6 +465,23 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
   }
 
   @override
+  Future<void> updateAssistantMessageContent({
+    required String conversationId,
+    required String messageId,
+    required String content,
+  }) async {
+    final connection = _database.connection;
+    connection.execute(
+      'UPDATE messages SET content = ? '
+      'WHERE conversation_id = ? AND id = ? AND role = ?',
+      [content, conversationId, messageId, ChatMessageRole.assistant.apiValue],
+    );
+    if (connection.updatedRows == 0) {
+      throw StateError('助手消息不存在');
+    }
+  }
+
+  @override
   Future<void> flush() async {
     // 同步写入，无需排空
   }

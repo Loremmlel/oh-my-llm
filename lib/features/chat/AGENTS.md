@@ -14,6 +14,7 @@
 
 - `parentId ?? rootConversationParentId`（`'__root__'`）是有效父节点。`selectedChildByParentId` 记录选中子节点，从 root 沿选择链解析可见路径，无选择取同级第一条。
 - 编辑用户消息创建新节点，parentId 与原消息相同，更新选择使新节点生效；旧分支保留在 messageNodes。仅最新一条 assistant 回复可重试。
+- 编辑助手消息使用独立页面，只加载和保存正文。SQLite 按原消息 ID 更新正文，不触发模型请求或改动消息树。
 - 树操作集中在 [chat_message_tree.dart](application/sessions/chat_message_tree.dart)：resolveMessageTreeState、appendNodeToTree、replaceAssistantMessageInTree、removeNodeFromTree。
 - 推理与正文在三处保持分离：ChatMessage 的 content / reasoningContent 分别 JSON 序列化；SQLite 的 `content TEXT NOT NULL` / `reasoning_content TEXT NOT NULL DEFAULT ''`；UI 的 ReasoningPanel 仅非空时独立显示。
 - 聊天错误嵌入 assistant 气泡的 `ChatInlineErrorCard` / `ChatInlineEmptyReplyCard`；不使用 showSnackBar 或错误 Dialog，showDialog 仅用于删除、重命名、序列选择等确认操作。
