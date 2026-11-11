@@ -254,6 +254,9 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
         message.id == ChatMessagesPanel.transientErrorMessageId;
     final isUser = message.role == ChatMessageRole.user;
     final isAssistant = message.role == ChatMessageRole.assistant;
+    final canEdit =
+        !widget.state.isBusy &&
+        (isUser || (isAssistant && !isTransientError && !message.isStreaming));
     final inlineErrorMessage =
         normalizedError != null &&
             normalizedError.isNotEmpty &&
@@ -271,7 +274,7 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
           isEmptyReply:
               widget.state.emptyReplyAssistantId != null &&
               widget.state.emptyReplyAssistantId == message.id,
-          canEdit: !widget.state.isBusy && isUser,
+          canEdit: canEdit,
           canRetry:
               !isTransientError &&
               !widget.state.isBusy &&
@@ -290,7 +293,7 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
           versionInfo: versionInfoByMessageId[message.id],
         ),
         actions: ChatMessageBubbleActions(
-          onEditPressed: isUser
+          onEditPressed: canEdit
               ? () => widget.messageBindings.onEditMessage(message)
               : null,
           onRetryPressed:

@@ -183,6 +183,21 @@ class BackgroundChatConversationRepository
     return _scheduleDebouncedWrite();
   }
 
+  @override
+  Future<void> updateAssistantMessageContent({
+    required String conversationId,
+    required String messageId,
+    required String content,
+  }) async {
+    // 先排空会话快照，避免旧正文覆盖这次原地修改。
+    await flush();
+    await _inner.updateAssistantMessageContent(
+      conversationId: conversationId,
+      messageId: messageId,
+      content: content,
+    );
+  }
+
   /// 从 [_pendingWrite] 中移除已在 [_pendingDeletes] 中的 ID。
   ///
   /// 防止 delete + resave 竞态：如果同一 ID 在 80ms 窗口内先被 delete

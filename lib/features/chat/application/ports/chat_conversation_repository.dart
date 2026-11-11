@@ -38,6 +38,13 @@ abstract interface class ChatConversationRepository {
   /// 保存单条会话，空会话（无消息、无检查点、无标题）将被跳过。
   Future<void> saveConversation(ChatConversation conversation);
 
+  /// 原地更新指定助手消息的正文；消息不存在时抛出异常。
+  Future<void> updateAssistantMessageContent({
+    required String conversationId,
+    required String messageId,
+    required String content,
+  });
+
   /// 从持久层删除指定 ID 的会话及其所有关联数据。
   Future<void> deleteConversations(List<String> ids);
 

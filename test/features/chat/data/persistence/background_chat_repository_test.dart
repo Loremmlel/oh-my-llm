@@ -78,6 +78,32 @@ void main() {
       expect(inner.loadConversation('deleted'), isNull);
     });
 
+    test('编辑助手正文先排空待写快照，旧正文不会覆盖编辑', () async {
+      final base = _conversation('edit', '用户消息');
+      final question = base.messageNodes.single;
+      final reply = ChatMessage(
+        id: 'reply',
+        role: ChatMessageRole.assistant,
+        content: '待写入的原正文',
+        createdAt: question.createdAt,
+        parentId: question.id,
+      );
+      final saved = background.saveConversation(
+        base.copyWith(messageNodes: [question, reply]),
+      );
+
+      await background.updateAssistantMessageContent(
+        conversationId: base.id,
+        messageId: reply.id,
+        content: '修改后的正文',
+      );
+      await saved;
+      expect(
+        inner.loadConversation(base.id)!.messageNodes.last.content,
+        '修改后的正文',
+      );
+    });
+
     test('刷新等待全部在途写入，同一会话的最新版本覆盖旧版本', () async {
       final first = _conversation('first', '旧内容');
       final latest = first.copyWith(

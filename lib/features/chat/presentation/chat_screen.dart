@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import 'package:oh_my_llm/app/navigation/app_destination.dart';
 import 'package:oh_my_llm/app/shell/app_shell_scaffold.dart';
@@ -696,7 +697,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     return ChatWorkspaceBindings(
       messages: ChatWorkspaceMessageBindings(
         onEditMessage: (message) {
-          _enterEditMode(message);
+          if (message.role == ChatMessageRole.assistant) {
+            context.pushNamed<void>(
+              AppRouteName.chatAssistantMessageEditor,
+              pathParameters: {
+                AppRouteParameter.conversationId: ref.read(
+                  activeConversationIdProvider,
+                ),
+                AppRouteParameter.messageId: message.id,
+              },
+            );
+          } else {
+            _enterEditMode(message);
+          }
         },
         onRetryLatestAssistant: () async {
           await ref.read(chatSessionsProvider.notifier).retryLatestAssistant();

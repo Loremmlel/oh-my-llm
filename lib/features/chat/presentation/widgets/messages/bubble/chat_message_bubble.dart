@@ -120,7 +120,7 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
         label: Text(switch (tooltip) {
           '复制消息' => '复制',
           '收藏回复' => '收藏',
-          '编辑消息' => '编辑',
+          '编辑消息' || '编辑助手消息' => '编辑',
           '重试回复' => '重试',
           _ => tooltip,
         }),
@@ -341,7 +341,7 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                           if (viewState.canEdit)
                             _iconButton(
                               onPressed: widget.actions.onEditPressed,
-                              tooltip: '编辑消息',
+                              tooltip: isUser ? '编辑消息' : '编辑助手消息',
                               icon: Icons.edit_outlined,
                             ),
                           if (viewState.canRetry)

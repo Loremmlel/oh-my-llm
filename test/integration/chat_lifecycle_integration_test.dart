@@ -412,6 +412,17 @@ class _FailingOnceRepository implements ChatConversationRepository {
   }
 
   @override
+  Future<void> updateAssistantMessageContent({
+    required String conversationId,
+    required String messageId,
+    required String content,
+  }) => _inner.updateAssistantMessageContent(
+    conversationId: conversationId,
+    messageId: messageId,
+    content: content,
+  );
+
+  @override
   Future<void> saveConversations(List<ChatConversation> conversations) =>
       _inner.saveConversations(conversations);
 
