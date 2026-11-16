@@ -3,7 +3,7 @@ import 'package:oh_my_llm/core/llm/llm_usage.dart';
 import 'package:oh_my_llm/core/llm/llm_usage_summary.dart';
 
 void main() {
-  test('累计用量避免重复计算缓存和推理，命中率按已报告缓存的输入加权', () {
+  test('累计用量避免重复计算缓存和推理，命中率按累计缓存与未命中输入比值计算', () {
     final summary = LlmUsageSummary.fromUsages([
       const LlmUsage(
         inputTokens: 100,
@@ -22,7 +22,7 @@ void main() {
     expect(summary.tokens.totalTokens, 720);
     expect(summary.tokens.uncachedInputTokens, 450);
     expect(summary.tokens.cachedInputTokens, 150);
-    expect(summary.cacheHitRate, .375);
+    expect(summary.cacheHitRate, .25);
     expect(summary.incomplete, isFalse);
   });
 
