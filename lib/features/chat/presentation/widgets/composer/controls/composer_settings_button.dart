@@ -33,6 +33,9 @@ class ComposerSettingsButton extends StatelessWidget {
           : '思考关',
     );
     parts.add(state.autoRetryEnabled ? '重试开' : '重试关');
+    if (state.hasTrailingDirectiveContent && state.trailingDirectiveEnabled) {
+      parts.add('末尾指令开');
+    }
     if (state.excludedMessageCount > 0) {
       parts.add('过滤 ${state.excludedMessageCount} 条');
     }

@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:oh_my_llm/features/settings/application/preferences/chat_defaults_controller.dart';
+import 'package:oh_my_llm/features/settings/application/preferences/trailing_directive_settings_controller.dart';
 import 'package:oh_my_llm/features/settings/application/prompts/fixed_prompt_sequences_controller.dart';
 import 'package:oh_my_llm/features/settings/application/prompts/template_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/application/providers/llm_model_configs_controller.dart';
@@ -173,6 +174,9 @@ final chatWorkspaceComposerReadModelProvider =
         composerTemplateSelectionProvider(activeConversationId),
       );
       final isComposerCollapsed = ref.watch(composerCollapsedProvider);
+      final hasTrailingDirectiveContent = ref.watch(
+        trailingDirectiveSettingsProvider.select((s) => s.hasContent),
+      );
       final selectedModel = resolveSelectedModel(
         modelConfigs: modelConfigs,
         selectedModelId: conversation.selectedModelId,
@@ -213,6 +217,8 @@ final chatWorkspaceComposerReadModelProvider =
         reasoningEffort: conversation.reasoningEffort,
         supportsReasoning: supportsReasoning,
         autoRetryEnabled: conversation.autoRetryEnabled,
+        trailingDirectiveEnabled: conversation.trailingDirectiveEnabled,
+        hasTrailingDirectiveContent: hasTrailingDirectiveContent,
         isBusy: isBusy,
         isStreaming: isStreaming,
         isAutoRetryWaiting: isAutoRetryWaiting,

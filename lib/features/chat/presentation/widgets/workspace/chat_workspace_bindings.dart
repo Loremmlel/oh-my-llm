@@ -38,6 +38,7 @@ class ChatWorkspaceComposerBindings {
     this.onReasoningEnabledChanged,
     this.onReasoningEffortChanged,
     this.onAutoRetryEnabledChanged,
+    this.onTrailingDirectiveEnabledChanged,
     required this.onOpenFixedPromptSequenceRunner,
     required this.onOpenMessageFilter,
     this.onSendPressed,
@@ -58,6 +59,7 @@ class ChatWorkspaceComposerBindings {
   final ValueChanged<bool>? onReasoningEnabledChanged;
   final ValueChanged<ReasoningEffort>? onReasoningEffortChanged;
   final ValueChanged<bool>? onAutoRetryEnabledChanged;
+  final ValueChanged<bool>? onTrailingDirectiveEnabledChanged;
   final Future<void> Function() onOpenFixedPromptSequenceRunner;
   final Future<void> Function() onOpenMessageFilter;
   final Future<void> Function()? onSendPressed;

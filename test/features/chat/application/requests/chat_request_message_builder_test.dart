@@ -2,7 +2,9 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/features/chat/application/requests/chat_request_message_builder.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_checkpoint.dart';
+import 'package:oh_my_llm/features/chat/domain/models/chat_image_attachment.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
+import 'package:oh_my_llm/features/settings/domain/models/preferences/trailing_directive_settings.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/worldbooks/world_book.dart';
 
@@ -375,5 +377,148 @@ void main() {
       ChatMessageRole.user,
       ChatMessageRole.user,
     ]);
+  });
+
+  test('开启末尾指令时把当前输入放在倒数第二位，指令放在预设后置之前', () {
+    final preset = TestFixtures.presetPrompt(
+      id: 'trailing-preset',
+      messages: [
+        const PromptMessage(
+          id: 'before-latest',
+          role: PromptMessageRole.system,
+          content: '前导 {{lastUserMessage}}',
+          placement: PromptMessagePlacement.beforeLatestInput,
+        ),
+        const PromptMessage(
+          id: 'after',
+          role: PromptMessageRole.assistant,
+          content: '后置条目',
+          placement: PromptMessagePlacement.after,
+        ),
+      ],
+    ).copyWith(syntax: PresetPromptSyntax.sillyTavernSubsetV1);
+    final history = [
+      message('u0', ChatMessageRole.user, '历史问'),
+      message('a0', ChatMessageRole.assistant, '历史答'),
+      message('u1', ChatMessageRole.user, '输入x'),
+    ];
+    final result = buildRequestMessages(
+      presetPrompt: preset,
+      conversationMessages: history,
+      latestInputMessageId: 'u1',
+      trailingDirectiveEnabled: true,
+      trailingDirective: const TrailingDirectiveSettings(
+        content: '  请根据上一条消息作答  ',
+      ),
+    );
+
+    expect(result.map((m) => (m.role, m.content, m.sourceLabel)).toList(), [
+      (ChatMessageRole.user, '历史问', '历史消息'),
+      (ChatMessageRole.assistant, '历史答', '历史消息'),
+      (ChatMessageRole.system, '前导 输入x', '预设 · 无标题条目 · 最新输入前'),
+      (ChatMessageRole.user, '输入x', '当前输入'),
+      (ChatMessageRole.user, '请根据上一条消息作答', '末尾指令'),
+      (ChatMessageRole.assistant, '后置条目', '预设 · 无标题条目 · 后置'),
+    ]);
+  });
+
+  test('末尾指令轮替模式插入过渡提示与助手明白回复并保留图片附件', () {
+    final image = ChatImageAttachment(
+      id: 'img-1',
+      mimeType: 'image/png',
+      byteLength: 10,
+      width: 64,
+      height: 64,
+      name: 'a.png',
+    );
+    final preset = template([
+      promptMessage(
+        'after',
+        PromptMessageRole.system,
+        '后置规则',
+        placement: PromptMessagePlacement.after,
+      ),
+    ]);
+    final userWithTextAndImage = ChatMessage(
+      id: 'u1',
+      role: ChatMessageRole.user,
+      content: '输入x',
+      images: [image],
+      createdAt: DateTime(2026),
+    );
+
+    final result = buildRequestMessages(
+      presetPrompt: preset,
+      conversationMessages: [userWithTextAndImage],
+      latestInputMessageId: 'u1',
+      trailingDirectiveEnabled: true,
+      trailingDirective: const TrailingDirectiveSettings(
+        content: '请根据上一条消息作答',
+        alternatingMode: true,
+      ),
+    );
+    expect(result.map((m) => (m.role, m.content, m.sourceLabel)).toList(), [
+      (
+        ChatMessageRole.user,
+        '输入x\n\n$trailingDirectiveAlternatingPrompt',
+        '当前输入',
+      ),
+      (ChatMessageRole.assistant, trailingDirectiveAlternatingAck, '轮替过渡'),
+      (ChatMessageRole.user, '请根据上一条消息作答', '末尾指令'),
+      (ChatMessageRole.system, '后置规则', '预设 · 无标题条目 · 后置'),
+    ]);
+    expect(result.first.images, [image]);
+
+    // 纯图片输入不产生前导空行。
+    final imageOnlyResult = buildRequestMessages(
+      presetPrompt: null,
+      conversationMessages: [
+        ChatMessage(
+          id: 'u-img',
+          role: ChatMessageRole.user,
+          content: '',
+          images: [image],
+          createdAt: DateTime(2026),
+        ),
+      ],
+      latestInputMessageId: 'u-img',
+      trailingDirectiveEnabled: true,
+      trailingDirective: const TrailingDirectiveSettings(
+        content: '描述图片',
+        alternatingMode: true,
+      ),
+    );
+    expect(imageOnlyResult.first.content, trailingDirectiveAlternatingPrompt);
+    expect(imageOnlyResult.first.images, [image]);
+  });
+
+  test('末尾指令关闭或指令内容空白时不追加任何消息', () {
+    final history = [message('u1', ChatMessageRole.user, '输入x')];
+    expect(
+      buildRequestMessages(
+        presetPrompt: null,
+        conversationMessages: history,
+        latestInputMessageId: 'u1',
+        trailingDirectiveEnabled: false,
+        trailingDirective: const TrailingDirectiveSettings(
+          content: '指令y',
+          alternatingMode: true,
+        ),
+      ).map((m) => m.content),
+      ['输入x'],
+    );
+    expect(
+      buildRequestMessages(
+        presetPrompt: null,
+        conversationMessages: history,
+        latestInputMessageId: 'u1',
+        trailingDirectiveEnabled: true,
+        trailingDirective: const TrailingDirectiveSettings(
+          content: '   \n ',
+          alternatingMode: true,
+        ),
+      ).map((m) => m.content),
+      ['输入x'],
+    );
   });
 }

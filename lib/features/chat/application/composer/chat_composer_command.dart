@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:oh_my_llm/core/llm/llm_reasoning_effort.dart';
 import 'package:oh_my_llm/features/settings/application/preferences/chat_defaults_controller.dart';
+import 'package:oh_my_llm/features/settings/application/preferences/trailing_directive_settings_controller.dart';
 import 'package:oh_my_llm/features/settings/application/providers/llm_model_configs_controller.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/template_prompt.dart';
@@ -162,6 +163,7 @@ class ChatComposerCommand {
           body: message.content,
           images: intent.images,
           editingMessageId: editingMessageId,
+          trailingDirective: _ref.read(trailingDirectiveSettingsProvider),
         );
         if (preview.hasErrors) {
           _ref
@@ -286,6 +288,12 @@ class ChatComposerCommand {
     _ref
         .read(chatSessionsProvider.notifier)
         .updateActiveConversationPreferences(autoRetryEnabled: value);
+  }
+
+  void setTrailingDirectiveEnabled(bool value) {
+    _ref
+        .read(chatSessionsProvider.notifier)
+        .updateActiveConversationPreferences(trailingDirectiveEnabled: value);
   }
 
   /// 调用现有 create command，读取调用后的 active ID，只清该 active draft。

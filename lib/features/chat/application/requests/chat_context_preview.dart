@@ -1,3 +1,4 @@
+import 'package:oh_my_llm/features/settings/domain/models/preferences/trailing_directive_settings.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/worldbooks/world_book.dart';
 
@@ -15,6 +16,8 @@ ChatPreparedContext previewChatContext({
   String body = '',
   List<ChatImageAttachment> images = const [],
   String? editingMessageId,
+  TrailingDirectiveSettings trailingDirective =
+      const TrailingDirectiveSettings(),
 }) {
   var history = conversation.messages;
   if (editingMessageId != null) {
@@ -46,5 +49,7 @@ ChatPreparedContext previewChatContext({
     latestInputMessageId: input?.id,
     checkpointChain: context.checkpointChain,
     filter: ExcludeByIdMessageFilter(conversation.excludedMessageIds.toSet()),
+    trailingDirective: trailingDirective,
+    trailingDirectiveEnabled: conversation.trailingDirectiveEnabled,
   );
 }

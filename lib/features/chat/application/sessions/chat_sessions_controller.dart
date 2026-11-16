@@ -5,6 +5,7 @@ import 'package:oh_my_llm/core/llm/llm_reasoning_effort.dart';
 import 'package:oh_my_llm/core/llm/llm_usage.dart';
 import 'package:oh_my_llm/core/utils/id_generator.dart';
 import 'package:oh_my_llm/features/settings/application/preferences/auto_retry_settings_controller.dart';
+import 'package:oh_my_llm/features/settings/application/preferences/trailing_directive_settings_controller.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/memory_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/providers/llm_model_config.dart';
@@ -455,6 +456,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     bool? reasoningEnabled,
     ReasoningEffort? reasoningEffort,
     bool? autoRetryEnabled,
+    bool? trailingDirectiveEnabled,
     bool clearSelectedCheckpointId = false,
     bool clearSelectedPresetPromptId = false,
   }) {
@@ -467,6 +469,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
         reasoningEnabled: reasoningEnabled,
         reasoningEffort: reasoningEffort,
         autoRetryEnabled: autoRetryEnabled,
+        trailingDirectiveEnabled: trailingDirectiveEnabled,
         clearSelectedCheckpointId: clearSelectedCheckpointId,
         clearSelectedPresetPromptId: clearSelectedPresetPromptId,
       ),
@@ -683,6 +686,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
     Duration? retryDelay,
   }) async {
     final worldBooks = resolveConversationWorldBooks(conversation);
+    final trailingDirective = ref.read(trailingDirectiveSettingsProvider);
     final checked = prepareChatContext(
       worldBooks: worldBooks,
       presetPrompt: presetPrompt,
@@ -690,6 +694,8 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       latestInputMessageId: parentMessageId,
       checkpointChain: requestContext.checkpointChain,
       filter: ExcludeByIdMessageFilter(conversation.excludedMessageIds.toSet()),
+      trailingDirective: trailingDirective,
+      trailingDirectiveEnabled: conversation.trailingDirectiveEnabled,
     );
     if (checked.hasErrors) {
       setErrorMessage(checked.errorText);
@@ -709,6 +715,7 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       reasoningEnabled: reasoningEnabled,
       reasoningEffort: reasoningEffort,
       retryPolicy: retryPolicy,
+      trailingDirective: trailingDirective,
       retryDelay: retryDelay,
     );
     await _coordinator.start(command, this);
@@ -797,6 +804,8 @@ class ChatSessionsController extends Notifier<ChatSessionsState>
       filter: ExcludeByIdMessageFilter(
         command.conversation.excludedMessageIds.toSet(),
       ),
+      trailingDirective: command.trailingDirective,
+      trailingDirectiveEnabled: command.conversation.trailingDirectiveEnabled,
     );
     final request = ChatGenerationRequest(
       target: _targetFromModelConfig(command.modelConfig),

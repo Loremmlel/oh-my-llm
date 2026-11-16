@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:oh_my_llm/features/settings/domain/models/preferences/trailing_directive_settings.dart';
 import 'package:oh_my_llm/features/settings/domain/models/worldbooks/world_book.dart';
 import 'package:oh_my_llm/core/llm/llm_reasoning_effort.dart';
 import 'package:oh_my_llm/core/llm/llm_usage.dart';
@@ -28,6 +29,7 @@ class ChatGenerationCommand extends Equatable {
     required this.reasoningEnabled,
     required this.reasoningEffort,
     required this.retryPolicy,
+    this.trailingDirective = const TrailingDirectiveSettings(),
     this.retryDelay,
     this.worldBooks = const [],
   });
@@ -51,6 +53,9 @@ class ChatGenerationCommand extends Equatable {
   /// 从会话开关 + 全局设置一次性读取的重试策略快照。
   final ChatRetryPolicy retryPolicy;
 
+  /// 从全局设置一次性读取的末尾指令配置快照。
+  final TrailingDirectiveSettings trailingDirective;
+
   /// 测试注入的重试等待时长；null 表示按 [retryPolicy] 计算。
   final Duration? retryDelay;
 
@@ -65,6 +70,7 @@ class ChatGenerationCommand extends Equatable {
     reasoningEnabled,
     reasoningEffort,
     retryPolicy,
+    trailingDirective,
     retryDelay,
   ];
 }

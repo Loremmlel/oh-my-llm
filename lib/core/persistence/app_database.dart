@@ -27,7 +27,7 @@ class AppDatabase {
   /// 当前滚动迁移基线：全新数据库直接创建到该版本。
   ///
   /// 历史 V9→V13 逐级迁移已退役；v13 起的已发布迁移按顺序保留。
-  static const int currentSchemaVersion = 28;
+  static const int currentSchemaVersion = 29;
 
   final sqlite.Database _connection;
   final String path;
@@ -109,7 +109,8 @@ class AppDatabase {
       if (currentVersion <= 24) _migratePresetSyntaxFromV24ToV25();
       if (currentVersion <= 25) _migrateWorldBooksFromV25ToV26();
       if (currentVersion <= 26) _migratePresetRandomHeaderFromV26ToV27();
-      _migrateWorldBookSelectionsFromV27ToV28();
+      if (currentVersion <= 27) _migrateWorldBookSelectionsFromV27ToV28();
+      _migrateTrailingDirectiveFromV28ToV29();
     } else {
       throw AppDatabaseSchemaVersionException(currentVersion);
     }
@@ -141,6 +142,19 @@ class AppDatabase {
         PRAGMA user_version = 28;
         COMMIT;
       ''');
+    } catch (_) {
+      _connection.execute('ROLLBACK;');
+      rethrow;
+    }
+  }
+
+  void _migrateTrailingDirectiveFromV28ToV29() {
+    _connection.execute('BEGIN IMMEDIATE;');
+    try {
+      _connection.execute(
+        'ALTER TABLE conversations ADD COLUMN trailing_directive_enabled INTEGER NOT NULL DEFAULT 0;',
+      );
+      _connection.execute('PRAGMA user_version = 29; COMMIT;');
     } catch (_) {
       _connection.execute('ROLLBACK;');
       rethrow;
@@ -737,7 +751,8 @@ class AppDatabase {
         reasoning_effort TEXT NOT NULL,
         selected_checkpoint_id TEXT,
         excluded_message_ids_json TEXT NOT NULL DEFAULT '[]',
-        auto_retry_enabled INTEGER NOT NULL DEFAULT 0
+        auto_retry_enabled INTEGER NOT NULL DEFAULT 0,
+        trailing_directive_enabled INTEGER NOT NULL DEFAULT 0
       );
     ''');
     _connection.execute('''

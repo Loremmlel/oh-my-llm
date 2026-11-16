@@ -54,6 +54,7 @@ void main() {
           .toList();
       expect(conversationColumns, contains('selected_preset_prompt_id'));
       expect(conversationColumns, contains('selected_world_book_ids_json'));
+      expect(conversationColumns, contains('trailing_directive_enabled'));
       final presetColumns = database.connection
           .select('PRAGMA table_info(preset_prompts);')
           .map((row) => row['name'] as String)
@@ -863,6 +864,61 @@ void main() {
             .select("SELECT collection_id FROM favorites WHERE id = 'fav-1';")
             .single['collection_id'],
         'col-a',
+      );
+    });
+
+    test('v28 升级到 v29 保留旧会话，trailing_directive_enabled 默认关闭且可更新重开', () {
+      final path =
+          '${tempDir.path}${Platform.pathSeparator}migrate_v28_to_v29.db';
+      final legacy = sqlite.sqlite3.open(path);
+      for (final file in [
+        'schema_v21.sql',
+        'schema_v22_from_v21.sql',
+        'schema_v23_from_v22.sql',
+        'schema_v24_from_v23.sql',
+        'schema_v25_from_v24.sql',
+        'schema_v26_from_v25.sql',
+      ]) {
+        legacy.execute(File('test/helpers/fixtures/$file').readAsStringSync());
+      }
+      legacy.execute('''
+        ALTER TABLE preset_prompts ADD COLUMN random_header INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE conversations ADD COLUMN selected_world_book_ids_json TEXT NOT NULL DEFAULT '[]';
+        ALTER TABLE conversations DROP COLUMN selected_world_book_id;
+        INSERT INTO conversations (id, title, created_at, updated_at, reasoning_effort)
+        VALUES ('c-v28', '旧对话', '2026-01-01', '2026-01-01', 'medium');
+        PRAGMA user_version = 28;
+      ''');
+      legacy.close();
+
+      final migrated = AppDatabase.forPath(path);
+      expect(
+        migrated.connection
+            .select('PRAGMA user_version;')
+            .single['user_version'],
+        AppDatabase.currentSchemaVersion,
+      );
+      final beforeUpdate = migrated.connection
+          .select(
+            "SELECT title, trailing_directive_enabled FROM conversations WHERE id = 'c-v28';",
+          )
+          .single;
+      expect(beforeUpdate['title'], '旧对话');
+      expect(beforeUpdate['trailing_directive_enabled'], 0);
+      migrated.connection.execute(
+        "UPDATE conversations SET trailing_directive_enabled = 1 WHERE id = 'c-v28';",
+      );
+      migrated.close();
+
+      final reopened = AppDatabase.forPath(path);
+      addTearDown(reopened.close);
+      expect(
+        reopened.connection
+            .select(
+              "SELECT trailing_directive_enabled FROM conversations WHERE id = 'c-v28';",
+            )
+            .single['trailing_directive_enabled'],
+        1,
       );
     });
   });

@@ -4,6 +4,7 @@ import 'package:oh_my_llm/features/chat/application/requests/chat_request_messag
 import 'package:oh_my_llm/features/chat/domain/models/chat_checkpoint.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_conversation.dart';
 import 'package:oh_my_llm/features/chat/domain/models/chat_message.dart';
+import 'package:oh_my_llm/features/settings/domain/models/preferences/trailing_directive_settings.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.dart';
 
 void main() {
@@ -170,5 +171,39 @@ void main() {
     expect(preview.messages[inputIndex - 1].sourceLabel, contains('最新输入前'));
     expect(preview.messages.last.sourceId, 'after');
     expect(preview.messages.last.sourceLabel, contains('预设'));
+  });
+
+  test('末尾指令仅在存在本次输入时进入预览，无新输入时不额外注入', () {
+    final enabledConversation = conversation.copyWith(
+      trailingDirectiveEnabled: true,
+    );
+    const settings = TrailingDirectiveSettings(
+      content: '请根据上一条消息作答',
+      alternatingMode: true,
+    );
+
+    final withDraft = previewChatContext(
+      conversation: enabledConversation,
+      presetPrompt: null,
+      body: '草稿x',
+      trailingDirective: settings,
+    );
+    expect(withDraft.messages.skip(4).map((m) => (m.role, m.content)), [
+      (ChatMessageRole.user, '草稿x\n\n$trailingDirectiveAlternatingPrompt'),
+      (ChatMessageRole.assistant, trailingDirectiveAlternatingAck),
+      (ChatMessageRole.user, '请根据上一条消息作答'),
+    ]);
+
+    final withoutDraft = previewChatContext(
+      conversation: enabledConversation,
+      presetPrompt: null,
+      trailingDirective: settings,
+    );
+    expect(withoutDraft.messages.map((m) => m.content), [
+      '旧输入',
+      '旧回复',
+      '原输入',
+      '原分支后续',
+    ]);
   });
 }
