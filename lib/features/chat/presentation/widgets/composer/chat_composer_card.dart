@@ -14,6 +14,7 @@ import 'composer_helpers.dart';
 import '../images/chat_image_strip.dart';
 import 'controls/auto_retry_toggle.dart';
 import 'controls/thinking_toggle.dart';
+import 'controls/trailing_directive_toggle.dart';
 import 'controls/composer_send_button.dart';
 import 'fields/composer_message_field.dart';
 import 'fields/composer_template_variable_fields.dart';
@@ -522,6 +523,9 @@ class ChatComposerCard extends ConsumerWidget {
         state.readModel.supportsReasoning && state.readModel.reasoningEnabled;
     var localEffort = state.readModel.reasoningEffort;
     var localAutoRetryEnabled = state.readModel.autoRetryEnabled;
+    var localTrailingDirectiveEnabled =
+        state.readModel.hasTrailingDirectiveContent &&
+        state.readModel.trailingDirectiveEnabled;
 
     return showModalBottomSheet<void>(
       context: context,
@@ -548,37 +552,49 @@ class ChatComposerCard extends ConsumerWidget {
                         summary: state.readModel.usageSummary,
                       ),
                       const SizedBox(height: 12),
-                      // 深度思考与自动重试自适应分布，不独占整行
-                      Row(
+                      // 深度思考、自动重试与末尾指令自适应换行，避免小屏或大字号挤压
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 8,
                         children: [
-                          Flexible(
-                            child: ThinkingToggle(
-                              enabled: state.readModel.supportsReasoning,
-                              value: localReasoningEnabled,
-                              onChanged: state.readModel.supportsReasoning
-                                  ? (value) {
-                                      setModalState(() {
-                                        localReasoningEnabled = value;
-                                      });
-                                      bindings.onReasoningEnabledChanged?.call(
-                                        value,
-                                      );
-                                    }
-                                  : null,
-                            ),
+                          ThinkingToggle(
+                            enabled: state.readModel.supportsReasoning,
+                            value: localReasoningEnabled,
+                            onChanged: state.readModel.supportsReasoning
+                                ? (value) {
+                                    setModalState(() {
+                                      localReasoningEnabled = value;
+                                    });
+                                    bindings.onReasoningEnabledChanged?.call(
+                                      value,
+                                    );
+                                  }
+                                : null,
                           ),
-                          const SizedBox(width: 12),
-                          Flexible(
-                            child: AutoRetryToggle(
-                              enabled: true,
-                              value: localAutoRetryEnabled,
-                              onChanged: (value) {
-                                setModalState(() {
-                                  localAutoRetryEnabled = value;
-                                });
-                                bindings.onAutoRetryEnabledChanged?.call(value);
-                              },
-                            ),
+                          AutoRetryToggle(
+                            enabled: true,
+                            value: localAutoRetryEnabled,
+                            onChanged: (value) {
+                              setModalState(() {
+                                localAutoRetryEnabled = value;
+                              });
+                              bindings.onAutoRetryEnabledChanged?.call(value);
+                            },
+                          ),
+                          TrailingDirectiveToggle(
+                            enabled:
+                                state.readModel.hasTrailingDirectiveContent,
+                            value: localTrailingDirectiveEnabled,
+                            onChanged:
+                                state.readModel.hasTrailingDirectiveContent
+                                ? (value) {
+                                    setModalState(() {
+                                      localTrailingDirectiveEnabled = value;
+                                    });
+                                    bindings.onTrailingDirectiveEnabledChanged
+                                        ?.call(value);
+                                  }
+                                : null,
                           ),
                         ],
                       ),

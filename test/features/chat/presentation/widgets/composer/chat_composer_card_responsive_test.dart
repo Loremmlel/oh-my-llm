@@ -9,6 +9,7 @@ import 'package:oh_my_llm/features/chat/presentation/widgets/composer/chat_compo
 import 'package:oh_my_llm/features/chat/presentation/widgets/composer/composer_helpers.dart';
 import 'package:oh_my_llm/features/chat/presentation/widgets/composer/fields/composer_template_variable_fields.dart';
 import 'package:oh_my_llm/features/chat/presentation/widgets/composer/controls/thinking_toggle.dart';
+import 'package:oh_my_llm/features/chat/presentation/widgets/composer/controls/trailing_directive_toggle.dart';
 import 'package:oh_my_llm/features/chat/presentation/widgets/composer/controls/composer_send_button.dart';
 import 'package:oh_my_llm/features/chat/presentation/widgets/workspace/chat_workspace_bindings.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/template_prompt.dart';
@@ -18,6 +19,8 @@ ChatWorkspaceComposerState _composerState({
   double? cacheHitRate,
   bool isCollapsed = false,
   bool supportsReasoning = false,
+  bool trailingDirectiveEnabled = false,
+  bool hasTrailingDirectiveContent = false,
 }) => ChatWorkspaceComposerState(
   readModel: ChatWorkspaceComposerReadModel(
     modelProviders: [],
@@ -32,6 +35,8 @@ ChatWorkspaceComposerState _composerState({
     reasoningEffort: ReasoningEffort.low,
     supportsReasoning: supportsReasoning,
     autoRetryEnabled: false,
+    trailingDirectiveEnabled: trailingDirectiveEnabled,
+    hasTrailingDirectiveContent: hasTrailingDirectiveContent,
     isBusy: false,
     isStreaming: false,
     isAutoRetryWaiting: false,
@@ -56,6 +61,7 @@ ChatWorkspaceComposerBindings _bindings({
   required FocusNode focusNode,
   Future<void> Function()? onOpenMessageFilter,
   VoidCallback? onToggleComposerCollapsed,
+  ValueChanged<bool>? onTrailingDirectiveEnabledChanged,
 }) => ChatWorkspaceComposerBindings(
   messageController: controller,
   messageFocusNode: focusNode,
@@ -64,6 +70,7 @@ ChatWorkspaceComposerBindings _bindings({
   onModelSelected: (_) {},
   onTemplatePromptSelected: (_) {},
   onToggleComposerCollapsed: onToggleComposerCollapsed ?? () {},
+  onTrailingDirectiveEnabledChanged: onTrailingDirectiveEnabledChanged,
   onOpenFixedPromptSequenceRunner: () async {},
   onOpenMessageFilter: onOpenMessageFilter ?? () async {},
 );
@@ -456,5 +463,63 @@ void main() {
     await tester.tap(find.byTooltip('增加数量'));
     expect(variables['数量']!.text, '2');
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('末尾指令开关在未配置内容时禁用，有内容时在宽屏与更多设置均可切换', (tester) async {
+    final controller = TextEditingController();
+    final focusNode = FocusNode();
+    addTearDown(controller.dispose);
+    addTearDown(focusNode.dispose);
+
+    await _pumpComposer(
+      tester,
+      800,
+      state: _composerState(
+        hasTrailingDirectiveContent: false,
+        trailingDirectiveEnabled: true,
+      ),
+      bindings: _bindings(controller: controller, focusNode: focusNode),
+    );
+    expect(
+      find.widgetWithText(TrailingDirectiveToggle, '末尾指令'),
+      findsOneWidget,
+    );
+    expect(
+      tester.getSemantics(
+        find.descendant(
+          of: find.byType(TrailingDirectiveToggle),
+          matching: find.bySemanticsLabel('末尾指令'),
+        ),
+      ),
+      matchesSemantics(
+        label: '末尾指令',
+        isButton: true,
+        hasToggledState: true,
+        isToggled: false,
+        hasEnabledState: true,
+        isEnabled: false,
+      ),
+    );
+
+    bool? toggled;
+    await _pumpComposer(
+      tester,
+      360,
+      viewport: const Size(390, 844),
+      state: _composerState(
+        hasTrailingDirectiveContent: true,
+        trailingDirectiveEnabled: true,
+      ),
+      bindings: _bindings(
+        controller: controller,
+        focusNode: focusNode,
+        onTrailingDirectiveEnabledChanged: (value) => toggled = value,
+      ),
+    );
+    await tester.tap(find.byTooltip('更多设置 · 思考关 · 重试关 · 末尾指令开'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TrailingDirectiveToggle, '末尾指令').last);
+    await tester.pump();
+    expect(toggled, isFalse);
   });
 }

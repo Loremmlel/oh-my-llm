@@ -8,6 +8,7 @@ import '../composer_helpers.dart';
 import '../controls/auto_retry_toggle.dart';
 import '../controls/composer_effort_pill.dart';
 import '../controls/thinking_toggle.dart';
+import '../controls/trailing_directive_toggle.dart';
 
 class ComposerDesktopSettingsRow extends StatelessWidget {
   const ComposerDesktopSettingsRow({
@@ -48,6 +49,13 @@ class ComposerDesktopSettingsRow extends StatelessWidget {
                 enabled: true,
                 value: state.autoRetryEnabled,
                 onChanged: bindings.onAutoRetryEnabledChanged,
+              ),
+              TrailingDirectiveToggle(
+                enabled: state.hasTrailingDirectiveContent,
+                value:
+                    state.hasTrailingDirectiveContent &&
+                    state.trailingDirectiveEnabled,
+                onChanged: bindings.onTrailingDirectiveEnabledChanged,
               ),
               Tooltip(
                 message: '固定顺序提示词',

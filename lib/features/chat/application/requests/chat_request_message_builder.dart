@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:oh_my_llm/features/settings/domain/models/preferences/trailing_directive_settings.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/worldbooks/world_book.dart';
 import 'package:oh_my_llm/features/settings/domain/preset_macros/preset_macro_renderer.dart';
@@ -10,6 +11,9 @@ import '../ports/chat_generation_client.dart';
 import 'request_message_filter.dart';
 
 export 'request_message_filter.dart';
+
+const trailingDirectiveAlternatingPrompt = '请输出"明白"，具体指令我接下来会给你。';
+const trailingDirectiveAlternatingAck = '明白';
 
 final _randomHeaderGenerator = Random.secure();
 
@@ -45,6 +49,9 @@ List<ChatRequestMessage> buildRequestMessages({
   String? latestInputMessageId,
   List<ChatCheckpoint> checkpointChain = const [],
   RequestMessageFilter filter = RequestMessageFilter.passthrough,
+  TrailingDirectiveSettings trailingDirective =
+      const TrailingDirectiveSettings(),
+  bool trailingDirectiveEnabled = false,
 }) => prepareChatContext(
   worldBooks: worldBooks,
   presetPrompt: presetPrompt,
@@ -52,6 +59,8 @@ List<ChatRequestMessage> buildRequestMessages({
   latestInputMessageId: latestInputMessageId,
   checkpointChain: checkpointChain,
   filter: filter,
+  trailingDirective: trailingDirective,
+  trailingDirectiveEnabled: trailingDirectiveEnabled,
 ).requireMessages();
 
 /// 发送与预览共享同一求值边界；只有真实会话消息可以提供 lastUserMessage。
@@ -63,6 +72,9 @@ ChatPreparedContext prepareChatContext({
   List<ChatCheckpoint> checkpointChain = const [],
   RequestMessageFilter filter = RequestMessageFilter.passthrough,
   List<ChatRequestMessage> prefixMessages = const [],
+  TrailingDirectiveSettings trailingDirective =
+      const TrailingDirectiveSettings(),
+  bool trailingDirectiveEnabled = false,
 }) {
   final filtered = filter.apply(conversationMessages);
   final latestIndex = filtered.indexWhere(
@@ -130,8 +142,46 @@ ChatPreparedContext prepareChatContext({
     }
   }
 
+  final directive = trailingDirectiveEnabled
+      ? trailingDirective.content.trim()
+      : '';
+
   void appendHistory(Iterable<ChatMessage> history) {
     for (final message in history) {
+      final isTrailingTarget =
+          directive.isNotEmpty &&
+          latestInputMessageId != null &&
+          message.id == latestInputMessageId;
+      if (isTrailingTarget && trailingDirective.alternatingMode) {
+        final mergedContent = message.content.trim().isEmpty
+            ? trailingDirectiveAlternatingPrompt
+            : '${message.content}\n\n$trailingDirectiveAlternatingPrompt';
+        messages
+          ..add(
+            ChatRequestMessage(
+              role: message.role,
+              content: mergedContent,
+              images: message.images,
+              sourceId: message.id,
+              sourceLabel: '当前输入',
+            ),
+          )
+          ..add(
+            const ChatRequestMessage(
+              role: ChatMessageRole.assistant,
+              content: trailingDirectiveAlternatingAck,
+              sourceLabel: '轮替过渡',
+            ),
+          )
+          ..add(
+            ChatRequestMessage(
+              role: ChatMessageRole.user,
+              content: directive,
+              sourceLabel: '末尾指令',
+            ),
+          );
+        continue;
+      }
       messages.add(
         ChatRequestMessage(
           role: message.role,
@@ -141,6 +191,15 @@ ChatPreparedContext prepareChatContext({
           sourceLabel: message.id == latestInputMessageId ? '当前输入' : '历史消息',
         ),
       );
+      if (isTrailingTarget) {
+        messages.add(
+          ChatRequestMessage(
+            role: ChatMessageRole.user,
+            content: directive,
+            sourceLabel: '末尾指令',
+          ),
+        );
+      }
     }
   }
 

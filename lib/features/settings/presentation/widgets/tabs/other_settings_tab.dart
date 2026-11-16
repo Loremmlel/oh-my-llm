@@ -7,6 +7,7 @@ import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 
 import '../../../application/preferences/auto_retry_settings_controller.dart';
 import '../../../application/preferences/font_size_settings_controller.dart';
+import '../../../application/preferences/trailing_directive_settings_controller.dart';
 import '../../../domain/models/preferences/auto_retry_settings.dart';
 import '../shared/settings_section_card.dart';
 
@@ -25,6 +26,7 @@ class OtherSettingsTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(autoRetrySettingsProvider);
     final fontSizeSettings = ref.watch(fontSizeSettingsProvider);
+    final trailingSettings = ref.watch(trailingDirectiveSettingsProvider);
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -177,7 +179,99 @@ class OtherSettingsTab extends ConsumerWidget {
             ],
           ),
         ),
+        const SizedBox(height: 16),
+        SettingsSectionCard(
+          title: '末尾指令',
+          maxWidth: AppContentWidths.readable,
+          description:
+              '在对话页开启「末尾指令」开关后，输入框内容将作为倒数第二条用户消息，这里配置的内容将作为最后一条用户消息发送（仅用于当次请求，不写入聊天记录）。\n\n'
+              '普通模式：按「已有上下文 → 用户输入 → 末尾指令」顺序组装；若有预设后置条目，末尾指令放在其前面。\n\n'
+              '轮替模式：在用户输入后拼接过渡提示「请输出"明白"，具体指令我接下来会给你。」，并插入助手消息「明白」，再发送末尾指令，以提高不同协议的兼容性。',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _TrailingDirectiveContentField(
+                content: trailingSettings.content,
+                onChanged: (value) {
+                  ref
+                      .read(trailingDirectiveSettingsProvider.notifier)
+                      .updateContent(value);
+                },
+              ),
+              const Divider(height: 24),
+              SwitchListTile(
+                key: const ValueKey('trailing-directive-alternating-switch'),
+                contentPadding: EdgeInsets.zero,
+                shape: _switchTileShape,
+                title: const Text('轮替模式'),
+                value: trailingSettings.alternatingMode,
+                onChanged: (value) {
+                  ref
+                      .read(trailingDirectiveSettingsProvider.notifier)
+                      .setAlternatingMode(value);
+                },
+              ),
+            ],
+          ),
+        ),
       ],
+    );
+  }
+}
+
+class _TrailingDirectiveContentField extends StatefulWidget {
+  const _TrailingDirectiveContentField({
+    required this.content,
+    required this.onChanged,
+  });
+
+  final String content;
+  final ValueChanged<String> onChanged;
+
+  @override
+  State<_TrailingDirectiveContentField> createState() =>
+      _TrailingDirectiveContentFieldState();
+}
+
+class _TrailingDirectiveContentFieldState
+    extends State<_TrailingDirectiveContentField> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.content);
+  }
+
+  @override
+  void didUpdateWidget(covariant _TrailingDirectiveContentField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.content != oldWidget.content &&
+        widget.content != _controller.text) {
+      _controller.text = widget.content;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AppTextField(
+      key: const ValueKey('trailing-directive-content-field'),
+      controller: _controller,
+      minLines: 3,
+      maxLines: 5,
+      keyboardType: TextInputType.multiline,
+      decoration: const InputDecoration(
+        labelText: '指令内容',
+        hintText: '例如：请根据上一条消息作答',
+        border: OutlineInputBorder(),
+      ),
+      onChanged: widget.onChanged,
     );
   }
 }

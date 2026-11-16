@@ -10,6 +10,7 @@ import 'package:oh_my_llm/features/settings/application/preferences/auto_retry_s
 import 'package:oh_my_llm/features/settings/application/preferences/custom_headers_controller.dart';
 import 'package:oh_my_llm/features/settings/application/preferences/font_size_settings_controller.dart';
 import 'package:oh_my_llm/features/settings/application/preferences/output_processing_settings_controller.dart';
+import 'package:oh_my_llm/features/settings/application/preferences/trailing_directive_settings_controller.dart';
 import 'package:oh_my_llm/features/settings/application/prompts/fixed_prompt_sequences_controller.dart';
 import 'package:oh_my_llm/features/settings/application/prompts/memory_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/application/prompts/preset_prompts_controller.dart';
@@ -24,6 +25,7 @@ import 'package:oh_my_llm/features/settings/domain/models/preferences/auto_retry
 import 'package:oh_my_llm/features/settings/domain/models/preferences/custom_headers_config.dart';
 import 'package:oh_my_llm/features/settings/domain/models/preferences/font_size_settings.dart';
 import 'package:oh_my_llm/features/settings/domain/models/preferences/output_processing_settings.dart';
+import 'package:oh_my_llm/features/settings/domain/models/preferences/trailing_directive_settings.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/fixed_prompt_sequence.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/memory_prompt.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.dart';
@@ -33,7 +35,7 @@ import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_tran
 
 import '../../../../helpers/fixtures.dart';
 
-const expectedFormatVersion = 12;
+const expectedFormatVersion = 13;
 
 const expectedSectionKeys = <String>[
   'modelProviders',
@@ -45,6 +47,7 @@ const expectedSectionKeys = <String>[
   'outputProcessing',
   'fontSizeSettings',
   'autoRetrySettings',
+  'trailingDirectiveSettings',
 ];
 
 const expectedCanonicalSections = <String, Object?>{
@@ -143,6 +146,10 @@ const expectedCanonicalSections = <String, Object?>{
     'retryOnAbnormalFinishReason': true,
     'retryOnTimeout': true,
     'timeoutSeconds': 45,
+  },
+  'trailingDirectiveSettings': <String, Object?>{
+    'content': '请根据上一条消息作答',
+    'alternatingMode': true,
   },
 };
 
@@ -512,6 +519,9 @@ Future<void> _seedFixtures(ProviderContainer container) async {
   await container
       .read(autoRetrySettingsProvider.notifier)
       .save(_retryFixture());
+  await container
+      .read(trailingDirectiveSettingsProvider.notifier)
+      .save(_trailingDirectiveFixture());
 }
 
 Object? _sanitize(Object? value, [List<String> path = const []]) {
@@ -629,3 +639,9 @@ AutoRetrySettings _retryFixture() => const AutoRetrySettings(
   retryOnTimeout: true,
   timeoutSeconds: 45,
 );
+
+TrailingDirectiveSettings _trailingDirectiveFixture() =>
+    const TrailingDirectiveSettings(
+      content: '请根据上一条消息作答',
+      alternatingMode: true,
+    );

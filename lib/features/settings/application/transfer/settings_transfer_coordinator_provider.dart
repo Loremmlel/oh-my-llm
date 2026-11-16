@@ -6,6 +6,7 @@ import '../../domain/models/preferences/auto_retry_settings.dart';
 import '../../domain/models/preferences/custom_headers_config.dart';
 import '../../domain/models/preferences/font_size_settings.dart';
 import '../../domain/models/preferences/output_processing_settings.dart';
+import '../../domain/models/preferences/trailing_directive_settings.dart';
 import '../../domain/models/prompts/fixed_prompt_sequence.dart';
 import '../../domain/models/prompts/memory_prompt.dart';
 import '../../domain/models/prompts/preset_prompt.dart';
@@ -17,6 +18,7 @@ import '../preferences/auto_retry_settings_controller.dart';
 import '../preferences/custom_headers_controller.dart';
 import '../preferences/font_size_settings_controller.dart';
 import '../preferences/output_processing_settings_controller.dart';
+import '../preferences/trailing_directive_settings_controller.dart';
 import '../prompts/fixed_prompt_sequences_controller.dart';
 import '../prompts/memory_prompts_controller.dart';
 import '../prompts/preset_prompts_controller.dart';
@@ -194,6 +196,18 @@ List<SettingsTransferSection> _fixedSections(Ref ref) => [
     write: (value) => ref.read(autoRetrySettingsProvider.notifier).save(value),
     encode: (value) => value.toJson(),
     decode: AutoRetrySettings.fromJson,
+  ),
+  SettingsTransferSection.replacing<TrailingDirectiveSettings>(
+    key: 'trailingDirectiveSettings',
+    group: SettingsTransferGroup.other,
+    label: '末尾指令设置',
+    order: 2,
+    sensitivity: SettingsTransferSensitivity.standard,
+    readLocal: () => ref.read(trailingDirectiveSettingsProvider),
+    write: (value) =>
+        ref.read(trailingDirectiveSettingsProvider.notifier).save(value),
+    encode: (value) => value.toJson(),
+    decode: TrailingDirectiveSettings.fromJson,
   ),
 ];
 

@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:oh_my_llm/core/llm/llm_api_protocol.dart';
+import 'package:oh_my_llm/features/settings/application/preferences/trailing_directive_settings_controller.dart';
 import 'package:oh_my_llm/features/settings/application/prompts/preset_prompts_controller.dart';
+import 'package:oh_my_llm/features/settings/domain/models/preferences/trailing_directive_settings.dart';
 import 'package:oh_my_llm/features/settings/domain/models/providers/llm_model_config.dart';
 import 'package:oh_my_llm/features/settings/domain/models/providers/llm_provider_config.dart';
 import 'package:oh_my_llm/features/settings/domain/models/transfer/settings_transfer_document.dart';
@@ -122,6 +124,36 @@ void registerSettingsScreenTransferTests() {
     expect(find.text('设置已成功导入'), findsOneWidget);
     expect(find.textContaining(apiKey), findsNothing);
     expect(find.textContaining(headerValue), findsNothing);
+  });
+
+  testWidgets('其它设置中的末尾指令内容与轮替模式可编辑保存', (tester) async {
+    await setUpSettingsScreen(tester);
+    await switchToTab(tester, 5);
+
+    final fieldFinder = find.byKey(
+      const ValueKey('trailing-directive-content-field'),
+    );
+    await tester.ensureVisible(fieldFinder);
+    await tester.enterText(fieldFinder, '请根据上一条消息作答');
+    await tester.pump();
+
+    final switchFinder = find.byKey(
+      const ValueKey('trailing-directive-alternating-switch'),
+    );
+    await tester.ensureVisible(switchFinder);
+    await tester.tap(switchFinder);
+    await tester.pumpAndSettle();
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(SettingsScreen)),
+    );
+    expect(
+      container.read(trailingDirectiveSettingsProvider),
+      const TrailingDirectiveSettings(
+        content: '请根据上一条消息作答',
+        alternatingMode: true,
+      ),
+    );
   });
 }
 

@@ -29,6 +29,7 @@ class ChatConversation extends Equatable {
     this.reasoningEnabled = false,
     this.reasoningEffort = ReasoningEffort.medium,
     this.autoRetryEnabled = false,
+    this.trailingDirectiveEnabled = false,
     this.excludedMessageIds = const [],
   });
 
@@ -46,6 +47,7 @@ class ChatConversation extends Equatable {
   final bool reasoningEnabled;
   final ReasoningEffort reasoningEffort;
   final bool autoRetryEnabled;
+  final bool trailingDirectiveEnabled;
   final List<String> excludedMessageIds;
 
   /// 当前会话实际展示的消息序列。
@@ -106,6 +108,7 @@ class ChatConversation extends Equatable {
     bool? reasoningEnabled,
     ReasoningEffort? reasoningEffort,
     bool? autoRetryEnabled,
+    bool? trailingDirectiveEnabled,
     List<String>? excludedMessageIds,
     bool clearSelectedModelId = false,
     bool clearSelectedCheckpointId = false,
@@ -133,6 +136,8 @@ class ChatConversation extends Equatable {
       reasoningEnabled: reasoningEnabled ?? this.reasoningEnabled,
       reasoningEffort: reasoningEffort ?? this.reasoningEffort,
       autoRetryEnabled: autoRetryEnabled ?? this.autoRetryEnabled,
+      trailingDirectiveEnabled:
+          trailingDirectiveEnabled ?? this.trailingDirectiveEnabled,
       excludedMessageIds: excludedMessageIds ?? this.excludedMessageIds,
     );
   }
@@ -156,6 +161,7 @@ class ChatConversation extends Equatable {
       'reasoningEnabled': reasoningEnabled,
       'reasoningEffort': reasoningEffort.apiValue,
       'autoRetryEnabled': autoRetryEnabled,
+      'trailingDirectiveEnabled': trailingDirectiveEnabled,
       'excludedMessageIds': excludedMessageIds,
     };
   }
@@ -203,6 +209,8 @@ class ChatConversation extends Equatable {
         orElse: () => ReasoningEffort.medium,
       ),
       autoRetryEnabled: json['autoRetryEnabled'] as bool? ?? false,
+      trailingDirectiveEnabled:
+          json['trailingDirectiveEnabled'] as bool? ?? false,
       excludedMessageIds: rawExcludedMessageIds
           .whereType<String>()
           .toSet()
@@ -265,6 +273,7 @@ class ChatConversation extends Equatable {
     reasoningEnabled,
     reasoningEffort,
     autoRetryEnabled,
+    trailingDirectiveEnabled,
     excludedMessageIds,
   ];
 }

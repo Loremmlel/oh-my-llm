@@ -24,6 +24,8 @@ class ChatWorkspaceComposerReadModel extends Equatable {
     required this.reasoningEffort,
     required this.supportsReasoning,
     required this.autoRetryEnabled,
+    this.trailingDirectiveEnabled = false,
+    this.hasTrailingDirectiveContent = false,
     required this.isBusy,
     required this.isStreaming,
     required this.isAutoRetryWaiting,
@@ -43,6 +45,8 @@ class ChatWorkspaceComposerReadModel extends Equatable {
   final ReasoningEffort reasoningEffort;
   final bool supportsReasoning;
   final bool autoRetryEnabled;
+  final bool trailingDirectiveEnabled;
+  final bool hasTrailingDirectiveContent;
   final bool isBusy;
   final bool isStreaming;
   final bool isAutoRetryWaiting;
@@ -63,6 +67,8 @@ class ChatWorkspaceComposerReadModel extends Equatable {
     reasoningEffort,
     supportsReasoning,
     autoRetryEnabled,
+    trailingDirectiveEnabled,
+    hasTrailingDirectiveContent,
     isBusy,
     isStreaming,
     isAutoRetryWaiting,

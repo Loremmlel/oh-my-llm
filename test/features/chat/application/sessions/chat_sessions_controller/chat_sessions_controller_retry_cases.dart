@@ -8,9 +8,11 @@ import 'package:oh_my_llm/features/chat/application/ports/chat_generation_client
 import 'package:oh_my_llm/features/chat/domain/chat_error_messages.dart';
 import 'package:oh_my_llm/features/settings/application/preferences/auto_retry_settings_controller.dart';
 import 'package:oh_my_llm/features/settings/application/preferences/output_processing_settings_controller.dart';
+import 'package:oh_my_llm/features/settings/application/preferences/trailing_directive_settings_controller.dart';
 import 'package:oh_my_llm/features/settings/application/prompts/preset_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/domain/models/preferences/auto_retry_settings.dart';
 import 'package:oh_my_llm/features/settings/domain/models/preferences/output_processing_settings.dart';
+import 'package:oh_my_llm/features/settings/domain/models/preferences/trailing_directive_settings.dart';
 
 import '../../../../../helpers/chat/fake_chat_generation_client.dart';
 import '../../../../../helpers/fixtures.dart';
@@ -373,5 +375,43 @@ void registerChatSessionsControllerRetryCases() {
     //（非 failed + Success），满足 DTO 一一对应。
     expect(state.generation?.phase, ChatGenerationPhase.failed);
     expect(state.generation?.outcome, isA<ChatGenerationFailure>());
+  });
+
+  test('开启末尾指令后发送与重试共用快照，且历史仅保留原始用户输入与回复', () async {
+    await container
+        .read(trailingDirectiveSettingsProvider.notifier)
+        .save(
+          const TrailingDirectiveSettings(
+            content: '请根据上一条消息作答',
+            alternatingMode: true,
+          ),
+        );
+    container
+        .read(chatSessionsProvider.notifier)
+        .updateActiveConversationPreferences(
+          trailingDirectiveEnabled: true,
+          autoRetryEnabled: true,
+        );
+    fakeClient.enqueueError(ChatGenerationException('首次失败'));
+    fakeClient.enqueueChunks(['最终回复']);
+
+    await sendMsg('原始输入x', retryDelay: Duration.zero);
+
+    expect(fakeClient.requestHistory, hasLength(2));
+    for (final request in fakeClient.requestHistory) {
+      expect(request.map((m) => (m.role.name, m.content)), [
+        ('user', '原始输入x\n\n请输出"明白"，具体指令我接下来会给你。'),
+        ('assistant', '明白'),
+        ('user', '请根据上一条消息作答'),
+      ]);
+    }
+    final savedMessages = container
+        .read(chatSessionsProvider)
+        .activeConversation
+        .messages;
+    expect(savedMessages.map((m) => (m.role.name, m.content)), [
+      ('user', '原始输入x'),
+      ('assistant', '最终回复'),
+    ]);
   });
 }

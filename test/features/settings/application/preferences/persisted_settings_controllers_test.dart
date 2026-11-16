@@ -8,9 +8,11 @@ import 'package:oh_my_llm/features/settings/application/preferences/auto_retry_s
 import 'package:oh_my_llm/features/settings/application/preferences/custom_headers_controller.dart';
 import 'package:oh_my_llm/features/settings/application/preferences/font_size_settings_controller.dart';
 import 'package:oh_my_llm/features/settings/application/preferences/output_processing_settings_controller.dart';
+import 'package:oh_my_llm/features/settings/application/preferences/trailing_directive_settings_controller.dart';
 import 'package:oh_my_llm/features/settings/domain/models/preferences/auto_retry_settings.dart';
 import 'package:oh_my_llm/features/settings/domain/models/preferences/font_size_settings.dart';
 import 'package:oh_my_llm/features/settings/domain/models/preferences/output_processing_settings.dart';
+import 'package:oh_my_llm/features/settings/domain/models/preferences/trailing_directive_settings.dart';
 
 Future<({SharedPreferences preferences, ProviderContainer container})> _boot(
   Map<String, Object> initial,
@@ -122,6 +124,34 @@ void main() {
     final revived = _revive(preferences);
     addTearDown(revived.dispose);
     expect(revived.read(autoRetrySettingsProvider), saved);
+  });
+
+  test('末尾指令拒绝历史裸 JSON，并能保存和恢复内容与轮替模式', () async {
+    final (:container, :preferences) = await _boot({
+      trailingDirectiveSettingsStorageKey:
+          '{"content":"旧格式","alternatingMode":true}',
+    });
+    addTearDown(container.dispose);
+    expect(
+      container.read(trailingDirectiveSettingsProvider),
+      const TrailingDirectiveSettings(),
+    );
+
+    final controller = container.read(
+      trailingDirectiveSettingsProvider.notifier,
+    );
+    await controller.updateContent('请根据上一条消息作答');
+    await controller.setAlternatingMode(true);
+
+    final revived = _revive(preferences);
+    addTearDown(revived.dispose);
+    expect(
+      revived.read(trailingDirectiveSettingsProvider),
+      const TrailingDirectiveSettings(
+        content: '请根据上一条消息作答',
+        alternatingMode: true,
+      ),
+    );
   });
 }
 

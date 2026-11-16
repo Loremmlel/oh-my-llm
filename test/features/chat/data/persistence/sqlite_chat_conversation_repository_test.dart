@@ -89,6 +89,7 @@ void main() {
       reasoningEnabled: true,
       reasoningEffort: ReasoningEffort.high,
       autoRetryEnabled: true,
+      trailingDirectiveEnabled: true,
     );
 
     await repository.saveConversations([conversation]);
@@ -112,6 +113,7 @@ void main() {
     expect(restoredConv.reasoningEnabled, conversation.reasoningEnabled);
     expect(restoredConv.reasoningEffort, conversation.reasoningEffort);
     expect(restoredConv.autoRetryEnabled, isTrue);
+    expect(restoredConv.trailingDirectiveEnabled, isTrue);
     expect(
       restoredConv.selectedChildByParentId,
       equals(conversation.selectedChildByParentId),

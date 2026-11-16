@@ -31,7 +31,8 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
         reasoning_enabled,
         reasoning_effort,
         excluded_message_ids_json,
-        auto_retry_enabled
+        auto_retry_enabled,
+        trailing_directive_enabled
       FROM conversations
       ORDER BY updated_at DESC
     ''');
@@ -164,7 +165,8 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
         reasoning_enabled,
         reasoning_effort,
         excluded_message_ids_json,
-        auto_retry_enabled
+        auto_retry_enabled,
+        trailing_directive_enabled
       FROM conversations
       WHERE id = ?
       ''',
@@ -296,6 +298,7 @@ class SqliteChatConversationRepository implements ChatConversationRepository {
         row['excluded_message_ids_json'] as String,
       ) as List).whereType<String>().toSet().toList(growable: false),
       autoRetryEnabled: (row['auto_retry_enabled'] as int) == 1,
+      trailingDirectiveEnabled: (row['trailing_directive_enabled'] as int) == 1,
     );
   }
 

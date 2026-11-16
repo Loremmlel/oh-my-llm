@@ -13,6 +13,7 @@ import 'package:oh_my_llm/core/widgets/app_adaptive_actions.dart';
 import 'package:oh_my_llm/core/widgets/long_text_editing_controller.dart';
 import 'package:oh_my_llm/core/providers/notification_bubble_provider.dart';
 import 'package:oh_my_llm/core/widgets/notification_bubble/notification_bubble_data.dart';
+import 'package:oh_my_llm/features/settings/application/preferences/trailing_directive_settings_controller.dart';
 import 'package:oh_my_llm/features/settings/application/prompts/preset_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/application/prompts/template_prompts_controller.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/fixed_prompt_sequence.dart';
@@ -621,6 +622,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           body: built.message.content,
           images: draft.images,
           editingMessageId: _editingMessageId,
+          trailingDirective: ref.read(trailingDirectiveSettingsProvider),
         );
         final hasInput =
             built.message.content.trim().isNotEmpty || draft.images.isNotEmpty;
@@ -767,6 +769,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             : null,
         onAutoRetryEnabledChanged: (value) =>
             ref.read(chatComposerCommandProvider).setAutoRetryEnabled(value),
+        onTrailingDirectiveEnabledChanged:
+            composer.readModel.hasTrailingDirectiveContent
+            ? (value) => ref
+                  .read(chatComposerCommandProvider)
+                  .setTrailingDirectiveEnabled(value)
+            : null,
         onOpenFixedPromptSequenceRunner: () async {
           await _showFixedPromptSequenceRunnerDialog(
             context,
