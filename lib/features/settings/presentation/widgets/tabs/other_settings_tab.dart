@@ -236,6 +236,7 @@ class _TrailingDirectiveContentField extends StatefulWidget {
 class _TrailingDirectiveContentFieldState
     extends State<_TrailingDirectiveContentField> {
   late final TextEditingController _controller;
+  final List<String> _unacknowledgedLocalEdits = [];
 
   @override
   void initState() {
@@ -246,9 +247,21 @@ class _TrailingDirectiveContentFieldState
   @override
   void didUpdateWidget(covariant _TrailingDirectiveContentField oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.content != oldWidget.content &&
-        widget.content != _controller.text) {
-      _controller.text = widget.content;
+    if (widget.content == oldWidget.content) return;
+    // 本地编辑回声（包括异步落后到达的中间快照）不回写控制器，避免抹掉后续键入与光标位置。
+    final matchIndex = widget.content == _controller.text
+        ? _unacknowledgedLocalEdits.lastIndexOf(widget.content)
+        : _unacknowledgedLocalEdits.indexOf(widget.content);
+    if (matchIndex != -1) {
+      _unacknowledgedLocalEdits.removeRange(0, matchIndex + 1);
+      return;
+    }
+    _unacknowledgedLocalEdits.clear();
+    if (widget.content != _controller.text) {
+      _controller.value = TextEditingValue(
+        text: widget.content,
+        selection: TextSelection.collapsed(offset: widget.content.length),
+      );
     }
   }
 
@@ -271,7 +284,10 @@ class _TrailingDirectiveContentFieldState
         hintText: '例如：请根据上一条消息作答',
         border: OutlineInputBorder(),
       ),
-      onChanged: widget.onChanged,
+      onChanged: (value) {
+        _unacknowledgedLocalEdits.add(value);
+        widget.onChanged(value);
+      },
     );
   }
 }

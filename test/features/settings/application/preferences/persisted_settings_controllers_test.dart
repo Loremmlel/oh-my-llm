@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -153,6 +155,117 @@ void main() {
       ),
     );
   });
+
+  test('末尾指令并发更新时保留全部字段且串行落盘不被旧写入回滚', () async {
+    final store = _ControllableSettingsKeyValueStore();
+    final container = ProviderContainer(
+      overrides: [settingsKeyValueStoreProvider.overrideWithValue(store)],
+    );
+    addTearDown(container.dispose);
+
+    final controller = container.read(
+      trailingDirectiveSettingsProvider.notifier,
+    );
+    final firstWrite = controller.updateContent('请根据上一条消息作答');
+    final secondWrite = controller.updateContent('最终指令内容');
+    final thirdWrite = controller.setAlternatingMode(true);
+
+    // 持久化尚未完成时，内存 state 已同步包含全部最新字段，后续修改不会读到旧值。
+    expect(
+      container.read(trailingDirectiveSettingsProvider),
+      const TrailingDirectiveSettings(content: '最终指令内容', alternatingMode: true),
+    );
+    expect(store.pendingWriteCount, 1);
+
+    await store.completeNext(true);
+    await firstWrite;
+    await store.completeAll(true);
+    await Future.wait([secondWrite, thirdWrite]);
+
+    expect(
+      container.read(trailingDirectiveSettingsProvider),
+      const TrailingDirectiveSettings(content: '最终指令内容', alternatingMode: true),
+    );
+    final revived = ProviderContainer(
+      overrides: [settingsKeyValueStoreProvider.overrideWithValue(store)],
+    );
+    addTearDown(revived.dispose);
+    expect(
+      revived.read(trailingDirectiveSettingsProvider),
+      const TrailingDirectiveSettings(content: '最终指令内容', alternatingMode: true),
+    );
+  });
+
+  test('末尾指令 save 失败时抛出异常且不提前发布状态', () async {
+    final container = ProviderContainer(
+      overrides: [
+        settingsKeyValueStoreProvider.overrideWithValue(
+          const _RejectingSettingsKeyValueStore(),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final controller = container.read(
+      trailingDirectiveSettingsProvider.notifier,
+    );
+    await expectLater(
+      controller.save(
+        const TrailingDirectiveSettings(
+          content: '未落盘内容',
+          alternatingMode: true,
+        ),
+      ),
+      throwsA(isA<StateError>()),
+    );
+    expect(
+      container.read(trailingDirectiveSettingsProvider),
+      const TrailingDirectiveSettings(),
+    );
+  });
+}
+
+final class _ControllableSettingsKeyValueStore
+    implements SettingsKeyValueStore {
+  final Map<String, Object> _values = {};
+  final List<({String key, String value, Completer<bool> completer})> _queue =
+      [];
+
+  int get pendingWriteCount => _queue.length;
+
+  Future<void> completeNext(bool result) async {
+    final item = _queue.removeAt(0);
+    if (result) {
+      _values[item.key] = item.value;
+    }
+    item.completer.complete(result);
+    await Future<void>.delayed(Duration.zero);
+  }
+
+  Future<void> completeAll(bool result) async {
+    while (_queue.isNotEmpty) {
+      await completeNext(result);
+    }
+  }
+
+  @override
+  String? getString(String key) => _values[key] as String?;
+
+  @override
+  int? getInt(String key) => _values[key] as int?;
+
+  @override
+  Future<bool> setInt(String key, int value) async {
+    _values[key] = value;
+    return true;
+  }
+
+  @override
+  Future<bool> setString(String key, String value) {
+    final completer = Completer<bool>();
+    _queue.add((key: key, value: value, completer: completer));
+    return completer.future;
+  }
 }
 
 final class _RejectingSettingsKeyValueStore implements SettingsKeyValueStore {
