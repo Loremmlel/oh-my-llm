@@ -164,6 +164,71 @@ void main() {
         expect(find.text('gpt-4o'), findsWidgets);
       });
 
+      testWidgets('大量模型按视口构建，搜索切换后可一并提交已选模型', (tester) async {
+        final completer = Completer<List<ModelCatalogEntry>>();
+        List<ModelBatchFormData>? captured;
+        await pumpDialog(
+          tester,
+          viewportSize: const Size(390, 720),
+          onSubmit: (_) async {},
+          onBatchAdd: (items) async {
+            captured = items;
+          },
+          fetchModels: (_) => completer.future,
+        );
+
+        await switchToFetchAndClickFetch(tester);
+        completer.complete([
+          for (var i = 0; i < 300; i++)
+            ModelCatalogEntry(id: 'vendor/model-$i'),
+        ]);
+        await tester.pump();
+
+        const firstId = 'vendor/model-0';
+        const lastId = 'vendor/model-299';
+        final search = modelField('搜索模型 ID');
+        expect(find.text(firstId), findsWidgets);
+        expect(find.text(lastId), findsNothing);
+
+        final modelScroll = find
+            .descendant(
+              of: find.byType(CustomScrollView),
+              matching: find.byType(Scrollable),
+            )
+            .first;
+        final lowerModel = find.byKey(
+          const ValueKey('model-fetch-checkbox-vendor/model-12'),
+        );
+        await tester.scrollUntilVisible(
+          lowerModel,
+          350,
+          scrollable: modelScroll,
+        );
+        expect(lowerModel.hitTestable(), findsOneWidget);
+        await tester.scrollUntilVisible(search, -350, scrollable: modelScroll);
+
+        await tester.enterText(search, '  MODEL-299  ');
+        await tester.pump();
+        expect(find.text(firstId), findsNothing);
+        await tester.tap(modelCheckbox(lastId));
+        await tester.pump();
+        await tester.enterText(modelDisplayNameField(lastId), '自定义名称');
+
+        await tester.enterText(search, '无匹配');
+        await tester.pump();
+        expect(find.text('没有匹配的模型'), findsOneWidget);
+        await tester.tap(find.byTooltip('清除搜索'));
+        await tester.pump();
+        expect(find.text(lastId), findsNothing);
+        await tester.tap(modelCheckbox(firstId));
+        await tester.pump();
+
+        await tester.tap(find.text('添加所选模型'));
+        await tester.pumpAndSettle();
+        expect(captured?.map((item) => item.modelName), [firstId, lastId]);
+        expect(captured?.last.displayName, '自定义名称');
+      });
+
       testWidgets('逐模型提交深度思考能力并禁用已有模型', (tester) async {
         testProvider = const LlmProviderConfig(
           id: 'p-1',
@@ -221,15 +286,17 @@ void main() {
         await tester.pump();
         await tester.tap(modelCheckbox('reasoning-model'));
         await tester.pump();
-        await tester.tap(modelReasoningCheckbox('reasoning-model'));
-        await tester.tap(
-          find.descendant(
-            of: modelRow('reasoning-model'),
-            matching: find.byWidgetPredicate(
-              (widget) => widget is Checkbox && widget.semanticLabel == '图像',
-            ),
+        final reasoningCheckbox = modelReasoningCheckbox('reasoning-model');
+        final imageCheckbox = find.descendant(
+          of: modelRow('reasoning-model'),
+          matching: find.byWidgetPredicate(
+            (widget) => widget is Checkbox && widget.semanticLabel == '图像',
           ),
         );
+        await tester.ensureVisible(reasoningCheckbox);
+        await tester.pump();
+        await tester.tap(reasoningCheckbox);
+        await tester.tap(imageCheckbox);
         await tester.pump();
 
         await tester.tap(modelCheckbox('reasoning-model'));

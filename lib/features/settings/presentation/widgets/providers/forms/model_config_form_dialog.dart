@@ -102,10 +102,9 @@ class _ModelConfigFormDialogState extends State<ModelConfigFormDialog>
   bool get _isBatchSubmitReady {
     final section = _fetchSectionKey.currentState;
     if (section == null) return false;
-    final entries = section.entries;
-    final selected = entries.where((e) => e.selected && !e.alreadyExists);
+    final selected = section.selectedEntries;
     if (selected.isEmpty) return false;
-    return selected.every((e) => e.controller.text.trim().isNotEmpty);
+    return selected.every((e) => e.displayName.trim().isNotEmpty);
   }
 
   @override
@@ -119,35 +118,35 @@ class _ModelConfigFormDialogState extends State<ModelConfigFormDialog>
       width: 520,
       submitLabel: _mode == _FormMode.fetch ? '添加所选模型' : '保存',
       submitEnabled: _mode != _FormMode.fetch || _isBatchSubmitReady,
-      shouldScrollContent: (_) => true,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (!_isEditing) _buildModeSwitch(),
-          if (_isEditing) ...[
-            ..._buildManualForm(),
-          ] else ...[
-            // 始终构建两个区块但用 Visibility 控制可见性，
-            // 这样切换模式时 ModelFetchSection 的 State（含已拉取的模型列表）会被保留。
-            Visibility(
-              visible: _mode == _FormMode.manual,
-              maintainState: true,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: _buildManualForm(),
-              ),
+      shouldScrollContent: (_) => false,
+      child: CustomScrollView(
+        primary: false,
+        shrinkWrap: true,
+        slivers: [
+          SliverToBoxAdapter(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (!_isEditing) _buildModeSwitch(),
+                Visibility(
+                  visible: _isEditing || _mode == _FormMode.manual,
+                  maintainState: true,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: _buildManualForm(),
+                  ),
+                ),
+              ],
             ),
-            Visibility(
+          ),
+          if (!_isEditing)
+            ModelFetchSection(
+              key: _fetchSectionKey,
               visible: _mode == _FormMode.fetch,
-              maintainState: true,
-              child: ModelFetchSection(
-                key: _fetchSectionKey,
-                provider: widget.provider,
-                fetchModels: widget.fetchModels,
-                onSelectionChanged: () => setState(() {}),
-              ),
+              provider: widget.provider,
+              fetchModels: widget.fetchModels,
+              onSelectionChanged: () => setState(() {}),
             ),
-          ],
         ],
       ),
     );
@@ -246,15 +245,16 @@ class _ModelConfigFormDialogState extends State<ModelConfigFormDialog>
     final section = _fetchSectionKey.currentState;
     if (section == null) return;
 
-    final selectedEntries = section.entries.where(
-      (e) => e.selected && !e.alreadyExists,
-    );
-    if (selectedEntries.isEmpty) return;
+    final selectedEntries = section.selectedEntries;
+    if (selectedEntries.isEmpty ||
+        selectedEntries.any((e) => e.displayName.trim().isEmpty)) {
+      return;
+    }
 
     final items = selectedEntries
         .map(
           (e) => ModelBatchFormData(
-            displayName: e.controller.text.trim(),
+            displayName: e.displayName.trim(),
             modelName: e.remoteModel.id,
             supportsReasoning: e.supportsReasoning,
             supportsImageInput: e.supportsImageInput,
