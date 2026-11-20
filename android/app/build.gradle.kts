@@ -22,7 +22,7 @@ val hasReleaseSigning =
 android {
     namespace = "yuzu.shiki.oh_my_llm"
     // flutter_secure_storage 的 AAR metadata 要求 compileSdk >= 37，
-    // 高于 Flutter 模板默认的 36，此处显式覆盖（AGP 9.1.1+ 支持 API 37）。
+    // 高于当前 Flutter 模板默认的 36，此处显式覆盖。
     compileSdk = 37
     ndkVersion = flutter.ndkVersion
 

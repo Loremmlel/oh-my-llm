@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// 选中记录、用户输入和警告各有固定语义，避免借用 Material 容器色。
 @immutable

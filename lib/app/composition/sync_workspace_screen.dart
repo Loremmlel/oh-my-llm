@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform;
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:oh_my_llm/core/widgets/app_text_field.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -216,8 +216,9 @@ class _MediaRootDirectoryConfigurationState
   }
 
   Future<void> _pickDirectory() async {
-    final directory = await FilePicker.getDirectoryPath();
-    if (directory == null || !mounted) return;
+    final uri = await FilePicker.pickDirectory();
+    if (uri == null || !mounted) return;
+    final directory = uri.toFilePath(windows: true);
     _controller.text = directory;
     await ref.read(mediaRootDirectoryProvider.notifier).setDirectory(directory);
   }

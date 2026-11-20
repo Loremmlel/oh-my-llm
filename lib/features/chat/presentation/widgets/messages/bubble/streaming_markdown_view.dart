@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:oh_my_llm/core/widgets/reading_markdown_style.dart';
 import 'package:flutter_smooth_markdown/flutter_smooth_markdown.dart'
     as smooth_md;
@@ -151,10 +151,12 @@ class _StreamingMarkdownViewState extends State<StreamingMarkdownView> {
     final data = normalizedContent.isEmpty && widget.isStreaming
         ? '_正在等待模型返回内容..._'
         : normalizedContent;
-    return smooth_md.SmoothMarkdown(
-      data: data,
-      selectable: true,
-      styleSheet: readingMarkdownStyle(theme),
+    return ReadingMarkdownMaterial(
+      child: smooth_md.SmoothMarkdown(
+        data: data,
+        selectable: true,
+        styleSheet: readingMarkdownStyle(theme),
+      ),
     );
   }
 
@@ -178,15 +180,17 @@ class _StreamingMarkdownViewState extends State<StreamingMarkdownView> {
       );
     }
 
-    return smooth_md.StreamMarkdown(
-      stream: controller.stream,
-      selectable: true,
-      styleSheet: readingMarkdownStyle(theme),
-      loadingWidget: Text(
-        '正在等待模型返回内容...',
-        style: theme.textTheme.bodyLarge?.copyWith(
-          color: theme.colorScheme.onSurfaceVariant,
-          fontStyle: FontStyle.italic,
+    return ReadingMarkdownMaterial(
+      child: smooth_md.StreamMarkdown(
+        stream: controller.stream,
+        selectable: true,
+        styleSheet: readingMarkdownStyle(theme),
+        loadingWidget: Text(
+          '正在等待模型返回内容...',
+          style: theme.textTheme.bodyLarge?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+            fontStyle: FontStyle.italic,
+          ),
         ),
       ),
     );

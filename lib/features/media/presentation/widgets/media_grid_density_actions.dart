@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:oh_my_llm/core/constants/app_layout_density.dart';
@@ -67,20 +67,17 @@ class MediaGridDensityActions extends ConsumerWidget {
               ),
           ],
           child: _mode == _MediaGridDensityActionsMode.labelled
-              ? Semantics(
-                  button: true,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 12,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text('显示密度：${_label(density)}'),
-                        const Icon(Icons.arrow_drop_down),
-                      ],
-                    ),
+              ? Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 12,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('显示密度：${_label(density)}'),
+                      const Icon(Icons.arrow_drop_down),
+                    ],
                   ),
                 )
               : null,

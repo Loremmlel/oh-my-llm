@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_smooth_markdown/flutter_smooth_markdown.dart'
     as smooth_md;
@@ -127,12 +127,14 @@ class AgentStoryPanel extends ConsumerWidget {
           children: [
             Padding(
               padding: const EdgeInsets.all(AppSpacing.xs),
-              child: smooth_md.SmoothMarkdown(
-                data: round.document.content,
-                selectable: true,
-                styleSheet: readingMarkdownStyle(
-                  Theme.of(context),
-                  fontSize: 18,
+              child: ReadingMarkdownMaterial(
+                child: smooth_md.SmoothMarkdown(
+                  data: round.document.content,
+                  selectable: true,
+                  styleSheet: readingMarkdownStyle(
+                    Theme.of(context),
+                    fontSize: 18,
+                  ),
                 ),
               ),
             ),

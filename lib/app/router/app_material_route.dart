@@ -1,8 +1,7 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:go_router/go_router.dart';
 
 /// 显式使用应用的 Material 页面，让转场和系统返回共用同一套主题。
-/// go_router 的独立 Material 库无法识别本应用的 Flutter MaterialApp。
 GoRoute appMaterialRoute({
   required String path,
   String? name,

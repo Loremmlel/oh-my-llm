@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// 传输确认界面使用的摘要展示项。
 final class TransferSummaryViewItem {

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 
 /// 轻量原位反馈，文字与图标共同表达状态，不覆盖整块阅读画布。

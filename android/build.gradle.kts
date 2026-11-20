@@ -1,4 +1,9 @@
 allprojects {
+    // 通知插件在自己的 buildscript 中解析 AGP，也应使用项目配置的镜像。
+    buildscript.repositories {
+        maven { url = uri("https://maven.aliyun.com/repository/google") }
+        maven { url = uri("https://maven.aliyun.com/repository/central") }
+    }
     repositories {
         maven { url = uri("https://maven.aliyun.com/repository/google") }
         maven { url = uri("https://maven.aliyun.com/repository/central") }

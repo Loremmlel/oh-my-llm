@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 
 /// 提示词记录按自然高度排列，操作紧邻标题，不为短内容预留卡片高度。

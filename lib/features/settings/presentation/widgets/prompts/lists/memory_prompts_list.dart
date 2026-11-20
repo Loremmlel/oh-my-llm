@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../../../domain/models/prompts/memory_prompt.dart';
 import '../../shared/settings_empty_state.dart';

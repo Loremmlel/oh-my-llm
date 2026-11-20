@@ -22,14 +22,8 @@ pluginManagement {
 
 plugins {
     id("dev.flutter.flutter-plugin-loader") version "1.0.0"
-    id("com.android.application") version "9.1.1" apply false
-    id("org.jetbrains.kotlin.android") version "2.4.0" apply false
+    id("com.android.application") version "9.3.1" apply false
+    id("org.jetbrains.kotlin.android") version "2.4.20" apply false
 }
 
 include(":app")
-
-// pasteboard 0.5.0 仍直接应用旧 KGP；仅替换其构建配置，复用原包源码。
-// 上游支持 built-in Kotlin 后升级依赖并删除此处与 android/pasteboard/。
-val pasteboardProject = project(":pasteboard")
-gradle.extra["pasteboardSources"] = pasteboardProject.projectDir.resolve("src/main")
-pasteboardProject.projectDir = file("pasteboard")

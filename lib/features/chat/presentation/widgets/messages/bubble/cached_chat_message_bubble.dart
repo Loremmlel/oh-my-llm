@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 
 import '../../../../domain/models/chat_message.dart';
 import 'chat_message_bubble.dart';

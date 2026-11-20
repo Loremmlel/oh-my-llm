@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 
 /// 设置记录共用列对齐和行分隔；窄屏由所属列表提供保留全部操作的替代布局。
