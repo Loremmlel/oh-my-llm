@@ -23,7 +23,7 @@ lib/
 
 ## 启动与持久化分工
 
-修改 [bootstrap.dart](bootstrap.dart) 时保留初始化顺序：binding → Windows window runtime（仅 Windows）→ SharedPreferences → AppDatabase → 依赖数据库目录的 AppNetworkLogger → `onAppLaunch()` → `runApp(ProviderScope(...))`。生产 Windows runtime 调用 `windowManager.ensureInitialized()`。
+修改 [bootstrap.dart](bootstrap.dart) 时保留初始化顺序：binding → Windows window runtime（仅 Windows）→ SharedPreferences → AppDatabase → 依赖数据库目录的 AppNetworkLogger → `onAppLaunch()` → `runApp(ProviderScope(...))`。生产 Windows runtime 通过 `WindowManager.instance.getCurrent()` 加载。
 
 测试注入参数及约束以该函数 doc comment 为入口：`sharedPreferences`、`database`、`networkLogger`、`windowsWindowInitializer`、`hostPlatform`。生产传 null 获取真实实例；测试用显式 hostPlatform 和 no-op window initializer，不改全局平台状态。database / logger 成对注入，不应让测试 logger 按数据库路径自动落盘。日志为 `{db_parent}/network.log`，10 MB 滚动；Provider overrides 统一注入 preferences、database、logger、custom headers map。
 

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:oh_my_llm/core/widgets/llm_usage_widgets.dart';
 
 import '../../../../application/workspace/chat_workspace_composer_state.dart';

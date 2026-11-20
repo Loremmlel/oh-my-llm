@@ -1,6 +1,6 @@
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 
 /// 短表单字段按内容需要限宽，窄容器内自动换行；长正文应放在组外。

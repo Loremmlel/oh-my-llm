@@ -1,7 +1,12 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:oh_my_llm/core/widgets/app_dropdown_field.dart';
 import 'package:oh_my_llm/core/widgets/app_field_group.dart';
+
+// SDK 的 byTooltip 通过语义查找独立包提示，选中值主动关闭了重复的语义播报。
+Finder _selectedValueTooltip(String text) => find
+    .byWidgetPredicate((widget) => widget is Tooltip && widget.message == text)
+    .hitTestable();
 
 void main() {
   testWidgets('统一下拉箭头仍保留字段帮助与选项选择入口', (tester) async {
@@ -99,7 +104,7 @@ void main() {
     await tester.tap(find.text('第二服务商').last);
     await tester.pumpAndSettle();
     expect(selected, 'second');
-    expect(find.byTooltip('第二服务商').hitTestable(), findsOneWidget);
+    expect(_selectedValueTooltip('第二服务商'), findsOneWidget);
     expect(formKey.currentState!.validate(), isTrue);
     expect(tester.takeException(), isNull);
   });
@@ -129,7 +134,7 @@ void main() {
     update(() => selected = 'second');
     await tester.pump();
     expect(find.text('第二个完整的长名称').hitTestable(), findsOneWidget);
-    expect(find.byTooltip('第二个完整的长名称').hitTestable(), findsOneWidget);
+    expect(_selectedValueTooltip('第二个完整的长名称'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

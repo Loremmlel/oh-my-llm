@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../../domain/chat_conversation_groups.dart';
 import '../../../domain/models/chat_conversation_summary.dart';

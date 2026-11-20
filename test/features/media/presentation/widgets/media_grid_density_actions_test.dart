@@ -1,6 +1,6 @@
 import 'dart:ui' show Tristate;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -103,6 +103,8 @@ void main() {
         hasTapAction: true,
         isFocusable: true,
         hasFocusAction: true,
+        hasEnabledState: true,
+        isEnabled: true,
         hasExpandedState: true,
         tooltip: '显示密度',
       ),

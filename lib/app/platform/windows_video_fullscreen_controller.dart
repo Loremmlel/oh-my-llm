@@ -5,7 +5,7 @@ import 'package:oh_my_llm/features/media/presentation/pages/video_player_platfor
 
 /// 测试化的窗口全屏网关：把 [VideoFullscreenController] 与 window_manager 插件解耦。
 ///
-/// 生产实现包装 windowManager 并注册/反注册自身为 [WindowListener]；测试提供
+/// 生产实现通过 [Window] 监听原生全屏事件；测试提供
 /// Fake 记录调用并控制单个在途命令。插件类型只允许出现在 app/platform 与
 /// bootstrap 初始化路径，media presentation 不 import 本接口。
 abstract interface class WindowsVideoWindowGateway {
@@ -47,14 +47,19 @@ void reportVideoWindowError(
 /// 生产窗口网关：包装 window_manager，把原生窗口事件转发为 presentation-neutral
 /// 的布尔回调。
 final class WindowManagerVideoWindowGateway
-    with WindowListener
     implements WindowsVideoWindowGateway {
   final _listeners = <ValueChanged<bool>>{};
+  Window? _window;
+  ListenerId? _nativeListenerId;
+
+  Window get _currentWindow => _window ??=
+      WindowManager.instance.getCurrent() ??
+      (throw StateError('找不到当前 Windows 窗口'));
 
   @override
   void addFullscreenListener(ValueChanged<bool> listener) {
     if (_listeners.isEmpty) {
-      windowManager.addListener(this);
+      _nativeListenerId = _currentWindow.addListener(_onWindowEvent);
     }
     _listeners.add(listener);
   }
@@ -63,23 +68,33 @@ final class WindowManagerVideoWindowGateway
   void removeFullscreenListener(ValueChanged<bool> listener) {
     _listeners.remove(listener);
     if (_listeners.isEmpty) {
-      windowManager.removeListener(this);
+      _removeNativeListener();
     }
   }
 
   @override
   void dispose() {
-    if (_listeners.isNotEmpty) {
-      windowManager.removeListener(this);
-      _listeners.clear();
-    }
+    _removeNativeListener();
+    _listeners.clear();
   }
 
-  @override
-  void onWindowEnterFullScreen() => _emit(true);
+  void _removeNativeListener() {
+    final id = _nativeListenerId;
+    if (id == null) return;
+    _currentWindow.removeListener(id);
+    _nativeListenerId = null;
+  }
 
-  @override
-  void onWindowLeaveFullScreen() => _emit(false);
+  void _onWindowEvent(WindowEvent event) {
+    switch (event) {
+      case WindowEnteredFullScreenEvent():
+        _emit(true);
+      case WindowExitedFullScreenEvent():
+        _emit(false);
+      default:
+        break;
+    }
+  }
 
   void _emit(bool value) {
     for (final listener in List<ValueChanged<bool>>.of(_listeners)) {
@@ -88,10 +103,11 @@ final class WindowManagerVideoWindowGateway
   }
 
   @override
-  Future<bool> isFullScreen() => windowManager.isFullScreen();
+  Future<bool> isFullScreen() async => _currentWindow.isFullScreen;
 
   @override
-  Future<void> setFullScreen(bool value) => windowManager.setFullScreen(value);
+  Future<void> setFullScreen(bool value) async =>
+      _currentWindow.isFullScreen = value;
 }
 
 /// Windows 原生全屏会话：实现 presentation 的 [VideoFullscreenController] 窄端口。

@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:window_manager/window_manager.dart';
@@ -25,9 +25,9 @@ import 'features/settings/application/preferences/custom_headers_controller.dart
 /// Windows 窗口 runtime 初始化器：仅在 Windows 平台生产 bootstrap 调用一次。
 typedef WindowsWindowInitializer = Future<void> Function();
 
-/// 初始化 window_manager 插件 runtime；测试注入 no-op 以避免依赖原生插件注册。
+/// 加载 Windows 窗口运行时；测试注入 no-op 以避免调用原生窗口 API。
 Future<void> initializeWindowsVideoWindowRuntime() async {
-  await windowManager.ensureInitialized();
+  WindowManager.instance.getCurrent();
 }
 
 /// 应用启动入口：初始化持久化层，最后启动 Flutter 应用。

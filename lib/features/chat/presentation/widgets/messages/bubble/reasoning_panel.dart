@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'package:oh_my_llm/core/constants/app_animations.dart';
 
@@ -62,11 +62,14 @@ class _ReasoningPanelState extends State<ReasoningPanel> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Semantics(
+          container: true,
           label: '深度思考',
           button: true,
           expanded: _expanded,
           hint: _expanded ? '激活以收起' : '激活以展开',
+          onTap: _toggleExpanded,
           child: InkWell(
+            excludeFromSemantics: true,
             focusColor: theme.colorScheme.primary.withValues(alpha: 0.12),
             onTap: _toggleExpanded,
             child: Padding(

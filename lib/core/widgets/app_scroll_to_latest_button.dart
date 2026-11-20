@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Chat 与 Agent 共用的轻量返回最新入口。
 class AppScrollToLatestButton extends StatelessWidget {

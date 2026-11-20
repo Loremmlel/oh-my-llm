@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 
 /// 标签始终位于字段上方；不随焦点浮动，也不切开输入边框。

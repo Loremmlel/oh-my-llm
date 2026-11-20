@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'package:oh_my_llm/core/widgets/dialogs/detail_display_dialog.dart';
 import 'package:oh_my_llm/features/settings/domain/models/prompts/preset_prompt.dart';

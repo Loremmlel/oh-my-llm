@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:oh_my_llm/core/widgets/app_selection_toolbar.dart';
 
 /// 收藏列表选择模式的固定工具栏。

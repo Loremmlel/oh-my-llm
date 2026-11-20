@@ -22,9 +22,15 @@ jobs:
 
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.47.1'
+          flutter-version: '3.50.1'
           channel: stable
           cache: true
+
+      # window_manager 的 nativeapi 构建钩子也会在 Linux 上为测试编译原生库。
+      - name: install native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libx11-dev libxi-dev
 
       - run: flutter pub get
 

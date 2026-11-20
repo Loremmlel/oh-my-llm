@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:oh_my_llm/core/widgets/app_inline_notice.dart';
 
 /// 聊天消息气泡内的内联错误提示卡片。

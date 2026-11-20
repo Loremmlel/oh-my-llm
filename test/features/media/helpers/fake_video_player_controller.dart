@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:video_player/video_player.dart';
 
 /// 用于测试的 Fake VideoPlayerController。

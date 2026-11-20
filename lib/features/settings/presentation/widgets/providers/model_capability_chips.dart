@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 
 /// 能力在列表与批量导入中同排呈现，保留 Material 的键盘、选中态与触摸命中区。

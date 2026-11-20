@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// 阅读工作区的下划线标签，共用原生按钮的键盘、焦点与禁用行为。
 class AppTextTab extends StatelessWidget {

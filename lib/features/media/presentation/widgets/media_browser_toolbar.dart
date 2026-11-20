@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:oh_my_llm/core/constants/app_breakpoints.dart';
 import 'package:oh_my_llm/core/constants/app_layout_tokens.dart';
 

@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:oh_my_llm/core/theme/app_ui_colors.dart';
 import 'package:oh_my_llm/core/widgets/app_scroll_to_latest_button.dart';
 import 'package:flutter_smooth_markdown/flutter_smooth_markdown.dart'
@@ -475,10 +475,12 @@ class _AgentMarkdown extends StatelessWidget {
   const _AgentMarkdown({required this.content});
   final String content;
   @override
-  Widget build(BuildContext context) => smooth_md.SmoothMarkdown(
-    data: content,
-    selectable: true,
-    styleSheet: readingMarkdownStyle(Theme.of(context)),
+  Widget build(BuildContext context) => ReadingMarkdownMaterial(
+    child: smooth_md.SmoothMarkdown(
+      data: content,
+      selectable: true,
+      styleSheet: readingMarkdownStyle(Theme.of(context)),
+    ),
   );
 }
 

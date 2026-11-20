@@ -74,7 +74,7 @@ void main() {
         (_, _) {},
       );
       addTearDown(() async {
-        if (container.exists(syncServerControllerProvider)) {
+        if (container.read(syncServerControllerProvider.exists)) {
           await container.read(syncServerControllerProvider.notifier).stop();
         }
         subscription.close();
@@ -100,11 +100,11 @@ void main() {
 
       subscription.close();
       await container.pump();
-      expect(container.exists(syncServerControllerProvider), isTrue);
+      expect(container.read(syncServerControllerProvider.exists), isTrue);
 
       await controller.stop();
       await container.pump();
-      expect(container.exists(syncServerControllerProvider), isTrue);
+      expect(container.read(syncServerControllerProvider.exists), isTrue);
       expect(container.read(syncServerControllerProvider).isRunning, isFalse);
       container.dispose();
     });
@@ -199,7 +199,7 @@ void main() {
 
       subscription.close();
       await container.pump();
-      expect(container.exists(syncServerControllerProvider), isTrue);
+      expect(container.read(syncServerControllerProvider.exists), isTrue);
       container.dispose();
     });
 

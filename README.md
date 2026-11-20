@@ -57,7 +57,7 @@
 
 ## 本地运行
 
-使用 Flutter 3.47.x stable（CI 固定 3.47.1），Dart 要求 `^3.13.1`。
+使用 Flutter 3.50.1 stable（CI 同版本），Dart 要求 `^3.14.0`。
 
 - **Windows**：安装 Visual Studio 2022，并启用「使用 C++ 的桌面开发」工作负载。
 - **Android**：安装 Android SDK；打包脚本还需要 JDK 的 `keytool`。
