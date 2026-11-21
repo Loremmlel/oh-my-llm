@@ -71,6 +71,15 @@ android {
                 }
         }
     }
+
+    packaging {
+        jniLibs {
+            // 自用/侧载 APK 优先控制安装包体积：以安装后解压空间换取 .so 压缩收益。
+            useLegacyPackaging = true
+            // window_manager 仅在 Windows 路径调用，其传递依赖 cnativeapi 的原生库在 Android 上不会加载。
+            excludes += "**/libcnativeapi.so"
+        }
+    }
 }
 
 flutter {

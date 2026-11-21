@@ -79,11 +79,11 @@ flutter run -d windows
 # Windows 压缩包 → artifacts/windows/
 .\build-windows-release.ps1
 
-# Android APK → artifacts/android/
+# Android APK（默认 arm64-v8a；可选 -AbiMode split | universal）→ artifacts/android/
 .\build-android-apk.ps1
 ```
 
-脚本从 `pubspec.yaml` 读取版本号，产物命名为 `oh_my_llm-{platform}-{version}`。Android 脚本首次运行会生成自签名 keystore。
+脚本从 `pubspec.yaml` 读取版本号，产物前缀为 `oh_my_llm-{platform}-{version}`。双端发布脚本均默认启用 Dart 混淆与调试符号拆分；Android 脚本默认构建 `arm64-v8a` 单包，首次运行会生成自签名 keystore。
 
 ## 开发与反馈
 
