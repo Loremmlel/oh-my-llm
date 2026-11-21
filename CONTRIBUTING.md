@@ -45,7 +45,7 @@ flutter run -d windows
 | 命令 | 结果 |
 | --- | --- |
 | `.\build-windows-release.ps1` | `artifacts/windows/oh_my_llm-windows-{version}.zip` |
-| `.\build-android-apk.ps1` | APK 写入 `artifacts/android/`；首次自动生成 `android/app/self-use-release.jks` |
+| `.\build-android-apk.ps1` | 默认构建 `arm64-v8a` APK 写入 `artifacts/android/`（启用 `.so` 压缩、Dart 混淆与符号拆分至 `build/app/outputs/symbols/`）；可选 `-AbiMode split`（三架构分包）或 `-AbiMode universal`（全架构单包）；首次自动生成 `android/app/self-use-release.jks` |
 | `.\scripts\bump-version.ps1 -Minor` / `-Major` | 手动升 minor / major |
 
 脚本日志分别写入 `logs/build-windows.log`、`logs/build-android.log`；直接执行 `flutter build windows --release` / `flutter build apk --release` 时同样落盘日志。产物前缀固定为 `oh_my_llm-{platform}-{version}`，版本从 `pubspec.yaml` 读取；品牌与持久化身份约束见 [AGENTS.md](AGENTS.md)。

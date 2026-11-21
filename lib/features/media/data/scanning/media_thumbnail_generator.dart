@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
+import 'dart:typed_data';
 
 import 'package:image/image.dart' as img;
 
@@ -74,7 +75,9 @@ class MediaThumbnailGenerator {
   Future<List<int>> _generateImageThumbnail(String resolvedPath) {
     return Isolate.run<List<int>>(() {
       final bytes = File(resolvedPath).readAsBytesSync();
-      final decoded = img.decodeImage(bytes);
+      // 仅绑定 imageExtensions 支持的四种格式解码器，避免 img.decodeImage 把
+      // TIFF/PSD/EXR 等无关纯 Dart 解码器全部打进 AOT 快照。
+      final decoded = _decodeSupportedImage(bytes);
       if (decoded == null) {
         throw ThumbnailException('无法解码图片: $resolvedPath');
       }
@@ -263,4 +266,20 @@ class ThumbnailException implements Exception {
 
   @override
   String toString() => 'ThumbnailException: $message';
+}
+
+/// 仅按 `imageExtensions` 对应的四种格式解码，避免引入 `package:image` 其余格式解码器。
+img.Image? _decodeSupportedImage(Uint8List bytes) {
+  final decoders = <img.Decoder>[
+    img.PngDecoder(),
+    img.JpegDecoder(),
+    img.GifDecoder(),
+    img.WebPDecoder(),
+  ];
+  for (final decoder in decoders) {
+    if (decoder.isValidFile(bytes)) {
+      return decoder.decode(bytes);
+    }
+  }
+  return null;
 }
