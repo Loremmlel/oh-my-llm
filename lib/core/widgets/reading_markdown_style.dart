@@ -1,6 +1,9 @@
-// flutter_smooth_markdown 0.10 的折叠块仍使用 SDK Material 的 InkWell。
+// flutter_smooth_markdown 0.10 仍使用旧版 SDK Material 的 InkWell 与选区控件。
 // ignore: deprecated_member_use
-import 'package:flutter/material.dart' as legacy show Material, MaterialType;
+import 'package:flutter/material.dart'
+    as legacy
+    show Material, MaterialLocalizations, MaterialType;
+import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_smooth_markdown/flutter_smooth_markdown.dart';
 
@@ -31,8 +34,50 @@ MarkdownStyleSheet readingMarkdownStyle(ThemeData theme, {double? fontSize}) {
   );
 }
 
-/// 为 Markdown 选择菜单和折叠块提供旧版主题、本地化和墨水层。
-/// 上游改用 material_ui 后删掉此包装；Markdown 折叠块用例覆盖这条路径。
+/// 使用 `material_ui` 构建 Markdown 选择菜单，避免挂到顶层 Overlay 时依赖旧版
+/// SDK 的 `MaterialLocalizations`，并保留过滤非文本占位行的复制行为。
+Widget readingMarkdownContextMenuBuilder(
+  BuildContext context,
+  SmoothSelectionRegionState selectableRegionState,
+) {
+  return AdaptiveTextSelectionToolbar.buttonItems(
+    anchors: selectableRegionState.contextMenuAnchors,
+    buttonItems: selectableRegionState.contextMenuButtonItems
+        .map((item) {
+          if (item.type == ContextMenuButtonType.copy) {
+            final originalOnPressed = item.onPressed;
+            return ContextMenuButtonItem(
+              label: item.label,
+              type: ContextMenuButtonType.copy,
+              onPressed: () {
+                originalOnPressed?.call();
+                _scheduleMarkdownClipboardFilter();
+              },
+            );
+          }
+          return item;
+        })
+        .toList(growable: false),
+  );
+}
+
+void _scheduleMarkdownClipboardFilter() {
+  WidgetsBinding.instance.addPostFrameCallback((_) async {
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    final text = data?.text;
+    if (text == null) return;
+    final filtered = text
+        .split('\n')
+        .where((line) => !RegExp(r'^\u00A0+$').hasMatch(line))
+        .join('\n');
+    if (filtered != text) {
+      await Clipboard.setData(ClipboardData(text: filtered));
+    }
+  });
+}
+
+/// 为 Markdown 折叠块提供旧版墨水层；脱离应用根桥接时按需补齐旧版主题与本地化。
+/// 上游改用 material_ui 后删掉此包装；Markdown 折叠块与长按选择用例覆盖这条路径。
 class ReadingMarkdownMaterial extends StatelessWidget {
   const ReadingMarkdownMaterial({super.key, required this.child});
 
@@ -40,12 +85,20 @@ class ReadingMarkdownMaterial extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // ignore: deprecated_member_use
-    return MaterialUiCompatibilityBridge(
-      child: legacy.Material(
-        type: legacy.MaterialType.transparency,
-        child: child,
-      ),
+    final material = legacy.Material(
+      type: legacy.MaterialType.transparency,
+      child: child,
     );
+    final hasLegacyLocalizations =
+        Localizations.of<legacy.MaterialLocalizations>(
+          context,
+          legacy.MaterialLocalizations,
+        ) !=
+        null;
+    if (hasLegacyLocalizations) {
+      return material;
+    }
+    // ignore: deprecated_member_use
+    return MaterialUiCompatibilityBridge(child: material);
   }
 }

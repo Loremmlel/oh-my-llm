@@ -479,6 +479,7 @@ class _AgentMarkdown extends StatelessWidget {
     child: smooth_md.SmoothMarkdown(
       data: content,
       selectable: true,
+      contextMenuBuilder: readingMarkdownContextMenuBuilder,
       styleSheet: readingMarkdownStyle(Theme.of(context)),
     ),
   );
