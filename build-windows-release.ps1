@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
   [string]$OutputDir = "artifacts\windows"
 )
@@ -71,6 +71,25 @@ function Publish-WindowsArtifact {
   New-Item -ItemType Directory -Path $stagingRoot -Force | Out-Null
   try {
     Copy-Item -Path $ReleaseDirectory -Destination $stagedLatest -Recurse
+
+    # 剔除 Windows 运行时实际不会加载的随包 DLL：
+    # - vk_swiftshader.dll / vulkan-1.dll / zlib.dll：media_kit_libs_windows_video 整包附带的
+    #   ANGLE Vulkan/SwiftShader 辅助库；media_kit_video 的 ANGLESurfaceManager 仅使用 D3D11/D3D9/WARP，
+    #   且 libGLESv2.dll / libEGL.dll / libmpv-2.dll 均无对它们的静态依赖。
+    # - dartjni.dll：Android 插件传递依赖 jni 编出的 FFI 库，Windows 路径不会调用。
+    $unusedDlls = @(
+      "vk_swiftshader.dll",
+      "vulkan-1.dll",
+      "zlib.dll",
+      "dartjni.dll"
+    )
+    foreach ($dllName in $unusedDlls) {
+      $dllPath = Join-Path $stagedLatest $dllName
+      if (Test-Path -LiteralPath $dllPath) {
+        Remove-Item -LiteralPath $dllPath
+      }
+    }
+
     Compress-Archive -Path $stagedLatest -DestinationPath $stagedZip
 
     # 查询失败或已有实例时均在修改公开目录前退出。
@@ -115,18 +134,24 @@ $artifactRoot = Join-Path $repoRoot $OutputDir
 $latestDir = Join-Path $artifactRoot "oh_my_llm-windows-latest"
 $zipPath = Join-Path $artifactRoot "oh_my_llm-windows-$safeVersion.zip"
 $releaseDir = Join-Path $repoRoot "build\windows\x64\runner\Release"
+$symbolDir = Join-Path $repoRoot "build\windows\x64\symbols"
 
 Assert-LatestArtifactNotRunning -LatestDirectory $latestDir
 
 Write-Host "==> 准备 Windows Release 构建"
 Push-Location $repoRoot
 try {
+  # 构建前清理旧 Release 输出目录，避免升级 Flutter 或依赖后残留旧插件 DLL 与过时资源。
+  if (Test-Path -LiteralPath $releaseDir) {
+    Remove-Item -LiteralPath $releaseDir -Recurse -Force
+  }
+
   & flutter pub get
   if ($LASTEXITCODE -ne 0) {
     throw "flutter pub get 执行失败。"
   }
 
-  & flutter build windows --release
+  & flutter build windows --release --obfuscate "--split-debug-info=$symbolDir"
   if ($LASTEXITCODE -ne 0) {
     throw "flutter build windows --release 执行失败。"
   }
@@ -152,7 +177,11 @@ Get-ChildItem -Path $artifactRoot -Directory -Filter "oh_my_llm-windows-*" -Erro
   Where-Object { $_.FullName -ne $latestDir } |
   Remove-Item -Recurse -Force
 
+$zipSizeMiB = [math]::Round(((Get-Item $zipPath).Length / 1MB), 2)
+$dirSizeMiB = [math]::Round((((Get-ChildItem -Path $latestDir -Recurse -File | Measure-Object Length -Sum).Sum) / 1MB), 2)
+
 Write-Host ""
 Write-Host "Windows Release 输出："
-Write-Host "  latest 文件夹: $latestDir"
-Write-Host "  版本压缩包:    $zipPath"
+Write-Host "  latest 文件夹: $latestDir ($dirSizeMiB MiB)"
+Write-Host "  版本压缩包:    $zipPath ($zipSizeMiB MiB)"
+Write-Host "  Dart 调试符号: $symbolDir"
