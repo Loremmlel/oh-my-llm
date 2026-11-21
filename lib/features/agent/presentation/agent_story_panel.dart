@@ -131,6 +131,7 @@ class AgentStoryPanel extends ConsumerWidget {
                 child: smooth_md.SmoothMarkdown(
                   data: round.document.content,
                   selectable: true,
+                  contextMenuBuilder: readingMarkdownContextMenuBuilder,
                   styleSheet: readingMarkdownStyle(
                     Theme.of(context),
                     fontSize: 18,

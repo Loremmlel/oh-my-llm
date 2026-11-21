@@ -155,6 +155,7 @@ class _StreamingMarkdownViewState extends State<StreamingMarkdownView> {
       child: smooth_md.SmoothMarkdown(
         data: data,
         selectable: true,
+        contextMenuBuilder: readingMarkdownContextMenuBuilder,
         styleSheet: readingMarkdownStyle(theme),
       ),
     );
@@ -184,6 +185,7 @@ class _StreamingMarkdownViewState extends State<StreamingMarkdownView> {
       child: smooth_md.StreamMarkdown(
         stream: controller.stream,
         selectable: true,
+        contextMenuBuilder: readingMarkdownContextMenuBuilder,
         styleSheet: readingMarkdownStyle(theme),
         loadingWidget: Text(
           '正在等待模型返回内容...',

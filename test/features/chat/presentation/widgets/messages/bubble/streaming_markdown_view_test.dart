@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -38,5 +39,18 @@ void main() {
 
     expect(find.text('第一段第二段'), findsOneWidget);
     expect(find.text('第二段'), findsNothing);
+  });
+
+  testWidgets('Android 长按框选 Markdown 正文时选择菜单正常弹出且不抛异常', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+
+    await tester.pumpWidget(_wrap('这是一段用于验证长按框选的助手回复正文', isStreaming: false));
+    await tester.pumpAndSettle();
+
+    await tester.longPress(find.text('这是一段用于验证长按框选的助手回复正文'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Copy'), findsOneWidget);
   });
 }

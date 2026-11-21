@@ -49,8 +49,11 @@ class _OhMyLlmAppState extends ConsumerState<OhMyLlmApp> {
       themeMode: ThemeMode.system,
       routerConfig: router,
       builder: (context, child) {
-        final content = Stack(
-          children: [child!, const NotificationBubbleStack()],
+        // flutter_smooth_markdown 0.10 的选择手柄与浮层仍使用旧版 SDK Material，
+        // 挂在顶层 Overlay 上，必须在 Navigator/Overlay 之上桥接旧版主题与本地化。
+        // ignore: deprecated_member_use
+        final content = MaterialUiCompatibilityBridge(
+          child: Stack(children: [child!, const NotificationBubbleStack()]),
         );
         // 仅 Windows 宿主把鼠标后退侧键与 browserBack 翻译成 dispatcher 的
         // 返回请求；其余平台沿用系统返回通道，不新增键盘/指针适配。
